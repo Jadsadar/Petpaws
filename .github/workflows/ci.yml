@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# push ใหม่เข้า branch/PR เดิม ให้ยกเลิกรอบเก่าที่ยังรันไม่เสร็จ ไม่ต้องรอผลที่ล้าสมัยแล้ว
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (NestJS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend/api
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/api/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  mobile:
+    name: Mobile (Flutter)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.3
+          cache: true
+
+      - name: Install
+        run: flutter pub get --enforce-lockfile
+
+      # ยังไม่ fail ที่ระดับ info เพราะมีคำเตือน deprecated ค้างอยู่ 10 จุดในหน้าจอเดิม
+      # ระดับ warning และ error ยังทำให้ CI แดงตามปกติ
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Unit test
+        run: flutter test
