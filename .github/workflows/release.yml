@@ -5,7 +5,11 @@ name: Release
 # workflow_dispatch ไว้ให้กดรันเองได้ เผื่อต้องทดสอบหรือออก release ซ้ำโดยไม่ต้อง push ใหม่
 on:
   push:
-    branches: [main]
+    # TODO-TEST: มี ci/release-apk ต่อท้ายไว้ชั่วคราวเพื่อทดสอบก่อน merge เข้า main
+    # (ปุ่ม Run workflow กดเองไม่ได้จนกว่าไฟล์นี้จะเข้า main ก่อน — ข้อจำกัดของ GitHub)
+    # ลบ ci/release-apk ออกก่อน merge จริงเสมอ ไม่งั้นทุก push เข้า branch นี้จะสร้าง
+    # release ซ้ำโดยไม่ตั้งใจ
+    branches: [main, ci/release-apk]
   workflow_dispatch:
 
 permissions:
