@@ -1,0 +1,15 @@
+# gradlew, gradlew.bat และ gradle-wrapper.jar ต้อง commit เข้า git เสมอ (ตาม
+# คำแนะนำของ Gradle เอง) — ไม่งั้น CI จะ build APK ไม่ได้เลย เพราะไฟล์เหล่านี้คือ
+# ตัวเริ่มต้นที่ทำให้ build ได้โดยไม่ต้องติดตั้ง Gradle เอง ไม่ใช่ของที่โหลดทีหลังได้
+# (Flutter สร้างเทมเพลตมาให้ gitignore ไว้ ซึ่งขัดกับคำแนะนำของ Gradle จึงตัดออก)
+/.gradle
+/captures/
+/local.properties
+GeneratedPluginRegistrant.java
+.cxx/
+
+# Remember to never publicly share your keystore.
+# See https://flutter.dev/to/reference-keystore
+key.properties
+**/*.keystore
+**/*.jks

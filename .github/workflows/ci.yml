@@ -66,6 +66,18 @@ jobs:
       - name: Unit test
         run: flutter test
 
+      # ubuntu-latest ของ GitHub มี Android SDK ติดตั้งมาให้ล่วงหน้าอยู่แล้ว ไม่ต้อง
+      # setup เพิ่ม — build debug (ไม่เซ็นด้วย keystore) แค่พิสูจน์ว่า pipeline
+      # ทั้งเส้นทำงานได้จริง ส่วน release ที่เซ็นแล้วสำหรับแจกจริงทำในขั้น Release ต่างหาก
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: petpaws-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 14
+
   security:
     name: Security scan
     runs-on: ubuntu-latest
