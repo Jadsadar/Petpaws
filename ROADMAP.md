@@ -219,7 +219,7 @@ SKILL.md กำหนดไว้ละเอียดมาก ต้องท�
 | 7.5 | `POST /conversations/:id/read` | เรียกฟังก์ชัน `mark_conversation_read()` |
 | 7.6 | ✅ **WebSocket gateway** (#24) | namespace `/chat` · ตรวจ JWT เป็น middleware ตอน handshake (token ผิด → `connect_error: unauthorized` แอปใช้แยกจากเน็ตหลุดแล้ว refresh เอง) · ห้อง `user:{id}` (เข้าอัตโนมัติ) + `conversation:{id}` (ต้อง `join` ผ่านการตรวจคู่สนทนา) · event: `message`, `read`, `typing`, `notification` · การส่ง/อ่านยังผ่าน REST เดิมทั้งหมด รูปแบบ response ไม่เปลี่ยน |
 | 7.7 | ⏳ **Redis adapter** | ยังไม่ทำ — ตอนนี้ถูกต้องเฉพาะ API instance เดียว ถ้ารันหลาย instance ต้องเพิ่ม `@socket.io/redis-adapter` ไม่งั้นข้อความข้ามเครื่องไม่ถึงกัน |
-| 7.8 | ✅ รื้อ `chat_screen.dart` + `chat_inbox_screen.dart` (#25) | REST โหลดประวัติครั้งแรก + WS อัปเดตสด ไม่ poll แล้ว · reconnect อัตโนมัติ + ดึง REST ซ้ำหลังต่อใหม่ · โชว์ "กำลังพิมพ์..." / "อ่านแล้ว" (สถานะอ่านมาจาก event สดเท่านั้น ประวัติเก่าไม่มีเพราะ REST เดิมไม่ส่ง `read_at`) |
+| 7.8 | ✅ รื้อ `chat_screen.dart` + `chat_inbox_screen.dart` (#25) | REST โหลดประวัติครั้งแรก + WS อัปเดตสด ไม่ poll แล้ว · reconnect อัตโนมัติ + ดึง REST ซ้ำหลังต่อใหม่ · โชว์ "กำลังพิมพ์..." / "อ่านแล้ว" (สถานะอ่านเก็บถาวรจาก `messages.read_at` — `GET /chats/:id/messages` ส่ง `readAt` เพิ่มมา แล้ว event `read` เติมระหว่างเปิดห้อง) |
 
 ---
 

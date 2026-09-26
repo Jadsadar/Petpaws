@@ -80,6 +80,10 @@ class ChatService {
   ///
   /// ข้อความของอีกฝ่ายที่เข้ามาระหว่างเปิดห้องอยู่ = อ่านแล้ว mark read ให้เลย
   /// อีกฝ่ายจะเห็น "อ่านแล้ว" และ badge ของเราไม่ขึ้น
+  ///
+  /// สถานะอ่านอยู่ที่ `readAt` ของแต่ละข้อความ: ค่าเริ่มมาจาก REST (DB เก็บไว้ถาวร)
+  /// แล้ว event 'read' เติมลงข้อความของเราที่ส่งก่อนเวลานั้น — อยู่ใน list เดียวกับ
+  /// ข้อความ จึงไม่หายตอนหน้าจอ rebuild หรือออกแล้วเข้าห้องใหม่
   Stream<List<Map<String, dynamic>>> watchMessages(String chatId, {required String myUid}) {
     final byId = <String, Map<String, dynamic>>{};
     final subs = <StreamSubscription>[];
@@ -112,6 +116,24 @@ class ChatService {
             byId[e.data['id'] as String] = e.data;
             publish();
             if (e.data['senderId'] != myUid) markRead(chatId).catchError((_) {});
+          }))
+          ..add(_socket.events
+              .where((e) =>
+                  e.name == 'read' &&
+                  e.data['conversationId'] == chatId &&
+                  e.data['userId'] != myUid)
+              .listen((e) {
+            final readAt = DateTime.parse(e.data['readAt'] as String);
+            for (final m in byId.values) {
+              final sentAt = DateTime.tryParse('${m['createdAt']}');
+              if (m['senderId'] == myUid &&
+                  m['readAt'] == null &&
+                  sentAt != null &&
+                  !sentAt.isAfter(readAt)) {
+                m['readAt'] = e.data['readAt'];
+              }
+            }
+            publish();
           }))
           ..add(_socket.onConnect.listen((_) => load()));
         load();
@@ -153,12 +175,6 @@ class ChatService {
       .where((e) =>
           e.name == 'typing' && e.data['conversationId'] == chatId && e.data['userId'] != myUid)
       .map((e) => e.data['isTyping'] == true);
-
-  /// อีกฝ่ายอ่านข้อความในห้องถึงเวลาไหนแล้ว
-  Stream<DateTime> otherReadAt(String chatId, {required String myUid}) => _socket.events
-      .where((e) =>
-          e.name == 'read' && e.data['conversationId'] == chatId && e.data['userId'] != myUid)
-      .map((e) => DateTime.parse(e.data['readAt'] as String));
 
   void setTyping(String chatId, bool isTyping) => _socket.typing(chatId, isTyping);
 

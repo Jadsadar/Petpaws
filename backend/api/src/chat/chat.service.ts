@@ -181,8 +181,9 @@ export class ChatService {
       sender_id: string;
       body: string;
       created_at: Date;
+      read_at: Date | null;
     }>(
-      `SELECT id, sender_id, body, created_at FROM messages
+      `SELECT id, sender_id, body, created_at, read_at FROM messages
        WHERE conversation_id = $1 AND deleted_at IS NULL
        ORDER BY created_at ASC LIMIT 200`,
       [chatId],
@@ -192,6 +193,8 @@ export class ChatService {
       senderId: r.sender_id,
       text: r.body,
       createdAt: r.created_at,
+      // ผู้รับอ่านแล้วเมื่อไหร่ (null = ยังไม่อ่าน) — ให้ "อ่านแล้ว" อยู่ถาวร ไม่ใช่เห็นแค่ตอน event สด
+      readAt: r.read_at,
     }));
   }
 

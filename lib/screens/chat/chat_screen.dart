@@ -72,10 +72,6 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _iAmTyping = false;
   Timer? _myTypingIdle;
 
-  /// อีกฝ่ายอ่านถึงเวลานี้แล้ว — มาจาก event สดเท่านั้น (REST ประวัติข้อความไม่มี
-  /// สถานะอ่าน) จึงเริ่มจาก null แล้วโชว์ "อ่านแล้ว" ตั้งแต่อีกฝ่ายเปิดห้องครั้งถัดไป
-  DateTime? _otherReadAt;
-
   String get _myUid => AuthService.instance.currentUser?.uid ?? '';
 
   @override
@@ -126,25 +122,21 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  /// เข้าห้อง: ฟังข้อความ/กำลังพิมพ์/อ่านแล้วของห้องนี้ และ mark read ทันที
+  /// เข้าห้อง: ฟังข้อความ (รวมสถานะอ่านแล้ว) กับกำลังพิมพ์ของห้องนี้ และ mark read ทันที
   /// (ต้องเรียกใน setState หรือก่อน build แรก เพราะแก้ _messagesStream)
   void _openRoom(String chatId) {
     final chat = ChatService.instance;
     _chatId = chatId;
     _messagesStream = chat.watchMessages(chatId, myUid: _myUid);
-    _roomSubs
-      ..add(chat.otherTyping(chatId, myUid: _myUid).listen((typing) {
-        _otherTypingExpiry?.cancel();
-        if (typing) {
-          _otherTypingExpiry = Timer(_typingExpiry, () {
-            if (mounted) setState(() => _otherTyping = false);
-          });
-        }
-        if (mounted) setState(() => _otherTyping = typing);
-      }))
-      ..add(chat.otherReadAt(chatId, myUid: _myUid).listen((at) {
-        if (mounted) setState(() => _otherReadAt = at);
-      }));
+    _roomSubs.add(chat.otherTyping(chatId, myUid: _myUid).listen((typing) {
+      _otherTypingExpiry?.cancel();
+      if (typing) {
+        _otherTypingExpiry = Timer(_typingExpiry, () {
+          if (mounted) setState(() => _otherTyping = false);
+        });
+      }
+      if (mounted) setState(() => _otherTyping = typing);
+    }));
     chat.markRead(chatId).catchError((_) {});
   }
 
@@ -388,13 +380,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// ข้อความล่าสุดของเราที่อีกฝ่ายอ่านแล้ว — โชว์ "อ่านแล้ว" ใต้ข้อความนั้นอันเดียว
   int? _lastReadByOther(List<Map<String, dynamic>> messages, String myUid) {
-    final readAt = _otherReadAt;
-    if (readAt == null) return null;
     for (var i = messages.length - 1; i >= 0; i--) {
       final m = messages[i];
-      if (m['senderId'] != myUid) continue;
-      final sentAt = DateTime.tryParse('${m['createdAt']}');
-      if (sentAt != null && !sentAt.isAfter(readAt)) return i;
+      if (m['senderId'] == myUid && m['readAt'] != null) return i;
     }
     return null;
   }
