@@ -7,6 +7,7 @@
 --   +-------------------------------------------------------------+
 --   |  ล็อกอินได้ทั้ง 10 บัญชี                                      |
 --   |    ชื่อผู้ใช้ : demo01 ... demo10   (หรือใช้อีเมลก็ได้)          |
+--   |    แอดมิน   : admin                                          |
 --   |    รหัสผ่าน  : Petpaws1!            (เหมือนกันทุกบัญชี)         |
 --   +-------------------------------------------------------------+
 --
@@ -74,6 +75,7 @@ DECLARE
 
   u01 uuid; u02 uuid; u03 uuid; u04 uuid; u05 uuid;
   u06 uuid; u07 uuid; u08 uuid; u09 uuid; u10 uuid;
+  uadmin uuid;
 
   p01a uuid; p01b uuid; p02a uuid; p02b uuid; p03 uuid; p04 uuid;
   p05 uuid; p06 uuid; p07 uuid; p08 uuid; p09a uuid; p09b uuid; p10 uuid;
@@ -184,6 +186,14 @@ BEGIN
           'สุราษฎร์ธานี', 'detached_house',
           'https://randomuser.me/api/portraits/men/40.jpg', now(), now())
   RETURNING id INTO u10;
+
+  -- แอดมิน — ไม่มี endpoint ยกระดับตัวเอง (ตั้งใจไว้ใน migration 002) จึงต้องตั้งผ่าน SQL
+  INSERT INTO users (username, email, password_hash, display_name, bio, location,
+                     home_type, is_admin, email_verified_at, profile_completed_at)
+  VALUES ('admin', 'admin@petpaws.demo', pw, 'แอดมิน PetPaws',
+          'บัญชีผู้ดูแลระบบสำหรับทดสอบหน้าจัดการรายงาน',
+          'กรุงเทพมหานคร', 'condo', true, now(), now())
+  RETURNING id INTO uadmin;
 
   -- ---------- ข้อมูลติดต่อ (เห็นในหน้าโปรไฟล์ / หน้าประกาศ) ----------
   INSERT INTO user_contacts (user_id, phone, line_id, fb_name) VALUES
@@ -442,16 +452,37 @@ BEGIN
     (conv, u05, 'น้องทองคำตัวใหญ่มากเลยครับ อยู่คอนโดได้ไหมครับ',
      now() - interval '5 hours');
 
+  -- ==========================================================================
+  -- รายงาน — demo10 โดนรายงานจาก 10 คนไม่ซ้ำ (ถึงเกณฑ์ค่าเริ่มต้นของ
+  -- GET /admin/reported-users พอดี) ผสมรายงานตัวผู้ใช้ 7 + ประกาศ 3
+  --
+  -- รายงานประกาศต้องไม่ถึง 5 เพราะ deck_feed ซ่อนประกาศที่ report_count >= 5
+  -- อัตโนมัติ ไม่งั้นทดสอบ "ปลดแบนแล้วประกาศกลับมาใน deck" ไม่ได้
+  -- ==========================================================================
+  INSERT INTO reports (reporter_id, reported_user_id, reason, detail, created_at) VALUES
+    (u01,    u10, 'scam',          'ขอค่ามัดจำก่อนให้ดูตัวน้อง',        now() - interval '3 days'),
+    (u02,    u10, 'scam',          'ให้โอนเงินค่าวัคซีนก่อน',            now() - interval '2 days 20 hours'),
+    (u03,    u10, 'inappropriate', 'พูดจาไม่สุภาพในแชท',               now() - interval '2 days 6 hours'),
+    (u04,    u10, 'spam',          'ทักมาซ้ำหลายรอบ',                  now() - interval '2 days'),
+    (u05,    u10, 'fake_info',     'ข้อมูลโปรไฟล์ไม่ตรงกับที่คุย',        now() - interval '1 day 12 hours'),
+    (u06,    u10, 'scam',          'ขอเงินค่าเดินทางส่งน้อง',             now() - interval '1 day'),
+    (u07,    u10, 'other',         'พฤติกรรมน่าสงสัย',                 now() - interval '20 hours');
+  INSERT INTO reports (reporter_id, reported_pet_id, reason, detail, created_at) VALUES
+    (u08,    p10, 'fake_info',     'รูปไม่ตรงกับตัวจริง',                now() - interval '10 hours'),
+    (u09,    p10, 'fake_info',     'อายุน้องไม่ตรงกับที่ลงไว้',            now() - interval '6 hours'),
+    (uadmin, p10, 'animal_abuse',  'สภาพน้องในรูปดูไม่ได้รับการดูแล',      now() - interval '2 hours');
+
   RAISE NOTICE '';
   RAISE NOTICE '==============================================================';
   RAISE NOTICE '  สร้างบัญชีสาธิต 10 บัญชีเรียบร้อย (โดเมน @petpaws.demo)';
   RAISE NOTICE '';
   RAISE NOTICE '  ล็อกอินได้ทันที:';
-  RAISE NOTICE '    ชื่อผู้ใช้ : demo01 ... demo10';
+  RAISE NOTICE '    ชื่อผู้ใช้ : demo01 ... demo10, admin (แอดมิน)';
   RAISE NOTICE '    รหัสผ่าน  : Petpaws1!';
   RAISE NOTICE '';
   RAISE NOTICE '  ประกาศ 13 รายการ (12 เปิดรับ + 1 ได้บ้านแล้ว)';
   RAISE NOTICE '  ถูกใจ 10 / ปัดผ่าน 4 / ห้องแชท 3 ห้อง';
+  RAISE NOTICE '  demo10 โดนรายงาน 10 คน (ถึงเกณฑ์แอดมิน)';
   RAISE NOTICE '==============================================================';
 END
 $seed$;
@@ -468,4 +499,5 @@ UNION ALL SELECT 'user_traits',   count(*) FROM user_traits ut JOIN users u ON u
 UNION ALL SELECT 'likes',         count(*) FROM likes l JOIN users u ON u.id=l.user_id WHERE u.email LIKE '%@petpaws.demo'
 UNION ALL SELECT 'passes',        count(*) FROM passes pa JOIN users u ON u.id=pa.user_id WHERE u.email LIKE '%@petpaws.demo'
 UNION ALL SELECT 'conversations', count(*) FROM conversations c JOIN users u ON u.id=c.initiator_id WHERE u.email LIKE '%@petpaws.demo'
-UNION ALL SELECT 'messages',      count(*) FROM messages m JOIN conversations c ON c.id=m.conversation_id JOIN users u ON u.id=c.initiator_id WHERE u.email LIKE '%@petpaws.demo';
+UNION ALL SELECT 'messages',      count(*) FROM messages m JOIN conversations c ON c.id=m.conversation_id JOIN users u ON u.id=c.initiator_id WHERE u.email LIKE '%@petpaws.demo'
+UNION ALL SELECT 'reports',       count(*) FROM reports r JOIN users u ON u.id=r.reporter_id WHERE u.email LIKE '%@petpaws.demo';

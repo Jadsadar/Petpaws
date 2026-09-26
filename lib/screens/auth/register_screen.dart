@@ -60,8 +60,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         username: username,
       );
       currentUserProfile['email'] = emailController.text.trim();
-      // สมัครเสร็จแล้ว Firebase auto sign-in ให้ ต้อง signOut เองเพื่อบังคับให้ไปล็อกอินใหม่
-      await AuthService.instance.signOut();
+      // POST /auth/register ไม่ได้ล็อกอินให้ — กลับไปหน้า login ให้ผู้ใช้เข้าเอง
       if (!mounted) return;
       Navigator.pop(context, true);
     } on AuthFailure catch (e) {

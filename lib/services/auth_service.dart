@@ -5,6 +5,7 @@ import '../shared/api_client.dart';
 import '../shared/api_exception.dart';
 import '../shared/app_user.dart';
 import '../shared/token_storage.dart';
+import 'chat_socket.dart';
 
 /// ห่อการเรียก auth API ไว้ที่เดียว — แทนที่ FirebaseAuth เดิมทั้งหมด
 /// รองรับล็อกอินด้วย username หรือ email (ตรงกับ POST /auth/login ที่รับ
@@ -14,6 +15,7 @@ class AuthService {
     // token refresh ล้มเหลว (refresh token หมดอายุ/ถูกเพิกถอน) ต้องเคลียร์
     // currentUser ทันที ไม่งั้น UI จะเข้าใจผิดว่ายังล็อกอินอยู่ทั้งที่ request ถัดไปจะ 401 ซ้ำ
     _api.onSessionExpired = () {
+      ChatSocket.instance.disconnect();
       _currentUser = null;
       _controller.add(null);
     };
@@ -61,6 +63,7 @@ class AuthService {
             : me['profileImageUrl'] as String?,
         profileCompleted: displayName != (me['username'] as String),
       );
+      ChatSocket.instance.connect();
       _controller.add(_currentUser);
     } catch (_) {
       await _tokenStorage.clear();
@@ -82,6 +85,7 @@ class AuthService {
         refreshToken: res['refreshToken'] as String,
       );
       _currentUser = AppUser.fromJson(res['user'] as Map<String, dynamic>);
+      ChatSocket.instance.connect();
       _controller.add(_currentUser);
     } on ApiException catch (e) {
       throw AuthFailure(e.message);
@@ -163,6 +167,7 @@ class AuthService {
         await _api.post('/auth/logout', body: {'refreshToken': refreshToken}, auth: false);
       } catch (_) {}
     }
+    ChatSocket.instance.disconnect();
     await _tokenStorage.clear();
     _currentUser = null;
     _controller.add(null);

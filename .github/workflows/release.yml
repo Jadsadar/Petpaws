@@ -1,0 +1,50 @@
+name: Release
+
+# ทำงานเฉพาะตอน merge เข้า main เท่านั้น (ขั้น Release ในวงรอบ DevOps ต้องมาหลัง
+# ขั้น Build/Test ผ่านแล้วเสมอ — CI ใน ci.yml ตรวจ push เข้า main ไปแล้วก่อนหน้านี้)
+# workflow_dispatch ไว้ให้กดรันเองได้ เผื่อต้องทดสอบหรือออก release ซ้ำโดยไม่ต้อง push ใหม่
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write # ต้องมีสิทธิ์เขียนเพื่อสร้าง GitHub Release และ tag
+
+jobs:
+  build-and-release:
+    name: Build release APK and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.3
+          cache: true
+
+      - name: Install
+        run: flutter pub get --enforce-lockfile
+
+      # ยังเซ็นด้วย debug keystore ชั่วคราว (ดูคอมเมนต์ใน android/app/build.gradle.kts)
+      # เหมาะสำหรับติดตั้งทดสอบตรง ๆ เท่านั้น ยังไม่ใช่เวอร์ชันที่จะขึ้น Play Store จริง
+      # เพราะนั้นต้องมี keystore ของจริงที่เก็บเป็นความลับ (ดู ROADMAP งาน CD ของทีม)
+      - name: Build release APK
+        run: |
+          flutter build apk --release \
+            --build-number=${{ github.run_number }} \
+            --build-name=1.0.${{ github.run_number }}
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: PetPaws v1.0.${{ github.run_number }}
+          # ระบุ commit ตรง ๆ กันไม่ให้ tag ไปผูกกับปลาย branch หลักของ repo แทน
+          # (ถ้าไม่ใส่ ตอนรันจาก branch อื่นที่ไม่ใช่ main ผ่าน workflow_dispatch จะเจอ
+          # ปัญหานี้ — พบตอนทดสอบจริงว่า tag ไปโผล่ที่ commit ของ main แทน commit ที่ build)
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          files: build/app/outputs/flutter-apk/app-release.apk

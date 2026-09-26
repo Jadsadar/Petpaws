@@ -1,0 +1,15 @@
+# รายการ fingerprint ที่ Gitleaks เจอแต่ตรวจแล้วว่าไม่ใช่ความลับที่รั่วจริง
+# ห้ามเพิ่มรายการใหม่โดยไม่เขียนเหตุผลกำกับ — ทุกรายการต้องมีคนตรวจสอบก่อนเสมอ
+# รูปแบบ: <commit>:<file>:<rule>:<line>  (คัดลอกจากผล gitleaks detect ตรง ๆ)
+
+# 1) Token ตัวอย่างในไฟล์ README.md ที่ `nest new` สร้างให้อัตโนมัติทุกโปรเจกต์
+#    เป็น placeholder ในลิงก์ badge ของ CircleCI ("abc123def456") ไม่ใช่ token จริง
+#    ตรวจแล้วว่าเป็นค่าเดียวกับ README ต้นแบบของ NestJS ทุกโปรเจกต์ที่สร้างด้วย CLI
+2d980c470b24b354e5a57848c9caab1be9fe7438:backend/api/README.md:generic-api-key:5
+
+# 2) Firebase API key ในไฟล์ lib/firebase_options.dart จากสมัยที่แอปยังใช้ Firebase
+#    ไฟล์นี้ถูกลบออกจากโค้ดปัจจุบันแล้ว (ย้ายมาใช้ NestJS backend ของทีมเองแทน)
+#    หลงเหลืออยู่แค่ในประวัติ commit เก่า และ Firebase client API key (ขึ้นต้น AIza)
+#    ไม่ใช่ความลับที่ต้องปิดบัง — สิทธิ์การเข้าถึงจริงถูกควบคุมด้วย Firebase Security
+#    Rules ไม่ใช่ด้วยการซ่อน key นี้ (ตามเอกสารของ Google เอง) จึงไม่ต้องหมุนใหม่
+036b349f6c2cb7c21ec3326211c02f736771fe2c:lib/firebase_options.dart:gcp-api-key:36

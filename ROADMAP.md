@@ -11,9 +11,10 @@
 | ส่วน | สถานะ |
 |---|---|
 | ฐานข้อมูล PostgreSQL (16 ตาราง + 2 ฟังก์ชัน) | ✅ เสร็จ ทดสอบแล้ว รันอยู่ใน Docker |
-| Redis | ✅ รันอยู่ ยังไม่มีใครใช้ |
-| Object storage (S3/MinIO) | ❌ ยังไม่มีใน docker-compose |
-| **NestJS backend** | ❌ **ยังไม่มีอะไรเลย** — มีแค่ `backend/db/` กับ `docker-compose.yml` |
+| Redis | ✅ ใช้เป็นคิวงาน BullMQ แล้ว (ยังไม่ได้ทำ cache) |
+| คิวงาน BullMQ | ✅ worker แยก process (`npm run start:worker`) — push แชท + ลบไฟล์ค้างทุกคืน |
+| Object storage (S3/MinIO) | ✅ อยู่ใน docker-compose แล้ว |
+| **NestJS backend** | ✅ มีครบเกือบทุก phase ดูรายละเอียดในแต่ละ phase ด้านล่าง |
 | Flutter app (4,329 บรรทัด) | ⚠️ ยังเรียก Firebase อยู่ / โครงไฟล์ยังไม่ตรง SKILL.md |
 
 **คำตอบสั้น ๆ ว่าตอนนี้ลงประกาศได้ไหม: ยังไม่ได้** — แอปยังวิ่งไป Firebase ไม่ได้แตะ Postgres เลย
@@ -155,7 +156,7 @@ SKILL.md กำหนดไว้ละเอียดมาก ต้องท�
 | 3.6 | `GET /users/:id` | โปรไฟล์ + ประกาศทั้งหมดของเขา (รวมตัวที่ `adopted` พร้อมป้าย) — **ไม่ส่ง `user_contacts` ถ้าไม่ใช่เจ้าของ** |
 | 3.7 | `PATCH /users/me` | แก้โปรไฟล์ + `user_contacts` + `user_traits` |
 | 3.8 | `GET /traits` | ส่งลิสต์แท็กให้ฟอร์มใช้ (แทนการ hardcode ในแอป) |
-| 3.9 | **BullMQ job**: กวาด `media_uploads` ที่ `claimed_at IS NULL` เกิน 24 ชม. | ลบไฟล์จริงบน S3 ด้วย |
+| 3.9 | ✅ **BullMQ job** (#22): ทุกคืนตี 3 ลบไฟล์ใน `uploads/` ที่ค้างเกิน 24 ชม. และไม่มี `pet_media.url` / `users.avatar_url` อ้างถึง | เทียบจากของจริงใน DB แทน `media_uploads.claimed_at` เพราะ media module ยังไม่ได้เขียนตารางนั้น (ไม่ต้องแก้ schema) — ถ้าไฟล์เยอะจนช้าค่อยย้ายไปใช้ `media_uploads` |
 
 ---
 
@@ -216,9 +217,9 @@ SKILL.md กำหนดไว้ละเอียดมาก ต้องท�
 | 7.3 | `GET /conversations/:id/messages?cursor=` | keyset pagination + ตรวจว่าเป็นคู่สนทนาจริง |
 | 7.4 | `POST /conversations/:id/messages` | |
 | 7.5 | `POST /conversations/:id/read` | เรียกฟังก์ชัน `mark_conversation_read()` |
-| 7.6 | **WebSocket gateway** | ยืนยันตัวตนด้วย JWT ตอน handshake / ห้อง = `conversation:{id}` |
-| 7.7 | **Redis adapter** | ถ้ารันหลาย instance ต้องมี ไม่งั้นข้อความข้ามเครื่องไม่ถึงกัน |
-| 7.8 | รื้อ `chat_screen.dart` + `chat_inbox_screen.dart` | REST โหลดประวัติ + WS รับข้อความสด |
+| 7.6 | ✅ **WebSocket gateway** (#24) | namespace `/chat` · ตรวจ JWT เป็น middleware ตอน handshake (token ผิด → `connect_error: unauthorized` แอปใช้แยกจากเน็ตหลุดแล้ว refresh เอง) · ห้อง `user:{id}` (เข้าอัตโนมัติ) + `conversation:{id}` (ต้อง `join` ผ่านการตรวจคู่สนทนา) · event: `message`, `read`, `typing`, `notification` · การส่ง/อ่านยังผ่าน REST เดิมทั้งหมด รูปแบบ response ไม่เปลี่ยน |
+| 7.7 | ⏳ **Redis adapter** | ยังไม่ทำ — ตอนนี้ถูกต้องเฉพาะ API instance เดียว ถ้ารันหลาย instance ต้องเพิ่ม `@socket.io/redis-adapter` ไม่งั้นข้อความข้ามเครื่องไม่ถึงกัน |
+| 7.8 | ✅ รื้อ `chat_screen.dart` + `chat_inbox_screen.dart` (#25) | REST โหลดประวัติครั้งแรก + WS อัปเดตสด ไม่ poll แล้ว · reconnect อัตโนมัติ + ดึง REST ซ้ำหลังต่อใหม่ · โชว์ "กำลังพิมพ์..." / "อ่านแล้ว" (สถานะอ่านเก็บถาวรจาก `messages.read_at` — `GET /chats/:id/messages` ส่ง `readAt` เพิ่มมา แล้ว event `read` เติมระหว่างเปิดห้อง) |
 
 ---
 
@@ -241,10 +242,10 @@ SKILL.md กำหนดไว้ละเอียดมาก ต้องท�
 
 | # | งาน |
 |---|---|
-| 9.1 | `POST /devices` เก็บ FCM token ลง `device_tokens` |
-| 9.2 | **BullMQ worker** ส่ง noti เมื่อมีข้อความใหม่ |
+| 9.1 | ✅ `POST /devices` เก็บ FCM token ลง `device_tokens` |
+| 9.2 | ✅ **BullMQ worker** (#23) ส่ง noti เมื่อมีข้อความใหม่ — API แค่ enqueue ไม่รอ FCM, retry 3 ครั้ง exponential, ลบ token ที่ FCM ตอบว่าตายแล้ว · ⚠️ ต้องใส่ `FCM_*` ใน `.env` ก่อน ไม่งั้น worker ข้ามการส่ง |
 | 9.3 | ตั้งค่า FCM ฝั่ง Flutter (web ต้องมี service worker + VAPID key) |
-| 9.4 | job กวาด token ที่ `last_seen_at` เก่าเกิน 60 วัน |
+| 9.4 | job กวาด token ที่ `last_seen_at` เก่าเกิน 60 วัน (token ที่ FCM ปฏิเสธถูกลบใน 9.2 แล้ว ข้อนี้เหลือแค่ token ที่เงียบหายไปเฉย ๆ) |
 
 ---
 

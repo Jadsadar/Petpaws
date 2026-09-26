@@ -2,7 +2,9 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   CreateBucketCommand,
+  DeleteObjectsCommand,
   HeadBucketCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   PutBucketPolicyCommand,
   S3Client,
@@ -12,6 +14,8 @@ import { AppException } from '../common/app-exception.js';
 
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024; // 8MB — สอดคล้องกับที่ storage.rules เดิมเคยกำหนดไว้
 const ALLOWED_CONTENT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const UPLOAD_PREFIX = 'uploads/';
+const S3_DELETE_BATCH = 1000; // เพดานของ DeleteObjects ต่อ 1 request
 
 /**
  * อัปโหลดผ่าน NestJS ตรง ๆ (multipart -> S3 PutObject) แทนที่จะออก presigned URL
@@ -83,7 +87,7 @@ export class MediaService implements OnModuleInit {
     }
 
     const ext = file.mimetype.split('/')[1];
-    const key = `uploads/${randomUUID()}.${ext}`;
+    const key = `${UPLOAD_PREFIX}${randomUUID()}.${ext}`;
 
     await this.client.send(
       new PutObjectCommand({
@@ -95,5 +99,48 @@ export class MediaService implements OnModuleInit {
     );
 
     return { url: `${this.publicEndpoint}/${this.bucket}/${key}` };
+  }
+
+  /** key ของไฟล์ในโฟลเดอร์อัปโหลดที่ถูกสร้าง/แก้ล่าสุดก่อน cutoff */
+  async listUploadsOlderThan(cutoff: Date): Promise<string[]> {
+    const keys: string[] = [];
+    let token: string | undefined;
+    do {
+      const page = await this.client.send(
+        new ListObjectsV2Command({ Bucket: this.bucket, Prefix: UPLOAD_PREFIX, ContinuationToken: token }),
+      );
+      for (const obj of page.Contents ?? []) {
+        if (obj.Key && obj.LastModified && obj.LastModified < cutoff) keys.push(obj.Key);
+      }
+      token = page.IsTruncated ? page.NextContinuationToken : undefined;
+    } while (token);
+    return keys;
+  }
+
+  async deleteObjects(keys: string[]): Promise<void> {
+    for (let i = 0; i < keys.length; i += S3_DELETE_BATCH) {
+      const batch = keys.slice(i, i + S3_DELETE_BATCH);
+      await this.client.send(
+        new DeleteObjectsCommand({
+          Bucket: this.bucket,
+          Delete: { Objects: batch.map((Key) => ({ Key })), Quiet: true },
+        }),
+      );
+    }
+  }
+
+  /**
+   * แปลง URL ที่เก็บใน DB กลับเป็น key ใน bucket — เทียบแค่ path หลัง /{bucket}/
+   * ไม่เทียบ host เพราะ S3_ENDPOINT อาจเปลี่ยนตอนย้ายไป production แต่ key เดิม
+   * URL ภายนอก (รูป seed จาก dog.ceo ฯลฯ) ได้ null
+   */
+  keyFromUrl(url: string): string | null {
+    try {
+      const path = decodeURIComponent(new URL(url).pathname);
+      const marker = `/${this.bucket}/`;
+      return path.startsWith(marker) ? path.slice(marker.length) : null;
+    } catch {
+      return null;
+    }
   }
 }

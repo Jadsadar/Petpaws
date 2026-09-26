@@ -80,6 +80,27 @@ services:
         condition: service_healthy
     # ไม่ expose port ออก host ตรงๆ — เข้าถึงได้ผ่าน Caddy เท่านั้น
 
+  # BullMQ worker (ส่ง push แชท + ลบไฟล์รูปค้างทุกคืน) — image เดียวกับ api แต่รัน
+  # dist/worker แทน ไม่เปิด HTTP port ถ้าไม่มี service นี้ job จะค้างในคิวไม่มีใครทำ
+  worker:
+    build:
+      context: ./backend/api
+    container_name: petpaws-worker
+    restart: unless-stopped
+    command: ["node", "dist/worker"]
+    env_file:
+      - .env
+    # HEALTHCHECK ใน Dockerfile ยิง :3000/health ของ api — worker ไม่มี HTTP จะขึ้น unhealthy ตลอด
+    healthcheck:
+      disable: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
   caddy:
     image: caddy:2-alpine
     container_name: petpaws-caddy

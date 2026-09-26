@@ -19,15 +19,15 @@ class ChatInboxScreen extends StatefulWidget {
 }
 
 class _ChatInboxScreenState extends State<ChatInboxScreen> {
-  /// สร้าง polling stream ครั้งเดียวตอน initState ห้ามสร้างใน build() เด็ดขาด —
+  /// สร้าง stream ครั้งเดียวตอน initState ห้ามสร้างใน build() เด็ดขาด —
   /// หน้านี้อยู่ใน IndexedStack ของ MainScreen ซึ่ง rebuild ทุกครั้งที่ปัดการ์ด/
-  /// สลับแท็บ ถ้าสร้างใหม่ทุก build จะได้ polling loop ซ้อนกันจนแอปค้าง
+  /// สลับแท็บ ถ้าสร้างใหม่ทุก build จะยิง REST ซ้ำและสมัครฟัง event ซ้อนกันเรื่อย ๆ
   late final Stream<List<Map<String, dynamic>>> _chatsStream;
 
   @override
   void initState() {
     super.initState();
-    _chatsStream = ChatService.instance.pollChats(petName: widget.dogName);
+    _chatsStream = ChatService.instance.watchChats(petName: widget.dogName);
   }
 
   String _formatTime(String? iso) {

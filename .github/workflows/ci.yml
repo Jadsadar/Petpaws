@@ -1,0 +1,141 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# push ใหม่เข้า branch/PR เดิม ให้ยกเลิกรอบเก่าที่ยังรันไม่เสร็จ ไม่ต้องรอผลที่ล้าสมัยแล้ว
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (NestJS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend/api
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/api/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  mobile:
+    name: Mobile (Flutter)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.3
+          cache: true
+
+      - name: Install
+        run: flutter pub get --enforce-lockfile
+
+      # ยังไม่ fail ที่ระดับ info เพราะมีคำเตือน deprecated ค้างอยู่ 10 จุดในหน้าจอเดิม
+      # ระดับ warning และ error ยังทำให้ CI แดงตามปกติ
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Unit test
+        run: flutter test
+
+      # ubuntu-latest ของ GitHub มี Android SDK ติดตั้งมาให้ล่วงหน้าอยู่แล้ว ไม่ต้อง
+      # setup เพิ่ม — build debug (ไม่เซ็นด้วย keystore) แค่พิสูจน์ว่า pipeline
+      # ทั้งเส้นทำงานได้จริง ส่วน release ที่เซ็นแล้วสำหรับแจกจริงทำในขั้น Release ต่างหาก
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: petpaws-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 14
+
+  security:
+    name: Security scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write # ให้ gitleaks-action คอมเมนต์สรุปผลใน PR ได้ (ไม่มีสิทธิ์แก้โค้ด)
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Gitleaks ต้องอ่านย้อนทุก commit ไม่ใช่แค่ commit ล่าสุด checkout ปกติ
+          # (fetch-depth: 1) จะโคลนมาแค่ commit เดียวทำให้สแกนประวัติเก่าไม่เจอ
+          fetch-depth: 0
+
+      # สแกนหาความลับที่หลุดเข้า git (เช่น API key, รหัสผ่าน) ทั้งในโค้ดปัจจุบัน
+      # และในประวัติ commit ทั้งหมด อ่าน .gitleaksignore เพื่อข้ามรายการที่ตรวจแล้ว
+      # ว่าไม่ใช่ความลับจริง (ดูเหตุผลแต่ละรายการในไฟล์นั้น)
+      - name: Secrets scan (Gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/api/package-lock.json
+
+      - name: Install (backend)
+        working-directory: backend/api
+        run: npm ci
+
+      # --omit=dev เพราะ 5 ช่องโหว่ที่เจอตอนนี้ (2 high, 1 moderate, 2 low) มาจาก
+      # @nestjs/mau ตัวเดียว ซึ่งเป็น devDependency (CLI สำหรับ deploy ไม่ได้ทำงาน
+      # ตอนรันจริง) ไม่กระทบโค้ดที่ build ขึ้นโปรดักชัน ตรวจสอบแล้วด้วย `npm ls`
+      #
+      # นโยบาย fail/warn: บล็อกเฉพาะช่องโหว่ระดับ critical เท่านั้น ระดับ high ยัง
+      # ปล่อยผ่านแต่ขึ้นเตือนไว้ให้เห็น เพราะ dependency ของจริงมักเจอ high/moderate
+      # อยู่เรื่อย ๆ ถ้าบล็อกทุกระดับ CI จะแดงค้างจนกว่า upstream จะแก้ให้
+      - name: Dependency scan — backend (npm audit)
+        working-directory: backend/api
+        run: |
+          npm audit --omit=dev --json > audit.json || true
+          critical=$(jq '.metadata.vulnerabilities.critical' audit.json)
+          high=$(jq '.metadata.vulnerabilities.high' audit.json)
+          echo "พบช่องโหว่ระดับ high: $high, critical: $critical"
+          if [ "$high" -gt 0 ]; then
+            echo "::warning::npm audit พบช่องโหว่ระดับ high $high รายการ (ยังไม่บล็อก ควรตรวจสอบ)"
+          fi
+          if [ "$critical" -gt 0 ]; then
+            echo "::error::npm audit พบช่องโหว่ระดับ critical $critical รายการ ต้องแก้ก่อน merge"
+            exit 1
+          fi
+
+      # SCA ฝั่ง Flutter — อ่าน pubspec.lock เทียบกับฐานข้อมูล CVE ของ OSV
+      - name: Dependency scan — mobile (osv-scanner)
+        run: |
+          curl -sL -o osv-scanner \
+            https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64
+          chmod +x osv-scanner
+          ./osv-scanner --lockfile=pubspec.lock

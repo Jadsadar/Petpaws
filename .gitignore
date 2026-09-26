@@ -71,6 +71,7 @@ backend/api/.env.*
 # และ dist/ generate ใหม่ได้จาก source เสมอ ไม่มีเหตุผลต้อง commit
 **/node_modules/
 backend/api/dist/
+backend/api/dist-worker/
 backend/api/build/
 backend/api/coverage/
 backend/api/*.tsbuildinfo
@@ -100,3 +101,5 @@ credentials.json
 service-account*.json
 *-service-account.json
 
+# Jenkins agent binary — download from <jenkins-url>/jnlpJars/agent.jar
+agent.jar

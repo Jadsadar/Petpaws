@@ -132,10 +132,10 @@ export class AuthService {
   async login(dto: LoginDto) {
     const isEmail = dto.identifier.includes('@');
     const result = await this.pool.query<
-      UserRow & { password_hash: string; is_suspended: boolean }
+      UserRow & { password_hash: string; is_suspended: boolean; suspended_until: Date | null }
     >(
       `SELECT id, username, email, display_name, avatar_url, profile_completed_at,
-              password_hash, is_suspended
+              password_hash, is_suspended, suspended_until
        FROM users
        WHERE deleted_at IS NULL AND ${isEmail ? 'email' : 'username'} = $1`,
       [dto.identifier.trim()],
@@ -150,13 +150,26 @@ export class AuthService {
     }
     const user = result.rows[0];
 
-    if (user.is_suspended) {
-      throw AppException.unauthorized('บัญชีนี้ถูกระงับการใช้งาน');
-    }
-
     const passwordOk = await argon2.verify(user.password_hash, dto.password);
     if (!passwordOk) {
       throw AppException.unauthorized(genericError);
+    }
+
+    // เช็กหลังรหัสผ่านถูกเท่านั้น — ถ้าเช็กก่อน คนเดารหัสจะรู้ได้ว่ามีบัญชีนี้อยู่จริง
+    if (user.is_suspended) {
+      const until = user.suspended_until;
+      if (until && until <= new Date()) {
+        // แบนหมดเวลาแล้ว ปลดให้เองตอนล็อกอินครั้งถัดไป ไม่ต้องรอแอดมิน
+        await this.pool.query(
+          `UPDATE users SET is_suspended = false, suspended_until = NULL WHERE id = $1`,
+          [user.id],
+        );
+      } else if (until) {
+        const when = until.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' });
+        throw AppException.unauthorized(`บัญชีนี้ถูกระงับการใช้งานถึง ${when}`);
+      } else {
+        throw AppException.unauthorized('บัญชีนี้ถูกระงับการใช้งาน');
+      }
     }
 
     await this.pool.query('UPDATE users SET last_login_at = now() WHERE id = $1', [

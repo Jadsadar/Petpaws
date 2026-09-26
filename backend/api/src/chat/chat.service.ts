@@ -1,9 +1,19 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import type { Queue } from 'bullmq';
 import type { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module.js';
 import { AppException } from '../common/app-exception.js';
+import { PUSH_QUEUE, SEND_MESSAGE_PUSH_JOB, type MessagePushJobData } from '../queue/queue.constants.js';
 import { ChatGateway } from './chat.gateway.js';
 import type { CreateChatDto } from './dto/create-chat.dto.js';
+
+interface SentMessage {
+  id: string;
+  senderId: string;
+  text: string;
+  createdAt: Date;
+}
 
 interface ChatRow {
   id: string;
@@ -20,10 +30,35 @@ interface ChatRow {
 
 @Injectable()
 export class ChatService {
+  private readonly logger = new Logger('ChatService');
+
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly chatGateway: ChatGateway,
+    @InjectQueue(PUSH_QUEUE) private readonly pushQueue: Queue<MessagePushJobData>,
   ) {}
+
+  /**
+   * ข้อความ commit ลง DB แล้ว — ส่ง realtime ให้คนที่เปิดห้องอยู่ และโยน push เข้าคิว
+   * ให้ worker ส่งทีหลัง (ไม่รอ FCM ใน request)
+   *
+   * ไม่ await การ enqueue: ถ้า Redis ล่ม add() จะค้างรอ reconnect แล้วลาก request
+   * ส่งข้อความให้ค้างตาม และถ้าตอบ error กลับไป แอปจะกดส่งซ้ำได้ข้อความซ้ำ —
+   * ข้อความบันทึกไปแล้ว เสีย push ไป 1 ครั้งยังดีกว่า
+   */
+  private afterMessageSent(chatId: string, recipientId: string, message: SentMessage) {
+    this.chatGateway.emitNewMessage(chatId, { ...message });
+    // ทั้งสองฝั่ง: ผู้รับได้ badge/ห้องใหม่ ผู้ส่งได้ lastMessage อัปเดตในเครื่องอื่นของตัวเอง
+    this.chatGateway.notifyUsers([recipientId, message.senderId], {
+      type: 'message',
+      conversationId: chatId,
+      message: { ...message },
+    });
+    // jobId = messageId กันยิง push ซ้ำถ้ามีการ enqueue ข้อความเดิมสองรอบ
+    this.pushQueue
+      .add(SEND_MESSAGE_PUSH_JOB, { messageId: message.id }, { jobId: message.id })
+      .catch((err: Error) => this.logger.error(`enqueue push ไม่สำเร็จ message=${message.id}`, err.stack));
+  }
 
   private toChat(row: ChatRow) {
     return {
@@ -66,6 +101,8 @@ export class ChatService {
       return { chatId };
     }
 
+    let chatId: string;
+    let msg: { id: string; created_at: Date };
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -74,27 +111,29 @@ export class ChatService {
          VALUES ($1, $2, $3) RETURNING id`,
         [dto.petId, userId, ownerId],
       );
-      const chatId = convRes.rows[0].id;
+      chatId = convRes.rows[0].id;
       const msgRes = await client.query<{ id: string; created_at: Date }>(
         `INSERT INTO messages (conversation_id, sender_id, body, created_at)
          VALUES ($1, $2, $3, now())
          RETURNING id, created_at`,
         [chatId, userId, dto.message],
       );
+      msg = msgRes.rows[0];
       await client.query('COMMIT');
-      this.chatGateway.emitNewMessage(chatId, {
-        id: msgRes.rows[0].id,
-        senderId: userId,
-        text: dto.message,
-        createdAt: msgRes.rows[0].created_at,
-      });
-      return { chatId };
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
     } finally {
       client.release();
     }
+
+    this.afterMessageSent(chatId, ownerId, {
+      id: msg.id,
+      senderId: userId,
+      text: dto.message,
+      createdAt: msg.created_at,
+    });
+    return { chatId };
   }
 
   /** รายการห้องแชททั้งหมดของฉัน เรียงข้อความล่าสุดก่อน กรองด้วยชื่อสัตว์ได้ (ตาม ChatInboxScreen เดิม) */
@@ -142,8 +181,9 @@ export class ChatService {
       sender_id: string;
       body: string;
       created_at: Date;
+      read_at: Date | null;
     }>(
-      `SELECT id, sender_id, body, created_at FROM messages
+      `SELECT id, sender_id, body, created_at, read_at FROM messages
        WHERE conversation_id = $1 AND deleted_at IS NULL
        ORDER BY created_at ASC LIMIT 200`,
       [chatId],
@@ -153,6 +193,8 @@ export class ChatService {
       senderId: r.sender_id,
       text: r.body,
       createdAt: r.created_at,
+      // ผู้รับอ่านแล้วเมื่อไหร่ (null = ยังไม่อ่าน) — ให้ "อ่านแล้ว" อยู่ถาวร ไม่ใช่เห็นแค่ตอน event สด
+      readAt: r.read_at,
     }));
   }
 
@@ -167,7 +209,8 @@ export class ChatService {
        RETURNING id, created_at`,
       [chatId, userId, dto.text],
     );
-    this.chatGateway.emitNewMessage(chatId, {
+    const recipientId = conv.initiator_id === userId ? conv.owner_id : conv.initiator_id;
+    this.afterMessageSent(chatId, recipientId, {
       id: msgRes.rows[0].id,
       senderId: userId,
       text: dto.text,
@@ -179,6 +222,9 @@ export class ChatService {
   async markRead(userId: string, chatId: string) {
     await this.assertParticipant(chatId, userId);
     await this.pool.query(`SELECT mark_conversation_read($1, $2)`, [chatId, userId]);
+    // อีกฝ่ายที่เปิดห้องอยู่เห็น "อ่านแล้ว" + เครื่องอื่นของผู้อ่านเอง badge ลดตาม
+    this.chatGateway.emitRead(chatId, userId, new Date());
+    this.chatGateway.notifyUsers([userId], { type: 'read', conversationId: chatId });
     return { success: true };
   }
 
