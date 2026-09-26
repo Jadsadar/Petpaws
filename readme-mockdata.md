@@ -42,6 +42,15 @@ npm run start:dev
 
 เช็ก: http://localhost:3000/health ต้องได้ `{"status":"ok","db":"connected"}`
 
+## 5. เปิด worker (อีก terminal)
+
+```powershell
+cd backend\api
+npm run start:worker:dev
+```
+
+ทำงานคิว: ส่ง push แชท + ลบไฟล์รูปค้างทุกคืนตี 3 — ขึ้น `PetPaws worker started` = พร้อม
+
 ## ถ้า DB พัง / อยากเริ่มใหม่หมด
 
 ```powershell

@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller.js';
@@ -14,17 +13,11 @@ import { ModerationModule } from './moderation/moderation.module.js';
 import { DevicesModule } from './devices/devices.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { JwtAuthGuard } from './common/jwt-auth.guard.js';
-import { validateEnv } from './config/env.validation.js';
+import { AppConfigModule } from './config/app-config.module.js';
 
 @Module({
   imports: [
-    // รันจาก backend/api เสมอ (npm run start:dev) — .env จริงอยู่ที่ backend/.env
-    // (ไฟล์เดียวกับที่ docker-compose ใช้ ไม่ต้อง duplicate ค่า)
-    ConfigModule.forRoot({
-      isGlobal: true,
-      envFilePath: ['../.env', '.env'],
-      validate: validateEnv,
-    }),
+    AppConfigModule,
     JwtModule.register({}),
     DatabaseModule,
     AuthModule,

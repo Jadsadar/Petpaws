@@ -1,20 +1,20 @@
 import 'dart:async';
 
 import '../shared/api_client.dart';
+import 'chat_socket.dart';
 
-/// จัดการแชทผ่าน REST API ของ backend
+/// แชท: ส่ง/อ่าน/ดึงประวัติผ่าน REST ส่วนของที่เปลี่ยน "สด" มาทาง WebSocket
+/// ([ChatSocket]) — หน้าจอดึง REST ครั้งแรกครั้งเดียว แล้วอัปเดตตาม event
+/// ไม่มีการ poll ซ้ำเป็นช่วง ๆ อีกแล้ว
 ///
-/// ⚠️ ยังไม่มี WebSocket ในรอบนี้ (ดู ROADMAP.md Phase 7.6-7.7) — ข้อความใหม่และ
-/// unread badge อัปเดตด้วย "polling" (เรียก API ซ้ำเป็นช่วง ๆ) แทน stream แบบ
-/// เรียลไทม์ที่ Firestore เคยให้ฟรี ผลคือข้อความใหม่จะขึ้นช้ากว่าเดิมสูงสุด
-/// เท่ากับ [_pollInterval] ไม่ใช่ทันทีที่อีกฝั่งกดส่ง
+/// ทุกครั้งที่ socket ต่อใหม่ (เน็ตหลุดแล้วกลับมา) จะดึง REST ซ้ำหนึ่งรอบ
+/// เพราะ event ที่เกิดระหว่างหลุดหายไปแล้ว ไม่มีการส่งย้อนหลัง
 class ChatService {
   ChatService._();
   static final ChatService instance = ChatService._();
 
   final ApiClient _api = ApiClient.instance;
-
-  static const _pollInterval = Duration(seconds: 4);
+  final ChatSocket _socket = ChatSocket.instance;
 
   /// สร้างห้องแชทถ้ายังไม่มี พร้อมข้อความแรกในธุรกรรมเดียวกัน (ตาม SKILL.md
   /// "ห้องแชทเกิดตอนผู้ใช้กดส่งข้อความแรกเท่านั้น") หรือถ้ามีห้องอยู่แล้ว
@@ -71,56 +71,124 @@ class ChatService {
     return res['count'] as int;
   }
 
+  // ---------------------------------------------------------------------------
+  // สด
+  // ---------------------------------------------------------------------------
+
+  /// ข้อความในห้อง — ประวัติจาก REST + ข้อความใหม่จาก event 'message'
+  /// เก็บตาม id กันซ้ำ (ข้อความเดียวกันมาได้ทั้งจาก event และจากการดึงซ้ำตอนต่อใหม่)
+  ///
+  /// ข้อความของอีกฝ่ายที่เข้ามาระหว่างเปิดห้องอยู่ = อ่านแล้ว mark read ให้เลย
+  /// อีกฝ่ายจะเห็น "อ่านแล้ว" และ badge ของเราไม่ขึ้น
+  Stream<List<Map<String, dynamic>>> watchMessages(String chatId, {required String myUid}) {
+    final byId = <String, Map<String, dynamic>>{};
+    final subs = <StreamSubscription>[];
+    late final StreamController<List<Map<String, dynamic>>> ctrl;
+
+    void publish() {
+      final list = byId.values.toList()
+        ..sort((a, b) => '${a['createdAt']}'.compareTo('${b['createdAt']}'));
+      if (!ctrl.isClosed) ctrl.add(list);
+    }
+
+    Future<void> load() async {
+      try {
+        for (final m in await messages(chatId)) {
+          byId[m['id'] as String] = m;
+        }
+        publish();
+      } catch (_) {
+        // เน็ตหลุด — รอบต่อใหม่ของ socket จะดึงให้อีกครั้ง
+      }
+    }
+
+    ctrl = StreamController(
+      onListen: () {
+        _socket.join(chatId);
+        subs
+          ..add(_socket.events
+              .where((e) => e.name == 'message' && e.data['conversationId'] == chatId)
+              .listen((e) {
+            byId[e.data['id'] as String] = e.data;
+            publish();
+            if (e.data['senderId'] != myUid) markRead(chatId).catchError((_) {});
+          }))
+          ..add(_socket.onConnect.listen((_) => load()));
+        load();
+      },
+      onCancel: () {
+        for (final s in subs) {
+          s.cancel();
+        }
+        _socket.leave(chatId);
+      },
+    );
+    return ctrl.stream;
+  }
+
+  /// รายการห้อง — ดึงใหม่เมื่อมี 'notification' (ข้อความใหม่/อ่านแล้ว) หรือต่อใหม่
+  Stream<List<Map<String, dynamic>>> watchChats({String? petName}) =>
+      _refetchOnChange(() => myChats(petName: petName));
+
   int _lastUnreadCount = 0;
   Stream<int>? _sharedUnreadStream;
 
-  /// badge จำนวนแชทที่ยังไม่ได้อ่าน (bottom nav / app bar) — poll ทุก [_pollInterval]
+  /// badge จำนวนแชทที่ยังไม่ได้อ่าน (bottom nav / app bar)
   ///
   /// ⚠️ ต้องเป็น stream "ตัวเดียว" ที่ใช้ร่วมกันทั้งแอป เพราะหน้าจอที่เรียกอยู่
   /// (main_screen + profile_screen อีก 2 จุด) เรียกฟังก์ชันนี้ใน build() ซึ่งรันใหม่
-  /// ทุกครั้งที่ setState — ถ้าคืน generator ตัวใหม่ทุกครั้ง จะได้ polling loop
-  /// ซ้อนกันเพิ่มขึ้นเรื่อย ๆ (ตัวเก่ายังไม่ตายจนกว่าจะครบ delay 4 วิ) ยิง HTTP
-  /// รัวจนแอปค้าง — cache ไว้ตัวเดียวแล้วแจกเป็น broadcast แทน
+  /// ทุกครั้งที่ setState — ถ้าสร้าง stream ใหม่ทุกครั้ง จะยิง REST ซ้ำทุก rebuild
   ///
   /// onCancel เป็น no-op เพื่อไม่ให้ source ถูกยกเลิกตอนคนฟังคนสุดท้ายหลุด
   /// (ไม่งั้นพอมีคนฟังใหม่ stream จะตายไปแล้วใช้ต่อไม่ได้)
   Stream<int> unreadChatCountStream() async* {
-    yield _lastUnreadCount; // ค่าล่าสุดทันที ไม่ต้องรอรอบ poll ถัดไป
-    yield* _sharedUnreadStream ??=
-        _pollUnreadCount().asBroadcastStream(onCancel: (_) {});
+    yield _lastUnreadCount; // ค่าล่าสุดทันที ไม่ต้องรอ event ถัดไป
+    yield* _sharedUnreadStream ??= _refetchOnChange(() async {
+      return _lastUnreadCount = await _fetchUnreadCount();
+    }).asBroadcastStream(onCancel: (_) {});
   }
 
-  Stream<int> _pollUnreadCount() async* {
-    while (true) {
-      try {
-        _lastUnreadCount = await _fetchUnreadCount();
-      } catch (_) {
-        _lastUnreadCount = 0;
-      }
-      yield _lastUnreadCount;
-      await Future.delayed(_pollInterval);
-    }
-  }
+  /// อีกฝ่ายกำลังพิมพ์ไหม (หน้าจอต้องตั้งเวลาดับเองเผื่อ event "หยุดพิมพ์" หาย)
+  Stream<bool> otherTyping(String chatId, {required String myUid}) => _socket.events
+      .where((e) =>
+          e.name == 'typing' && e.data['conversationId'] == chatId && e.data['userId'] != myUid)
+      .map((e) => e.data['isTyping'] == true);
 
-  /// ข้อความในห้องแบบ poll ต่อเนื่อง ใช้แทน messagesStream ของ Firestore เดิม
-  Stream<List<Map<String, dynamic>>> pollMessages(String chatId) async* {
-    while (true) {
-      try {
-        yield await messages(chatId);
-      } catch (_) {
-        // เน็ตหลุดชั่วคราว ไม่ต้องล้มทั้ง stream แค่ข้ามรอบนี้ไป
-      }
-      await Future.delayed(_pollInterval);
-    }
-  }
+  /// อีกฝ่ายอ่านข้อความในห้องถึงเวลาไหนแล้ว
+  Stream<DateTime> otherReadAt(String chatId, {required String myUid}) => _socket.events
+      .where((e) =>
+          e.name == 'read' && e.data['conversationId'] == chatId && e.data['userId'] != myUid)
+      .map((e) => DateTime.parse(e.data['readAt'] as String));
 
-  /// รายการห้องแชทแบบ poll ต่อเนื่อง ใช้แทน myChatsStream/chatsForDogStream เดิม
-  Stream<List<Map<String, dynamic>>> pollChats({String? petName}) async* {
-    while (true) {
+  void setTyping(String chatId, bool isTyping) => _socket.typing(chatId, isTyping);
+
+  /// ดึง REST ครั้งแรกตอนมีคนฟัง แล้วดึงซ้ำเมื่อ server แจ้งว่ามีอะไรเปลี่ยน
+  /// หรือ socket ต่อใหม่ — แทน polling loop เดิม
+  Stream<T> _refetchOnChange<T>(Future<T> Function() fetch) {
+    final subs = <StreamSubscription>[];
+    late final StreamController<T> ctrl;
+
+    Future<void> load() async {
       try {
-        yield await myChats(petName: petName);
+        final value = await fetch();
+        if (!ctrl.isClosed) ctrl.add(value);
       } catch (_) {}
-      await Future.delayed(_pollInterval);
     }
+
+    ctrl = StreamController(
+      onListen: () {
+        _socket.connect();
+        subs
+          ..add(_socket.events.where((e) => e.name == 'notification').listen((_) => load()))
+          ..add(_socket.onConnect.listen((_) => load()));
+        load();
+      },
+      onCancel: () {
+        for (final s in subs) {
+          s.cancel();
+        }
+      },
+    );
+    return ctrl.stream;
   }
 }

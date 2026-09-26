@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../services/auth_service.dart';
@@ -50,15 +52,31 @@ class _ChatScreenState extends State<ChatScreen> {
   /// ประวัติเดิมให้โชว์ไหม เลยต้องกันไม่ให้ขึ้นข้อความ "ทักทาย...กันเลย!" ไปก่อน
   bool _resolvingChat = false;
 
-  /// สร้างครั้งเดียวตอนรู้ห้องแชท ห้ามเรียก pollMessages() ใน build() —
+  /// สร้างครั้งเดียวตอนรู้ห้องแชท (ใน _openRoom) ห้ามสร้างใน build() —
   /// build() รันใหม่ทุกครั้งที่พิมพ์/ส่งข้อความ ถ้าสร้าง stream ใหม่ทุกรอบ
   /// StreamBuilder จะรีเซ็ตกลับไปสถานะ "ยังไม่มีข้อมูล" (เด้งเป็น spinner)
-  /// และทิ้ง polling loop ตัวเก่าค้างไว้สะสมจนแอปหน่วง
+  /// และยิง REST + join ห้องซ้ำทุกครั้ง
   Stream<List<Map<String, dynamic>>>? _messagesStream;
 
-  // ข้อความที่ยิง POST ไปแล้วแต่รอบ poll ถัดไปยังไม่ทันดึงมา — โชว์ค้างไว้ก่อน
-  // (optimistic) กันจอกระพริบ/ข้อความหายไปชั่วขณะระหว่างรอ
+  // ข้อความที่ยิง POST ไปแล้วแต่ event จาก server ยังมาไม่ถึง — โชว์ค้างไว้ก่อน
+  // (optimistic) กันช่วงเสี้ยววินาทีที่ข้อความหายไปก่อนโผล่จริง
   final List<Map<String, dynamic>> _optimisticMessages = [];
+
+  static const _typingIdle = Duration(seconds: 2);
+  // เผื่อ event "หยุดพิมพ์" หาย (อีกฝ่ายปิดแอปกลางทาง) ไม่ให้ค้าง "กำลังพิมพ์..." ตลอดไป
+  static const _typingExpiry = Duration(seconds: 5);
+
+  final List<StreamSubscription> _roomSubs = [];
+  bool _otherTyping = false;
+  Timer? _otherTypingExpiry;
+  bool _iAmTyping = false;
+  Timer? _myTypingIdle;
+
+  /// อีกฝ่ายอ่านถึงเวลานี้แล้ว — มาจาก event สดเท่านั้น (REST ประวัติข้อความไม่มี
+  /// สถานะอ่าน) จึงเริ่มจาก null แล้วโชว์ "อ่านแล้ว" ตั้งแต่อีกฝ่ายเปิดห้องครั้งถัดไป
+  DateTime? _otherReadAt;
+
+  String get _myUid => AuthService.instance.currentUser?.uid ?? '';
 
   @override
   void initState() {
@@ -66,8 +84,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _chatId = widget.chatId;
     _otherAvatar = widget.otherUserAvatar;
     if (_chatId != null) {
-      _messagesStream = ChatService.instance.pollMessages(_chatId!);
-      ChatService.instance.markRead(_chatId!);
+      _openRoom(_chatId!);
     } else if (widget.otherUserId.isNotEmpty) {
       _resolvingChat = true;
       _resolveExistingChat();
@@ -100,17 +117,55 @@ class _ChatScreenState extends State<ChatScreen> {
         otherUserId: widget.otherUserId,
       );
       if (!mounted || existing == null) return;
-      setState(() {
-        _chatId = existing;
-        _messagesStream = ChatService.instance.pollMessages(existing);
-      });
-      ChatService.instance.markRead(existing);
+      setState(() => _openRoom(existing));
     } catch (_) {
       // หาห้องเดิมไม่เจอเพราะเน็ตมีปัญหา ยังพิมพ์ข้อความใหม่ได้ตามปกติ —
       // createOrSend ฝั่ง backend ผูกข้อความเข้าห้องเดิมให้เองอยู่แล้ว
     } finally {
       if (mounted) setState(() => _resolvingChat = false);
     }
+  }
+
+  /// เข้าห้อง: ฟังข้อความ/กำลังพิมพ์/อ่านแล้วของห้องนี้ และ mark read ทันที
+  /// (ต้องเรียกใน setState หรือก่อน build แรก เพราะแก้ _messagesStream)
+  void _openRoom(String chatId) {
+    final chat = ChatService.instance;
+    _chatId = chatId;
+    _messagesStream = chat.watchMessages(chatId, myUid: _myUid);
+    _roomSubs
+      ..add(chat.otherTyping(chatId, myUid: _myUid).listen((typing) {
+        _otherTypingExpiry?.cancel();
+        if (typing) {
+          _otherTypingExpiry = Timer(_typingExpiry, () {
+            if (mounted) setState(() => _otherTyping = false);
+          });
+        }
+        if (mounted) setState(() => _otherTyping = typing);
+      }))
+      ..add(chat.otherReadAt(chatId, myUid: _myUid).listen((at) {
+        if (mounted) setState(() => _otherReadAt = at);
+      }));
+    chat.markRead(chatId).catchError((_) {});
+  }
+
+  /// ส่ง "กำลังพิมพ์" ครั้งเดียวตอนเริ่ม แล้วส่ง "หยุด" เมื่อเว้นไป 2 วิ
+  /// ไม่ยิงทุกแป้นที่กด
+  void _onTextChanged(String text) {
+    final chatId = _chatId;
+    if (chatId == null) return;
+    if (!_iAmTyping && text.isNotEmpty) {
+      _iAmTyping = true;
+      ChatService.instance.setTyping(chatId, true);
+    }
+    _myTypingIdle?.cancel();
+    _myTypingIdle = Timer(_typingIdle, _stopTyping);
+  }
+
+  void _stopTyping() {
+    _myTypingIdle?.cancel();
+    if (!_iAmTyping || _chatId == null) return;
+    _iAmTyping = false;
+    ChatService.instance.setTyping(_chatId!, false);
   }
 
   void _scrollToBottom() {
@@ -129,12 +184,12 @@ class _ChatScreenState extends State<ChatScreen> {
     if (text.isEmpty || _sending) return;
     setState(() => _sending = true);
     _msgController.clear();
+    _stopTyping();
     FocusScope.of(context).unfocus();
 
-    final myUid = AuthService.instance.currentUser?.uid ?? '';
     final optimistic = {
       'id': 'local_${DateTime.now().microsecondsSinceEpoch}',
-      'senderId': myUid,
+      'senderId': _myUid,
       'text': text,
       'createdAt': DateTime.now().toIso8601String(),
     };
@@ -146,8 +201,7 @@ class _ChatScreenState extends State<ChatScreen> {
             await ChatService.instance.createOrSend(petId: widget.petId, message: text);
         if (!mounted) return;
         setState(() {
-          _chatId = newChatId;
-          _messagesStream = ChatService.instance.pollMessages(newChatId);
+          _openRoom(newChatId);
           _optimisticMessages.add(optimistic);
         });
       } else {
@@ -167,6 +221,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    _stopTyping();
+    _otherTypingExpiry?.cancel();
+    for (final s in _roomSubs) {
+      s.cancel();
+    }
     _msgController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -213,8 +272,11 @@ class _ChatScreenState extends State<ChatScreen> {
                     Text(widget.otherUserName,
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                         overflow: TextOverflow.ellipsis),
-                    Text('สัตว์เลี้ยง: ${widget.dogName}',
-                        style: const TextStyle(fontSize: 11, color: Colors.white70)),
+                    Text(_otherTyping ? 'กำลังพิมพ์...' : 'สัตว์เลี้ยง: ${widget.dogName}',
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.white70,
+                            fontStyle: _otherTyping ? FontStyle.italic : FontStyle.normal)),
                   ],
                 ),
               ),
@@ -254,7 +316,7 @@ class _ChatScreenState extends State<ChatScreen> {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        // รวมข้อความจริงจาก server กับข้อความ optimistic ที่ยังไม่โผล่ในรอบ poll
+        // รวมข้อความจริงจาก server กับข้อความ optimistic ที่ event ยังมาไม่ถึง
         // (เทียบด้วย text+senderId คร่าว ๆ พอ — ไม่ต้องเป๊ะเพราะเป็นแค่กันจอกระพริบชั่วคราว)
         final serverMessages = snapshot.data!;
         final pendingStillMissing = _optimisticMessages.where((opt) {
@@ -278,6 +340,7 @@ class _ChatScreenState extends State<ChatScreen> {
           );
         }
 
+        final readIndex = _lastReadByOther(messages, myUid);
         WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
         return ListView.builder(
           controller: _scrollController,
@@ -286,7 +349,7 @@ class _ChatScreenState extends State<ChatScreen> {
           itemBuilder: (context, index) {
             final data = messages[index];
             final isMe = data['senderId'] == myUid;
-            return Align(
+            final bubble = Align(
               alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
               child: Container(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -306,10 +369,34 @@ class _ChatScreenState extends State<ChatScreen> {
                     style: TextStyle(color: isMe ? Colors.white : Colors.black87, fontSize: 16)),
               ),
             );
+            if (index != readIndex) return bubble;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                bubble,
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 8, right: 4),
+                  child: Text('อ่านแล้ว', style: TextStyle(fontSize: 11, color: Colors.black45)),
+                ),
+              ],
+            );
           },
         );
       },
     );
+  }
+
+  /// ข้อความล่าสุดของเราที่อีกฝ่ายอ่านแล้ว — โชว์ "อ่านแล้ว" ใต้ข้อความนั้นอันเดียว
+  int? _lastReadByOther(List<Map<String, dynamic>> messages, String myUid) {
+    final readAt = _otherReadAt;
+    if (readAt == null) return null;
+    for (var i = messages.length - 1; i >= 0; i--) {
+      final m = messages[i];
+      if (m['senderId'] != myUid) continue;
+      final sentAt = DateTime.tryParse('${m['createdAt']}');
+      if (sentAt != null && !sentAt.isAfter(readAt)) return i;
+    }
+    return null;
   }
 
   Widget _buildComposer() {
@@ -333,6 +420,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 fillColor: Colors.grey.shade100,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               ),
+              onChanged: _onTextChanged,
               onSubmitted: (_) => _sendMessage(),
             ),
           ),

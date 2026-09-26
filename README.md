@@ -65,6 +65,15 @@ npm run start:dev
 
 เช็กว่าขึ้นแล้ว: เปิด http://localhost:3000/health ต้องได้ `{"status":"ok","db":"connected"}`
 
+เปิด **worker** อีก terminal (ส่ง push แชท + ลบไฟล์รูปค้างทุกคืน — ไม่เปิดแอปก็ใช้ได้ แค่งานพวกนี้จะค้างในคิวรอ):
+
+```bash
+cd backend/api
+npm run start:worker:dev
+```
+
+ขึ้น `PetPaws worker started` = พร้อม · ถ้ายังไม่ได้ใส่ `FCM_*` ใน `.env` จะขึ้นเตือนและข้ามการส่ง push (ปกติตอน dev)
+
 ### 5. เปิดแอป
 
 ```bash

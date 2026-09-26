@@ -5,6 +5,7 @@ import {
   IsIn,
   IsNotEmpty,
   IsNumberString,
+  IsOptional,
   IsString,
   validateSync,
 } from 'class-validator';
@@ -58,6 +59,23 @@ class EnvVars {
 
   @IsIn(['true', 'false'])
   S3_FORCE_PATH_STYLE!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  REDIS_URL!: string;
+
+  // ว่างได้ตอน dev — worker จะข้ามการส่ง push ไปเฉย ๆ (ดู notifications/fcm.service.ts)
+  @IsOptional()
+  @IsString()
+  FCM_PROJECT_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  FCM_CLIENT_EMAIL?: string;
+
+  @IsOptional()
+  @IsString()
+  FCM_PRIVATE_KEY?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

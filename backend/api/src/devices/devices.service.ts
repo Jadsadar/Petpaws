@@ -24,4 +24,18 @@ export class DevicesService {
     );
     return { success: true };
   }
+
+  async tokensForUser(userId: string): Promise<string[]> {
+    const res = await this.pool.query<{ token: string }>(
+      `SELECT token FROM device_tokens WHERE user_id = $1`,
+      [userId],
+    );
+    return res.rows.map((r) => r.token);
+  }
+
+  /** ลบ token ที่ FCM ตอบว่าใช้ไม่ได้แล้ว (ถอนแอป / token หมดอายุ) */
+  async removeTokens(tokens: string[]): Promise<void> {
+    if (tokens.length === 0) return;
+    await this.pool.query(`DELETE FROM device_tokens WHERE token = ANY($1::text[])`, [tokens]);
+  }
 }

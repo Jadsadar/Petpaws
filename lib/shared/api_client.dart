@@ -126,6 +126,14 @@ class ApiClient {
   // (เดิมเป็นแบบนั้น ทำให้ session ถูกเคลียร์ทิ้งทั้งที่ refresh ตัวแรกกำลังจะสำเร็จ)
   Future<bool>? _refreshFuture;
 
+  /// ให้ WebSocket ใช้ refresh ตัวเดียวกับ REST (single-flight เดียวกัน) ตอน server
+  /// ปฏิเสธ token — ถ้า refresh ไม่ผ่านถือว่า session หมด แจ้ง UI เหมือนฝั่ง REST
+  Future<bool> refreshSession() async {
+    final ok = await _tryRefresh();
+    if (!ok) onSessionExpired?.call();
+    return ok;
+  }
+
   Future<bool> _tryRefresh() {
     return _refreshFuture ??= _doRefresh().whenComplete(() => _refreshFuture = null);
   }
