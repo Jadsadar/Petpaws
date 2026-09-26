@@ -1,0 +1,60 @@
+# CD: รันหลัง merge เข้า main (หรือกดรันมือผ่าน workflow_dispatch ตอนทดสอบ)
+# ต้องตั้ง GitHub Secrets ก่อนใช้งานจริง (Settings > Secrets and variables > Actions):
+#   PROD_SSH_KEY   = เนื้อหาไฟล์ .pem ทั้งไฟล์ (private key ของ VPS)
+#   PROD_ENV_FILE  = เนื้อหาไฟล์ .env ของ production ทั้งไฟล์ (ดู .env.production.example)
+#
+# หมายเหตุ: ยังไม่ได้ต่อ SOPS จริง — ตอนนี้ .env เก็บเป็น GitHub Secret เข้ารหัสโดย
+# GitHub เอง (ปลอดภัยพอสำหรับตอนนี้) ค่อยย้ายไป SOPS ทีหลังได้ถ้าต้องการ audit trail
+# ในไฟล์ git แทน
+
+name: CD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: ลง Ansible
+        run: pip install --disable-pip-version-check ansible
+
+      - name: เตรียม SSH private key
+        run: |
+          install -m 600 -D /dev/null ~/.ssh/petpaws-deploy.pem
+          cat <<'EOF' > ~/.ssh/petpaws-deploy.pem
+          ${{ secrets.PROD_SSH_KEY }}
+          EOF
+          chmod 600 ~/.ssh/petpaws-deploy.pem
+
+      - name: เตรียมไฟล์ .env production
+        run: |
+          cat <<'EOF' > /tmp/prod.env
+          ${{ secrets.PROD_ENV_FILE }}
+          EOF
+
+      - name: ลง Docker บน VPS (idempotent — ข้ามถ้ามีอยู่แล้ว)
+        run: |
+          ansible-playbook -i ansible/inventory.ini ansible/provision.yml \
+            --private-key ~/.ssh/petpaws-deploy.pem
+
+      - name: Deploy ขึ้น VPS
+        run: |
+          ansible-playbook -i ansible/inventory.ini ansible/deploy.yml \
+            --private-key ~/.ssh/petpaws-deploy.pem \
+            --extra-vars "env_file_src=/tmp/prod.env"
