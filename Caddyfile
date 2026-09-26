@@ -1,0 +1,10 @@
+# ตอนนี้ยังไม่มีโดเมนจริง เลยตั้ง default เป็น IP เปล่าๆ (:80 อย่างเดียว ไม่มี HTTPS
+# อัตโนมัติ เพราะ Caddy ออกใบรับรองให้ IP ไม่ได้) พอมีโดเมนแล้วตั้ง PETPAWS_DOMAIN
+# ใน .env เป็นชื่อโดเมนจริง (เช่น api.petpaws.app) แล้ว restart caddy ใหม่ Caddy จะ
+# ออก HTTPS ให้อัตโนมัติเอง ไม่ต้องแก้ไฟล์นี้เพิ่ม
+
+{$PETPAWS_DOMAIN:http://3.24.61.96} {
+	encode gzip
+
+	reverse_proxy petpaws-api:3000
+}

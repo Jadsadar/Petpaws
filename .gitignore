@@ -44,12 +44,28 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Android build/signing — local.properties มี path SDK เฉพาะเครื่อง, key.properties
+# กับ *.keystore/*.jks เป็นรหัสผ่าน/คีย์เซ็นแอปจริง ห้ามหลุดขึ้น git เด็ดขาด
+**/android/local.properties
+**/android/**/gradle-wrapper.jar
+**/android/.gradle
+**/android/captures/
+**/android/**/key.properties
+**/android/**/*.keystore
+**/android/**/*.jks
+**/ios/**/*.mobileprovision
+**/ios/**/*.p12
+
 # Backend secrets — .env มีรหัสผ่าน DB / JWT secret / คีย์ S3 ห้ามหลุดขึ้น git เด็ดขาด
 backend/.env
 backend/.env.local
 backend/api/.env
 backend/api/.env.*
 !backend/api/.env.example
+
+# .env จริงของ production (คู่กับ docker-compose.prod.yml) ห้ามหลุดขึ้น git เช่นกัน
+/.env
+!/.env.production.example
 
 # Node / NestJS (backend/api) — 163MB+ ถ้า node_modules หลุดขึ้นไปจะดึง repo ช้ามาก
 # และ dist/ generate ใหม่ได้จาก source เสมอ ไม่มีเหตุผลต้อง commit
@@ -67,6 +83,23 @@ yarn-error.log*
 # Docker volumes ถูก mount ผ่าน docker-compose อยู่แล้ว ไม่ควรมีไฟล์ data ค้างในซอร์ส
 backend/db/pgdata/
 backend/db/miniodata/
+
+# กันคีย์/credential ทุกชนิดหลุดขึ้น git แบบครอบคลุมทั้ง repo (defense in depth —
+# เผื่อใครก็อปคีย์มาวางผิดที่ ไม่ใช่แค่ path ที่คาดไว้ข้างบน)
+*.pem
+*.ppk
+id_rsa*
+id_ed25519*
+*.age
+age.key
+*.gpg
+*.asc
+.aws/
+.npmrc
+.netrc
+credentials.json
+service-account*.json
+*-service-account.json
 
 # Jenkins agent binary — download from <jenkins-url>/jnlpJars/agent.jar
 agent.jar

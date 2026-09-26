@@ -1,0 +1,79 @@
+# Deploy จริงขึ้น VPS — รันหลัง provision.yml (ลง Docker เสร็จแล้ว) เท่านั้น
+#
+#   ansible-playbook -i ansible/inventory.ini ansible/deploy.yml \
+#     --private-key ~/Downloads/petpaws-key.pem \
+#     --extra-vars "env_file_src=/path/to/.env"
+#
+# env_file_src คือไฟล์ .env จริงของ production (ค่าจริงตาม .env.production.example
+# ที่ root) — ห้าม commit ไฟล์นั้นเข้า git เด็ดขาด ตอนต่อเข้า GitHub Actions ค่อย
+# เปลี่ยนมาถอดรหัสจาก SOPS แทนการส่ง path ตรงๆ แบบนี้
+---
+- name: Deploy Petpaws backend ขึ้น VPS
+  hosts: petpaws_prod
+  become: true
+
+  vars:
+    deploy_dir: /opt/petpaws
+
+  tasks:
+    - name: เช็คว่าใส่ env_file_src มาหรือยัง
+      ansible.builtin.fail:
+        msg: "ต้องส่ง --extra-vars \"env_file_src=/path/to/.env\" มาด้วย"
+      when: env_file_src is not defined
+
+    - name: สร้างโฟลเดอร์ deploy
+      ansible.builtin.file:
+        path: "{{ deploy_dir }}/backend/api"
+        state: directory
+        mode: "0755"
+
+    - name: copy docker-compose.prod.yml และ Caddyfile
+      ansible.builtin.copy:
+        src: "../{{ item }}"
+        dest: "{{ deploy_dir }}/{{ item }}"
+        mode: "0644"
+      loop:
+        - docker-compose.prod.yml
+        - Caddyfile
+
+    - name: copy ไฟล์ config ของ backend/api ที่ build image ต้องใช้
+      ansible.builtin.copy:
+        src: "../backend/api/{{ item }}"
+        dest: "{{ deploy_dir }}/backend/api/{{ item }}"
+        mode: "0644"
+      loop:
+        - Dockerfile
+        - package.json
+        - package-lock.json
+        - tsconfig.json
+        - tsconfig.build.json
+        - nest-cli.json
+
+    - name: copy source code (src/)
+      ansible.builtin.copy:
+        src: ../backend/api/src/
+        dest: "{{ deploy_dir }}/backend/api/src/"
+        mode: preserve
+
+    - name: copy migration SQL (db/migrations/)
+      ansible.builtin.copy:
+        src: ../backend/db/migrations/
+        dest: "{{ deploy_dir }}/backend/db/migrations/"
+        mode: preserve
+
+    - name: copy .env production (ค่าจริง ไม่ใช่ example)
+      ansible.builtin.copy:
+        src: "{{ env_file_src }}"
+        dest: "{{ deploy_dir }}/.env"
+        mode: "0600"
+
+    - name: docker compose up -d --build
+      ansible.builtin.command:
+        cmd: docker compose -f docker-compose.prod.yml --env-file .env up -d --build --remove-orphans
+        chdir: "{{ deploy_dir }}"
+      register: compose_up
+      changed_when: "'Started' in compose_up.stderr or 'Created' in compose_up.stderr or 'Running' in compose_up.stderr"
+
+    - name: แสดง log การ deploy
+      ansible.builtin.debug:
+        msg: "{{ compose_up.stderr_lines }}"
