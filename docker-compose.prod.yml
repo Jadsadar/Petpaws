@@ -4,8 +4,12 @@
 #
 # ต้องมีไฟล์ .env อยู่ข้างๆ ไฟล์นี้ก่อน (ดูตัวอย่างค่าที่ .env.production.example)
 # ห้าม commit ไฟล์ .env จริงเข้า git เด็ดขาด
-
-name: petpaws
+#
+# ตั้ง project name แยกจาก backend/docker-compose.yml (dev) โดยเฉพาะ — เคยเจอบั๊กจริง
+# ตอนทดสอบ: ถ้าใช้ชื่อ "petpaws" ซ้ำกันทั้งสองไฟล์ Docker จะ mount volume postgres_data
+# ตัวเดียวกันกับฝั่ง dev ทำให้ Postgres ใช้รหัสผ่านเก่าจาก dev ค้างอยู่ ในขณะที่ .env
+# ของ production ตั้งรหัสผ่านใหม่ ผลคือ API ต่อ DB ไม่ได้เพราะรหัสผ่านไม่ตรงกัน
+name: petpaws-prod
 
 services:
   postgres:
@@ -109,7 +113,11 @@ services:
       - "80:80"
       - "443:443"
     environment:
-      PETPAWS_DOMAIN: ${PETPAWS_DOMAIN}
+      # ใช้ :- ไม่ใช่ - เฉยๆ เพราะ .env ตั้ง PETPAWS_DOMAIN= (ว่างแต่ "set" อยู่) ไม่ใช่ unset
+      # Caddyfile เองมี {$PETPAWS_DOMAIN:default} แต่ Caddy ไม่ fallback ให้ถ้าตัวแปร
+      # ถูก set เป็นค่าว่าง (ต่างจาก unset) ต้อง resolve fallback ที่ชั้น compose แทน
+      # ไม่งั้น Caddy จะได้ site address เป็นค่าว่าง แล้ว parse Caddyfile พังทั้งไฟล์
+      PETPAWS_DOMAIN: ${PETPAWS_DOMAIN:-http://3.24.61.96}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
