@@ -1,0 +1,16 @@
+# ตั้งค่า SOPS สำหรับเข้ารหัส secret ของ production ก่อน commit เข้า git
+# ถอดรหัสได้เฉพาะคนที่มี private age key เท่านั้น (เก็บแยกไว้นอก git โดยเด็ดขาด)
+#
+# เข้ารหัส:   sops -e .env > secrets/production.env.enc
+# ถอดรหัส:    sops -d secrets/production.env.enc > .env
+#
+# หมายเหตุ: creation_rules จับคู่กับ "ไฟล์ input" ที่ส่งให้ sops (คือ .env ตรงๆ)
+# ไม่ใช่ path ปลายทางที่ redirect ไป เพราะ sops ไม่รู้จัก `>` ของ shell
+#
+# ต้องตั้ง env var SOPS_AGE_KEY_FILE ชี้ไปไฟล์ private key ก่อนถึงจะถอดรหัสได้
+# (ใน GitHub Actions มาจาก secret PROD_AGE_KEY)
+creation_rules:
+  - path_regex: (^|/)\.env$
+    input_type: dotenv
+    output_type: dotenv
+    age: age1k2sqqyt8z46nm84szfa5rvvm728t0m2wdemmmc7w4n39dxmk7ynsalm0lh
