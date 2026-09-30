@@ -1,4 +1,9 @@
-# CD: รันหลัง merge เข้า main (หรือกดรันมือผ่าน workflow_dispatch ตอนทดสอบ)
+# CD: รันต่อจาก CI (ci.yml) อัตโนมัติเฉพาะตอนที่ CI ผ่านบน main แล้วเท่านั้น
+# (หรือกดรันมือผ่าน workflow_dispatch ตอนทดสอบ ไม่ต้องรอ CI)
+#
+# เหตุผลที่ใช้ workflow_run แทน push ตรงๆ: ถ้าใช้ push เฉยๆ จะ deploy โค้ดที่ยัง
+# ไม่ผ่าน test ขึ้น production ได้ทันทีที่ push เข้า main โดยไม่รอผล CI เลย
+#
 # ต้องตั้ง GitHub Secrets ก่อนใช้งานจริง (Settings > Secrets and variables > Actions):
 #   PROD_SSH_KEY  = เนื้อหาไฟล์ .pem ทั้งไฟล์ (private key ของ VPS)
 #   PROD_AGE_KEY  = เนื้อหาไฟล์ private key ของ age ทั้งไฟล์ (~/.config/sops/age/keys.txt)
@@ -11,7 +16,9 @@
 name: CD
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -24,9 +31,16 @@ jobs:
     name: Deploy to VPS
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # รันเมื่อกดมือ (workflow_dispatch) หรือเมื่อ CI จบแล้ว "ผ่าน" เท่านั้น — ถ้า CI
+    # แดง job นี้จะไม่ทำงานเลย กัน deploy โค้ดที่ยังไม่ผ่าน test ขึ้น production
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - uses: actions/checkout@v5
+        with:
+          # ใช้ commit เดียวกับที่ CI เพิ่งทดสอบผ่าน ไม่ใช่ปลาย main ตอนนี้ เผื่อมี
+          # push ใหม่แทรกเข้ามาระหว่างที่ CI กำลังรันอยู่
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - uses: actions/setup-python@v5
         with:
