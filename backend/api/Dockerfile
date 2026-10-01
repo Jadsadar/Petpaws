@@ -17,7 +17,13 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+# ตอนรันจริงใช้แค่ `node` (api, worker, HEALTHCHECK) ไม่ได้ใช้ npm/npx/corepack/yarn
+# เลยลบทิ้งหลังลง dependency เสร็จ — Trivy เจอช่องโหว่ HIGH 10 ตัวใน dependency ของ
+# npm CLI ที่ติดมากับ base image เอง (brace-expansion, pacote, sigstore ฯลฯ) ไม่ใช่ของแอป
+RUN npm ci --omit=dev \
+ && npm cache clean --force \
+ && rm -rf /usr/local/lib/node_modules /usr/local/bin/npm /usr/local/bin/npx \
+           /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg /opt/yarn-*
 
 COPY --from=builder /app/dist ./dist
 

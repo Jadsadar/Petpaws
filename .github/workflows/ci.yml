@@ -139,3 +139,90 @@ jobs:
             https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64
           chmod +x osv-scanner
           ./osv-scanner --lockfile=pubspec.lock
+
+  # SAST: อ่านซอร์สโค้ด backend หาแพทเทิร์นที่เป็นช่องโหว่ (injection, crypto อ่อน,
+  # JWT ผิดวิธี, ความลับฝังในโค้ด ฯลฯ) ใช้กฎชุดฟรีของ Semgrep Registry
+  sast:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      image: semgrep/semgrep:1.99.0
+    steps:
+      - uses: actions/checkout@v5
+
+      # รอบแรกเก็บผลทุกระดับเป็นรายงาน (ไม่ fail) รอบสองใช้ตัดสิน: บล็อกเฉพาะระดับ ERROR
+      # ระดับ WARNING/INFO ดูในรายงานได้ แต่ไม่ทำให้ CI แดง (นโยบายเดียวกับ npm audit)
+      - name: Semgrep scan
+        env:
+          SEMGREP_RULES: p/typescript p/nodejs p/owasp-top-ten p/secrets
+        run: |
+          semgrep scan --metrics=off --disable-version-check \
+            --sarif --output semgrep.sarif backend/api/src
+          semgrep scan --metrics=off --disable-version-check \
+            --severity ERROR --error backend/api/src
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: semgrep-report
+          path: semgrep.sarif
+          retention-days: 14
+
+  # build Docker image ของ backend แบบเดียวกับที่ขึ้น VPS แล้วสแกนก่อนจะได้ deploy จริง
+  # (CD build image บน VPS เอง ถ้าไม่สแกนที่นี่ image ที่ขึ้น production จะไม่เคยถูกตรวจเลย)
+  container:
+    name: Container & config scan (Trivy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TRIVY: docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache -v ${{ github.workspace }}:/src -w /src aquasec/trivy:0.58.1
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build image
+        run: docker build -t petpaws-api:ci backend/api
+
+      # บล็อกเมื่อเจอช่องโหว่ HIGH/CRITICAL ที่มีเวอร์ชันแก้แล้ว (--ignore-unfixed)
+      # ตัวที่ยังไม่มีแพตช์จาก upstream แก้เองไม่ได้ ไม่ควรทำให้ทุก PR แดงค้าง
+      - name: Image scan
+        run: |
+          mkdir -p reports
+          $TRIVY image --no-progress --scanners vuln --ignore-unfixed --severity HIGH,CRITICAL \
+            --format sarif --output reports/trivy-image.sarif petpaws-api:ci
+          $TRIVY image --no-progress --scanners vuln --skip-db-update --ignore-unfixed \
+            --severity HIGH,CRITICAL --exit-code 1 petpaws-api:ci
+
+      # สแกน misconfiguration ของไฟล์ IaC/config ในทั้ง repo (เช่น Dockerfile รันเป็น root,
+      # ไม่มี HEALTHCHECK) --skip-check-update ใช้ชุดกฎที่มากับ Trivy เวอร์ชันนี้ตรง ๆ
+      - name: Config scan
+        run: |
+          $TRIVY config --skip-check-update --severity HIGH,CRITICAL \
+            --format sarif --output reports/trivy-config.sarif .
+          $TRIVY config --skip-check-update --severity HIGH,CRITICAL --exit-code 1 .
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-reports
+          path: reports/
+          retention-days: 14
+
+  # playbook ที่ CD ใช้ deploy ขึ้น VPS จริง ต้องผ่านมาตรฐานก่อน (ใช้ profile production)
+  ansible-lint:
+    name: IaC lint (ansible-lint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: ansible-lint
+        working-directory: ansible
+        run: |
+          # ปักเวอร์ชันที่ทดสอบแล้ว เวอร์ชันใหม่มักเพิ่มกฎใหม่ทำให้ CI แดงเองโดยโค้ดไม่ได้เปลี่ยน
+          pip install --disable-pip-version-check ansible-lint==24.12.2 ansible-core==2.17.7
+          ansible-lint --profile production provision.yml deploy.yml
