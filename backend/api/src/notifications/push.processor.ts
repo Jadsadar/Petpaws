@@ -31,7 +31,7 @@ export class PushProcessor extends WorkerHost {
       sender_name: string;
       recipient_id: string;
     }>(
-      `SELECT m.conversation_id, m.body, s.display_name AS sender_name,
+      `SELECT m.conversation_id, message_preview(m.body, m.media_type) AS body, s.display_name AS sender_name,
               CASE WHEN m.sender_id = c.initiator_id THEN c.owner_id ELSE c.initiator_id END AS recipient_id
        FROM messages m
        JOIN conversations c ON c.id = m.conversation_id

@@ -1,12 +1,26 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../services/auth_service.dart';
+import '../../services/chat_media_service.dart';
 import '../../services/chat_service.dart';
 import '../../services/users_service.dart';
+import '../../shared/api_exception.dart';
+import '../../widgets/chat_media_bubble.dart';
 import '../../widgets/pet_avatar.dart';
 import '../profile/user_profile_screen.dart';
+
+/// รูป/วิดีโอที่กำลังอัป — โชว์เป็น bubble ท้ายห้องพร้อมความคืบหน้าจนกว่าจะส่งสำเร็จ
+class _PendingMedia {
+  _PendingMedia(this.media);
+  final PreparedMedia media;
+  final String id = 'pending_${DateTime.now().microsecondsSinceEpoch}';
+  double progress = 0;
+  bool failed = false;
+}
 
 class ChatScreen extends StatefulWidget {
   /// null = ยังไม่มีห้องแชทจริง (เพิ่งกด "ทักแชท" มาจากการ์ด/รายละเอียดสัตว์)
@@ -56,11 +70,17 @@ class _ChatScreenState extends State<ChatScreen> {
   /// build() รันใหม่ทุกครั้งที่พิมพ์/ส่งข้อความ ถ้าสร้าง stream ใหม่ทุกรอบ
   /// StreamBuilder จะรีเซ็ตกลับไปสถานะ "ยังไม่มีข้อมูล" (เด้งเป็น spinner)
   /// และยิง REST + join ห้องซ้ำทุกครั้ง
+  MessageFeed? _feed;
   Stream<List<Map<String, dynamic>>>? _messagesStream;
 
-  // ข้อความที่ยิง POST ไปแล้วแต่ event จาก server ยังมาไม่ถึง — โชว์ค้างไว้ก่อน
-  // (optimistic) กันช่วงเสี้ยววินาทีที่ข้อความหายไปก่อนโผล่จริง
-  final List<Map<String, dynamic>> _optimisticMessages = [];
+  final List<_PendingMedia> _pending = [];
+
+  /// กำลังเลือก/ย่อรูป/บีบวิดีโอ (ก่อนมี bubble ให้เห็น) — วิดีโออาจใช้หลายวินาที
+  bool _preparingMedia = false;
+
+  /// id ข้อความล่าสุดที่เลื่อนลงไปแล้ว — เลื่อนลงล่างเฉพาะตอนมีข้อความใหม่
+  /// ไม่ใช่ทุกครั้งที่ build (ไม่งั้นกดดูข้อความเก่าแล้วจอจะเด้งกลับลงล่างตลอด)
+  String? _lastScrolledId;
 
   static const _typingIdle = Duration(seconds: 2);
   // เผื่อ event "หยุดพิมพ์" หาย (อีกฝ่ายปิดแอปกลางทาง) ไม่ให้ค้าง "กำลังพิมพ์..." ตลอดไป
@@ -127,7 +147,8 @@ class _ChatScreenState extends State<ChatScreen> {
   void _openRoom(String chatId) {
     final chat = ChatService.instance;
     _chatId = chatId;
-    _messagesStream = chat.watchMessages(chatId, myUid: _myUid);
+    _feed = chat.openMessages(chatId, myUid: _myUid);
+    _messagesStream = _feed!.stream;
     _roomSubs.add(chat.otherTyping(chatId, myUid: _myUid).listen((typing) {
       _otherTypingExpiry?.cancel();
       if (typing) {
@@ -179,29 +200,8 @@ class _ChatScreenState extends State<ChatScreen> {
     _stopTyping();
     FocusScope.of(context).unfocus();
 
-    final optimistic = {
-      'id': 'local_${DateTime.now().microsecondsSinceEpoch}',
-      'senderId': _myUid,
-      'text': text,
-      'createdAt': DateTime.now().toIso8601String(),
-    };
-
     try {
-      if (_chatId == null) {
-        // ยังไม่มีห้อง — ข้อความนี้คือข้อความแรก ต้องสร้างห้องพร้อมกันในธุรกรรมเดียว
-        final newChatId =
-            await ChatService.instance.createOrSend(petId: widget.petId, message: text);
-        if (!mounted) return;
-        setState(() {
-          _openRoom(newChatId);
-          _optimisticMessages.add(optimistic);
-        });
-      } else {
-        await ChatService.instance.sendMessage(_chatId!, text);
-        if (!mounted) return;
-        setState(() => _optimisticMessages.add(optimistic));
-      }
-      _scrollToBottom();
+      await _deliver(text: text);
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -209,6 +209,143 @@ class _ChatScreenState extends State<ChatScreen> {
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  /// ส่งข้อความ (ตัวหนังสือ หรือสื่อที่อัปแล้ว) เข้าห้อง — ถ้ายังไม่มีห้อง ข้อความนี้คือ
+  /// ข้อความแรก ต้องสร้างห้องพร้อมกันในธุรกรรมเดียว
+  Future<void> _deliver({String text = '', Map<String, dynamic>? media}) async {
+    if (_chatId == null) {
+      final newChatId = await ChatService.instance
+          .createOrSend(petId: widget.petId, message: text, media: media);
+      if (!mounted) return;
+      // ประวัติ (รวมข้อความนี้) มาจากการโหลดครั้งแรกของ feed
+      setState(() => _openRoom(newChatId));
+    } else {
+      final sent = await ChatService.instance.sendMessage(_chatId!, text: text, media: media);
+      // ใส่ลง feed เลยจากผลของ POST ไม่ต้องรอ event จาก socket
+      _feed?.upsert(sent);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // รูป / วิดีโอ
+  // ---------------------------------------------------------------------------
+
+  /// ห้องยังไม่เกิด: ให้ส่งได้ทีละชิ้น ไม่งั้นสองคำขอจะแย่งกันสร้างห้องเดียวกัน
+  bool get _canAttach => !_preparingMedia && !(_chatId == null && _pending.isNotEmpty);
+
+  Future<void> _showAttachSheet() async {
+    final media = ChatMediaService.instance;
+    final pick = await showModalBottomSheet<Future<PreparedMedia?> Function()>(
+      context: context,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('รูปภาพจากคลัง'),
+              onTap: () => Navigator.pop(sheet, () => media.pickImage(ImageSource.gallery)),
+            ),
+            if (!kIsWeb)
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('ถ่ายรูป'),
+                onTap: () => Navigator.pop(sheet, () => media.pickImage(ImageSource.camera)),
+              ),
+            if (ChatMediaService.canSendVideo) ...[
+              ListTile(
+                leading: const Icon(Icons.video_library_outlined),
+                title: const Text(kIsWeb ? 'วิดีโอจากเครื่อง' : 'วิดีโอจากคลัง'),
+                subtitle: Text(ChatMediaService.videoLimitHint),
+                onTap: () => Navigator.pop(sheet, () => media.pickVideo(ImageSource.gallery)),
+              ),
+              if (ChatMediaService.canRecordVideo)
+                ListTile(
+                  leading: const Icon(Icons.videocam_outlined),
+                  title: const Text('ถ่ายวิดีโอ'),
+                  onTap: () => Navigator.pop(sheet, () => media.pickVideo(ImageSource.camera)),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+    if (pick != null) await _prepareAndSend(pick);
+  }
+
+  Future<void> _prepareAndSend(Future<PreparedMedia?> Function() pick) async {
+    setState(() => _preparingMedia = true);
+    PreparedMedia? media;
+    try {
+      media = await pick();
+    } catch (e) {
+      _showError(e, 'เปิดไฟล์นี้ไม่ได้ กรุณาเลือกไฟล์อื่น');
+    } finally {
+      if (mounted) setState(() => _preparingMedia = false);
+    }
+    if (media == null || !mounted) return;
+
+    final pending = _PendingMedia(media);
+    setState(() => _pending.add(pending));
+    await _uploadPending(pending);
+  }
+
+  Future<void> _uploadPending(_PendingMedia pending) async {
+    setState(() {
+      pending.failed = false;
+      pending.progress = 0;
+    });
+    try {
+      final media = await ChatMediaService.instance.upload(
+        pending.media,
+        onProgress: (v) {
+          if (mounted) setState(() => pending.progress = v);
+        },
+      );
+      await _deliver(media: media);
+      if (mounted) setState(() => _pending.remove(pending));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => pending.failed = true);
+      _showError(e, 'ส่งไฟล์ไม่สำเร็จ แตะที่รูปเพื่อลองใหม่');
+    }
+  }
+
+  Future<void> _onPendingTap(_PendingMedia pending) async {
+    if (!pending.failed) return;
+    final retry = await showModalBottomSheet<bool>(
+      context: context,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.refresh),
+              title: const Text('ลองส่งอีกครั้ง'),
+              onTap: () => Navigator.pop(sheet, true),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text('ยกเลิก', style: TextStyle(color: Colors.red)),
+              onTap: () => Navigator.pop(sheet, false),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (retry == null || !mounted) return;
+    if (retry) {
+      await _uploadPending(pending);
+    } else {
+      setState(() => _pending.remove(pending));
+    }
+  }
+
+  void _showError(Object error, String fallback) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error is ApiException ? error.message : fallback)));
   }
 
   @override
@@ -294,6 +431,13 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     final messagesStream = _messagesStream;
+    if (messagesStream == null && _pending.isNotEmpty) {
+      // ข้อความแรกเป็นรูป/วิดีโอที่กำลังอัป — ห้องจะเกิดตอนอัปเสร็จแล้วส่ง
+      return ListView(
+        padding: const EdgeInsets.all(16),
+        children: _pending.map(_buildPending).toList(),
+      );
+    }
     if (messagesStream == null) {
       // ยังไม่เคยส่งข้อความเลย ไม่มีห้องให้ poll — โชว์ช่องว่างเชิญชวนให้เริ่มคุย
       return Center(
@@ -308,24 +452,8 @@ class _ChatScreenState extends State<ChatScreen> {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        // รวมข้อความจริงจาก server กับข้อความ optimistic ที่ event ยังมาไม่ถึง
-        // (เทียบด้วย text+senderId คร่าว ๆ พอ — ไม่ต้องเป๊ะเพราะเป็นแค่กันจอกระพริบชั่วคราว)
-        final serverMessages = snapshot.data!;
-        final pendingStillMissing = _optimisticMessages.where((opt) {
-          return !serverMessages.any((m) =>
-              m['senderId'] == opt['senderId'] && m['text'] == opt['text']);
-        }).toList();
-        if (pendingStillMissing.length != _optimisticMessages.length) {
-          // บาง optimistic message โผล่จริงแล้วจาก server ตัดตัวที่ซ้ำทิ้ง
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) setState(() => _optimisticMessages
-              ..clear()
-              ..addAll(pendingStillMissing));
-          });
-        }
-
-        final messages = [...serverMessages, ...pendingStillMissing];
-        if (messages.isEmpty) {
+        final messages = snapshot.data!;
+        if (messages.isEmpty && _pending.isEmpty) {
           return Center(
             child: Text('ทักทายเรื่องสัตว์เลี้ยง ${widget.dogName} กันเลย!',
                 style: const TextStyle(color: Colors.black38)),
@@ -333,34 +461,32 @@ class _ChatScreenState extends State<ChatScreen> {
         }
 
         final readIndex = _lastReadByOther(messages, myUid);
-        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+        final latestId = _pending.isNotEmpty
+            ? _pending.last.id
+            : (messages.isEmpty ? null : messages.last['id'] as String?);
+        if (latestId != _lastScrolledId) {
+          _lastScrolledId = latestId;
+          WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+        }
+
+        final feed = _feed;
+        final showLoadOlder = feed != null && feed.hasMore;
+        final offset = showLoadOlder ? 1 : 0;
+
         return ListView.builder(
           controller: _scrollController,
           padding: const EdgeInsets.all(16),
-          itemCount: messages.length,
-          itemBuilder: (context, index) {
+          itemCount: offset + messages.length + _pending.length,
+          itemBuilder: (context, i) {
+            if (showLoadOlder && i == 0) return _buildLoadOlder(feed);
+            final index = i - offset;
+            if (index >= messages.length) {
+              return _buildPending(_pending[index - messages.length]);
+            }
+
             final data = messages[index];
             final isMe = data['senderId'] == myUid;
-            final bubble = Align(
-              alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-                decoration: BoxDecoration(
-                  color: isMe ? const Color(0xFFFF9E68) : Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(20),
-                    topRight: const Radius.circular(20),
-                    bottomLeft: Radius.circular(isMe ? 20 : 0),
-                    bottomRight: Radius.circular(isMe ? 0 : 20),
-                  ),
-                  boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
-                ),
-                child: Text(data['text'] as String? ?? '',
-                    style: TextStyle(color: isMe ? Colors.white : Colors.black87, fontSize: 16)),
-              ),
-            );
+            final bubble = _buildMessage(data, isMe);
             if (index != readIndex) return bubble;
             return Column(
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -375,6 +501,84 @@ class _ChatScreenState extends State<ChatScreen> {
           },
         );
       },
+    );
+  }
+
+  Widget _buildLoadOlder(MessageFeed feed) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Center(
+        child: feed.loadingOlder
+            ? const SizedBox(
+                width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+            : TextButton.icon(
+                onPressed: () => feed
+                    .loadOlder()
+                    .catchError((Object e) => _showError(e, 'โหลดข้อความก่อนหน้าไม่สำเร็จ')),
+                icon: const Icon(Icons.history, size: 18),
+                label: const Text('ดูข้อความก่อนหน้า'),
+                style: TextButton.styleFrom(foregroundColor: Colors.black54),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildPending(_PendingMedia pending) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: GestureDetector(
+          onTap: () => _onPendingTap(pending),
+          child: ChatMediaBubble(
+            type: pending.media.type,
+            width: pending.media.width,
+            height: pending.media.height,
+            localThumbnail: pending.media.thumbnail,
+            progress: pending.progress,
+            failed: pending.failed,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMessage(Map<String, dynamic> data, bool isMe) {
+    final text = data['text'] as String? ?? '';
+    final media = data['media'] is Map ? Map<String, dynamic>.from(data['media'] as Map) : null;
+    final textBubble = text.isEmpty
+        ? null
+        : Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+            decoration: BoxDecoration(
+              color: isMe ? const Color(0xFFFF9E68) : Colors.white,
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(20),
+                topRight: const Radius.circular(20),
+                bottomLeft: Radius.circular(isMe ? 20 : 0),
+                bottomRight: Radius.circular(isMe ? 0 : 20),
+              ),
+              boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
+            ),
+            child: Text(text,
+                style: TextStyle(color: isMe ? Colors.white : Colors.black87, fontSize: 16)),
+          );
+
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: media == null
+            ? textBubble
+            : Column(
+                crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                children: [
+                  ChatMediaBubble.fromMessage(media),
+                  if (textBubble != null) ...[const SizedBox(height: 4), textBubble],
+                ],
+              ),
+      ),
     );
   }
 
@@ -396,6 +600,15 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       child: Row(
         children: [
+          IconButton(
+            tooltip: 'แนบรูปหรือวิดีโอ',
+            onPressed: _canAttach ? _showAttachSheet : null,
+            color: const Color(0xFFFF9E68),
+            icon: _preparingMedia
+                ? const SizedBox(
+                    width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.add_photo_alternate_outlined),
+          ),
           Expanded(
             child: TextField(
               controller: _msgController,

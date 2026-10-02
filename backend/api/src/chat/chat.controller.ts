@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ChatService } from './chat.service.js';
 import { CreateChatDto } from './dto/create-chat.dto.js';
+import { CreateMediaUploadDto } from './dto/create-media-upload.dto.js';
+import { ListMessagesQueryDto } from './dto/list-messages.dto.js';
 import { SendMessageDto } from './dto/send-message.dto.js';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator.js';
 
@@ -23,9 +25,19 @@ export class ChatController {
     return this.chatService.createOrSend(user.id, dto);
   }
 
+  /** ขอใบอนุญาตอัปรูป/วิดีโอ + thumbnail ตรงไป S3 ก่อนส่งข้อความที่แนบไฟล์ */
+  @Post('media-uploads')
+  createMediaUpload(@CurrentUser() user: AuthUser, @Body() dto: CreateMediaUploadDto) {
+    return this.chatService.createMediaUpload(user.id, dto);
+  }
+
   @Get(':id/messages')
-  messages(@Param('id') id: string, @CurrentUser() user: AuthUser) {
-    return this.chatService.messages(user.id, id);
+  messages(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUser,
+    @Query() query: ListMessagesQueryDto,
+  ) {
+    return this.chatService.messages(user.id, id, query);
   }
 
   @Post(':id/messages')
