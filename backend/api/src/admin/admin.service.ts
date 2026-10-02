@@ -84,7 +84,7 @@ export class AdminService {
        SELECT r.id, r.reason, r.detail, r.created_at,
               r.reporter_id, ru.username AS reporter_username, ru.display_name AS reporter_name,
               r.reported_user_id, r.reported_pet_id, p.name AS pet_name,
-              r.reported_message_id, m.body AS message_body
+              r.reported_message_id, message_preview(m.body, m.media_type) AS message_body
        FROM target t
        JOIN reports r   ON r.id = t.id
        JOIN users ru    ON ru.id = r.reporter_id

@@ -4,11 +4,13 @@ import {
   CreateBucketCommand,
   DeleteObjectsCommand,
   HeadBucketCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   PutBucketPolicyCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import { randomUUID } from 'node:crypto';
 import { AppException } from '../common/app-exception.js';
 
@@ -16,6 +18,17 @@ const MAX_UPLOAD_BYTES = 8 * 1024 * 1024; // 8MB — สอดคล้องก
 const ALLOWED_CONTENT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const UPLOAD_PREFIX = 'uploads/';
 const S3_DELETE_BATCH = 1000; // เพดานของ DeleteObjects ต่อ 1 request
+
+// ชื่อไฟล์เป็น UUID ใหม่ทุกครั้ง เนื้อไฟล์ใต้ key เดิมไม่มีวันเปลี่ยน — ให้แอป/CDN
+// cache ได้ตลอดไป ไม่ต้องกลับมาถาม server ซ้ำ
+export const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable';
+
+export interface PresignedPost {
+  /** URL ที่แอปต้อง POST แบบ multipart ไปหา (ตรงไป S3/MinIO ไม่ผ่าน API) */
+  url: string;
+  /** field ที่ต้องแนบไปกับ form ตามลำดับนี้ ก่อน field "file" ซึ่งต้องอยู่ท้ายสุด */
+  fields: Record<string, string>;
+}
 
 /**
  * อัปโหลดผ่าน NestJS ตรง ๆ (multipart -> S3 PutObject) แทนที่จะออก presigned URL
@@ -95,10 +108,47 @@ export class MediaService implements OnModuleInit {
         Key: key,
         Body: file.buffer,
         ContentType: file.mimetype,
+        CacheControl: IMMUTABLE_CACHE_CONTROL,
       }),
     );
 
-    return { url: `${this.publicEndpoint}/${this.bucket}/${key}` };
+    return { url: this.urlForKey(key) };
+  }
+
+  urlForKey(key: string): string {
+    return `${this.publicEndpoint}/${this.bucket}/${key}`;
+  }
+
+  /**
+   * ใบอนุญาตให้แอปอัปไฟล์ "ตรง" ไป S3 โดยไม่ผ่าน API (ใช้กับไฟล์แชท ซึ่งรวมวิดีโอ
+   * ขนาดหลายสิบ MB — ถ้าวิ่งผ่าน multer ไฟล์ทั้งก้อนจะค้างใน RAM ของ API)
+   *
+   * ใช้ presigned POST ไม่ใช่ presigned PUT เพราะ POST policy บังคับขนาดสูงสุด
+   * (content-length-range) และ Content-Type ได้ที่ฝั่ง S3 เอง — PUT ทำไม่ได้
+   * ไฟล์เกินขนาดจะถูก S3 ปฏิเสธตั้งแต่ตอนอัป ไม่ต้องรอให้ API มาตรวจทีหลัง
+   */
+  async presignPost(key: string, contentType: string, maxBytes: number, ttlSeconds: number): Promise<PresignedPost> {
+    const { url, fields } = await createPresignedPost(this.client, {
+      Bucket: this.bucket,
+      Key: key,
+      // field ที่ใส่ตรงนี้ถูกผูกเข้า policy อัตโนมัติ (แอปแก้ค่าเองไม่ได้)
+      Fields: { 'Content-Type': contentType, 'Cache-Control': IMMUTABLE_CACHE_CONTROL },
+      Conditions: [['content-length-range', 1, maxBytes]],
+      Expires: ttlSeconds,
+    });
+    return { url, fields };
+  }
+
+  /** ขนาดของไฟล์ที่อัปขึ้นไปแล้วจริง หรือ null ถ้ายังไม่มีไฟล์ใต้ key นี้ */
+  async objectSize(key: string): Promise<number | null> {
+    try {
+      const res = await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
+      return res.ContentLength ?? 0;
+    } catch (err) {
+      const status = (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
+      if (status === 404) return null;
+      throw err;
+    }
   }
 
   /** key ของไฟล์ในโฟลเดอร์อัปโหลดที่ถูกสร้าง/แก้ล่าสุดก่อน cutoff */
