@@ -28,7 +28,7 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     steps:
       # build จาก commit ที่ CI ตรวจผ่านแล้วตรง ๆ (ไม่ใช่ปลาย main ณ ตอนนี้ ซึ่งอาจมี commit ใหม่เข้ามาแล้ว)
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
@@ -51,7 +51,7 @@ jobs:
             --build-name=1.0.${{ github.run_number }}
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: PetPaws v1.0.${{ github.run_number }}

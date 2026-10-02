@@ -39,11 +39,11 @@ jobs:
 
     steps:
       # build จาก commit ที่ CI ตรวจผ่านแล้วตรง ๆ (ไม่ใช่ปลาย main ณ ตอนนี้ ซึ่งอาจมี commit ใหม่เข้ามาแล้ว)
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
