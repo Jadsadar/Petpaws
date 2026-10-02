@@ -2,7 +2,7 @@
 # ใช้ตัว -bookworm-slim (glibc) ไม่ใช่ alpine เพราะ argon2 มี prebuilt binary
 # สำหรับ glibc เสถียรกว่า ถ้าใช้ alpine (musl) เสี่ยง build native module พังตอน npm ci
 
-FROM node:22-bookworm-slim AS builder
+FROM node:26-bookworm-slim AS builder
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -12,7 +12,7 @@ COPY . .
 RUN npm run build
 
 # ---- runtime stage ----
-FROM node:22-bookworm-slim
+FROM node:26-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production
 
