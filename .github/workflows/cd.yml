@@ -9,10 +9,19 @@
 
 name: CD
 
+# รอให้ CI (ci.yml) รันจบและผ่านทุก job ก่อน (รวม Gitleaks, Semgrep, Trivy) ถ้า CI แดง
+# หรือถูกยกเลิก ขั้นนี้จะไม่ทำงานเลย เดิมใช้ push: เฉย ๆ ทำให้รันพร้อม CI และไม่รอผล
+# หมายเหตุ: workflow_run อ่านไฟล์ workflow จาก branch หลักเท่านั้น จะมีผลหลัง merge เข้า main
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
+
+# ตั้งสิทธิ์ token ให้น้อยที่สุด ขั้น deploy แค่อ่านโค้ด ไม่ต้องเขียนอะไรกลับเข้า repo
+permissions:
+  contents: read
 
 concurrency:
   group: cd-${{ github.ref }}
@@ -23,9 +32,16 @@ jobs:
     name: Deploy to VPS
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # workflow_dispatch = คนกดรันเองโดยตั้งใจ, workflow_run = CI ของ push เข้า main ผ่านแล้วเท่านั้น
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
 
     steps:
+      # build จาก commit ที่ CI ตรวจผ่านแล้วตรง ๆ (ไม่ใช่ปลาย main ณ ตอนนี้ ซึ่งอาจมี commit ใหม่เข้ามาแล้ว)
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - uses: actions/setup-python@v5
         with:

@@ -1,0 +1,39 @@
+# Dependabot: เปิด PR อัปเดต dependency ให้อัตโนมัติทุกสัปดาห์ เมื่อมีเวอร์ชันใหม่หรือแพตช์
+# ความปลอดภัย ทุก PR ต้องผ่าน CI (test + Gitleaks + Semgrep + Trivy + npm audit) ก่อน merge
+# เหมือน PR ปกติ จัดกลุ่ม minor/patch รวมเป็น PR เดียวต่อระบบ ไม่ให้ PR ท่วม
+version: 2
+updates:
+  # backend NestJS
+  - package-ecosystem: npm
+    directory: /backend/api
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      backend-minor-patch:
+        update-types: [minor, patch]
+
+  # แอป Flutter (pubspec.yaml ที่ root)
+  - package-ecosystem: pub
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      mobile-minor-patch:
+        update-types: [minor, patch]
+
+  # base image ใน backend/api/Dockerfile (node:22-bookworm-slim) ได้แพตช์ OS ตามรอบ
+  - package-ecosystem: docker
+    directory: /backend/api
+    schedule:
+      interval: weekly
+
+  # actions ที่ใช้ใน .github/workflows
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
