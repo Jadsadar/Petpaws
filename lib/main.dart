@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import 'data/mock_data.dart';
+import 'screens/admin/admin_screen.dart';
 import 'screens/auth/create_profile_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/main_screen.dart';
+import 'services/admin_service.dart';
 import 'services/auth_service.dart';
 import 'shared/app_user.dart';
 
@@ -34,8 +36,27 @@ class PetPawsApp extends StatelessWidget {
 }
 
 /// ฟังสถานะการล็อกอินแล้วสลับหน้าให้อัตโนมัติ
-class AuthGate extends StatelessWidget {
+/// แอดมินเข้าแดชบอร์ดแอดมินอย่างเดียว (ไม่ผ่าน MainScreen ของผู้ใช้ทั่วไป)
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  String? _probedUid;
+  Future<bool>? _isAdmin;
+
+  /// เช็กสิทธิ์แอดมินครั้งเดียวต่อผู้ใช้หนึ่งคน (เก็บ Future ไว้ ไม่สร้างใหม่ทุกครั้งที่ build
+  /// ไม่งั้น FutureBuilder จะกะพริบหน้าโหลดซ้ำทุกครั้งที่ StreamBuilder วาดใหม่)
+  Future<bool> _adminFor(String uid) {
+    if (_probedUid != uid) {
+      _probedUid = uid;
+      _isAdmin = AdminService.instance.checkIsAdmin();
+    }
+    return _isAdmin!;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,16 +74,32 @@ class AuthGate extends StatelessWidget {
         // restoreSession() จนเสร็จก่อนวาดเฟรมแรก
         final user = snapshot.data;
         if (user == null) {
+          // ออกจากระบบแล้ว ล้างผลเช็กสิทธิ์ของบัญชีเก่า กันค้างไปให้บัญชีถัดไป
+          _probedUid = null;
+          _isAdmin = null;
+          AdminService.instance.clearCache();
           return const LoginScreen();
         }
-        // profileCompleted = false คือบัญชีที่เพิ่งสมัคร ยังไม่เคยกรอกหน้าโปรไฟล์
-        // (ดู migration 011_profile_completed.sql — แทนที่การเช็ก displayName ว่างแบบเดิม)
-        if (!user.profileCompleted) {
-          return const CreateProfileScreen();
-        }
-        currentUserProfile['name'] = user.displayName;
-        currentUserProfile['email'] = user.email;
-        return const MainScreen();
+        return FutureBuilder<bool>(
+          future: _adminFor(user.uid),
+          builder: (context, adminSnap) {
+            if (adminSnap.connectionState != ConnectionState.done) {
+              return const Scaffold(body: Center(child: CircularProgressIndicator()));
+            }
+            // เช็กแอดมินก่อนเช็กโปรไฟล์: แอดมินไม่ต้องกรอกโปรไฟล์ผู้ใช้
+            if (adminSnap.data == true) {
+              return const AdminScreen();
+            }
+            // profileCompleted = false คือบัญชีที่เพิ่งสมัคร ยังไม่เคยกรอกหน้าโปรไฟล์
+            // (ดู migration 011_profile_completed.sql — แทนที่การเช็ก displayName ว่างแบบเดิม)
+            if (!user.profileCompleted) {
+              return const CreateProfileScreen();
+            }
+            currentUserProfile['name'] = user.displayName;
+            currentUserProfile['email'] = user.email;
+            return const MainScreen();
+          },
+        );
       },
     );
   }

@@ -61,6 +61,13 @@ class ChatService {
     return res.cast<Map<String, dynamic>>();
   }
 
+  /// สถานะห้อง: status ('active'|'closed'), closedReason, blockedByMe — ใช้เลือกว่าจะโชว์ช่องพิมพ์ไหม
+  Future<Map<String, dynamic>> detail(String chatId) async =>
+      await _api.get('/chats/$chatId') as Map<String, dynamic>;
+
+  /// ลบแชท = ซ่อนเฉพาะฝั่งเรา อีกฝ่ายยังเห็น (ข้อความใหม่ทำให้ห้องกลับมา)
+  Future<void> hideChat(String chatId) => _api.delete('/chats/$chatId');
+
   Future<void> sendMessage(String chatId, String text) =>
       _api.post('/chats/$chatId/messages', body: {'text': text});
 

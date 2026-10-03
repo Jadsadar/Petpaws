@@ -6,9 +6,11 @@ import '../../services/storage_service.dart';
 import '../../widgets/pet_avatar.dart';
 import '../../widgets/pet_image_picker.dart';
 import '../../widgets/province_picker.dart';
+import '../../widgets/species_field.dart';
 import '../../widgets/tag_selector.dart';
 import '../detail/pet_detail_screen.dart';
 import 'edit_dog_screen.dart';
+import 'pet_post_preview_screen.dart';
 
 class UploadScreen extends StatefulWidget {
   final Function(Map<String, dynamic>) onAddDog;
@@ -41,6 +43,9 @@ class _UploadScreenState extends State<UploadScreen> {
   final TextEditingController ageMonthController = TextEditingController();
   final TextEditingController weightController = TextEditingController();
   final TextEditingController storyController = TextEditingController();
+
+  final TextEditingController speciesOtherController = TextEditingController();
+  String selectedSpecies = 'dog';
 
   final List<String> selectedTags = [];
 
@@ -88,13 +93,20 @@ class _UploadScreenState extends State<UploadScreen> {
   Future<void> submitForm() async {
     final age = _composeAge();
     if (nameController.text.trim().isEmpty || age.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('กรุณากรอกชื่อและอายุ')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('กรุณากรอกชื่อและอายุ')));
       return;
     }
     if ((int.tryParse(ageMonthController.text) ?? 0) > 11) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('เดือนต้องไม่เกิน 11 ถ้าครบ 12 เดือนให้กรอกเป็นปีแทน')));
+          content:
+              Text('เดือนต้องไม่เกิน 11 ถ้าครบ 12 เดือนให้กรอกเป็นปีแทน')));
+      return;
+    }
+    if (selectedSpecies == 'other' &&
+        speciesOtherController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('กรุณาระบุชนิดสัตว์เลี้ยง')));
       return;
     }
     if (selectedTags.isEmpty) {
@@ -103,10 +115,35 @@ class _UploadScreenState extends State<UploadScreen> {
       return;
     }
     if (_pickedImageBytes == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('กรุณาเลือกรูปภาพสัตว์เลี้ยง 1 รูป')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('กรุณาเลือกรูปภาพสัตว์เลี้ยง 1 รูป')));
       return;
     }
+
+    // พรีวิวหน้าประกาศให้เจ้าของดูก่อน แล้วค่อยยืนยันโพสต์จริงอีกครั้ง
+    final confirmed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PetPostPreviewScreen(
+          imageBytes: _pickedImageBytes!,
+          dog: {
+            'name': nameController.text.trim(),
+            'species': selectedSpecies,
+            'speciesOther': speciesOtherController.text.trim(),
+            'breed': breedController.text.isEmpty ? 'พันทาง' : breedController.text,
+            'province': selectedProvince,
+            'age': age,
+            'gender': selectedGender,
+            'weight': weightController.text.isEmpty ? '-' : weightController.text,
+            'tags': List<String>.from(selectedTags),
+            'story': storyController.text.isEmpty
+                ? 'กำลังรอคนใจดีมารับไปดูแลอยู่ครับ/ค่ะ'
+                : storyController.text,
+          },
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted) return;
 
     setState(() => _isSubmitting = true);
     try {
@@ -119,8 +156,10 @@ class _UploadScreenState extends State<UploadScreen> {
       // ทำให้โพสต์นี้ไม่เคยถูกบันทึกไว้ที่ไหนที่บัญชีอื่นจะเห็นได้เลย)
       final newDog = await PetService.instance.create({
         "name": nameController.text,
-        "breed":
-            breedController.text.isEmpty ? "พันทาง" : breedController.text,
+        "species": selectedSpecies,
+        if (selectedSpecies == 'other')
+          "speciesOther": speciesOtherController.text.trim(),
+        "breed": breedController.text.isEmpty ? "พันทาง" : breedController.text,
         "province": selectedProvince,
         "age": age,
         "gender": selectedGender,
@@ -133,8 +172,8 @@ class _UploadScreenState extends State<UploadScreen> {
       });
       widget.onAddDog(newDog);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ประกาศหาบ้านสำเร็จ!')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('ประกาศหาบ้านสำเร็จ!')));
       nameController.clear();
       breedController.clear();
       ageYearController.clear();
@@ -148,8 +187,8 @@ class _UploadScreenState extends State<UploadScreen> {
       });
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ลงประกาศไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('ลงประกาศไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -178,12 +217,30 @@ class _UploadScreenState extends State<UploadScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const Text('รูปภาพ *',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.black87)),
+            const SizedBox(height: 8),
+            PetImagePicker(
+              key: ValueKey(_imagePickerResetKey),
+              onChanged: (bytes) => setState(() => _pickedImageBytes = bytes),
+            ),
+            const SizedBox(height: 16),
             TextField(
               controller: nameController,
               decoration: InputDecoration(
                   labelText: 'ชื่อสัตว์เลี้ยง *',
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16))),
+            ),
+            const SizedBox(height: 16),
+            SpeciesField(
+              species: selectedSpecies,
+              otherController: speciesOtherController,
+              enabled: !_isSubmitting,
+              onChanged: (v) => setState(() => selectedSpecies = v),
             ),
             const SizedBox(height: 16),
             TextField(
@@ -193,12 +250,6 @@ class _UploadScreenState extends State<UploadScreen> {
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16))),
             ),
-            const SizedBox(height: 16),
-            Row(children: [
-              Expanded(child: _ageField(ageYearController, 'อายุ (ปี) *')),
-              const SizedBox(width: 16),
-              Expanded(child: _ageField(ageMonthController, 'อายุ (เดือน)')),
-            ]),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               value: selectedGender,
@@ -211,6 +262,13 @@ class _UploadScreenState extends State<UploadScreen> {
                   .toList(),
               onChanged: (val) => setState(() => selectedGender = val!),
             ),
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(child: _ageField(ageYearController, 'อายุ (ปี) *')),
+              const SizedBox(width: 16),
+              Expanded(child: _ageField(ageMonthController, 'อายุ (เดือน)')),
+            ]),
+            const SizedBox(height: 16),
             const SizedBox(height: 16),
             Row(children: [
               Expanded(
@@ -260,17 +318,6 @@ class _UploadScreenState extends State<UploadScreen> {
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16)))),
             const SizedBox(height: 16),
-            const Text('รูปภาพ *',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Colors.black87)),
-            const SizedBox(height: 8),
-            PetImagePicker(
-              key: ValueKey(_imagePickerResetKey),
-              onChanged: (bytes) =>
-                  setState(() => _pickedImageBytes = bytes),
-            ),
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: _isSubmitting ? null : submitForm,
@@ -290,8 +337,8 @@ class _UploadScreenState extends State<UploadScreen> {
                           color: Colors.white, strokeWidth: 2.5),
                     )
                   : const Text('โพสต์หาบ้าน',
-                      style: TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold)),
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ),
             const SizedBox(height: 32),
             const Divider(color: Colors.black12),
@@ -328,8 +375,10 @@ class _UploadScreenState extends State<UploadScreen> {
                                   builder: (context) => PetDetailScreen(
                                         dog: dog,
                                         isMyPost: true,
-                                        isFavorited: widget.likedDogs.any((d) => d['id'] == dog['id']),
-                                        onToggleFavorite: () => widget.onToggleFavorite(dog),
+                                        isFavorited: widget.likedDogs
+                                            .any((d) => d['id'] == dog['id']),
+                                        onToggleFavorite: () =>
+                                            widget.onToggleFavorite(dog),
                                       ))),
                           borderRadius: BorderRadius.circular(20),
                           child: Padding(
@@ -362,12 +411,11 @@ class _UploadScreenState extends State<UploadScreen> {
                                                 builder: (context) =>
                                                     EditDogScreen(
                                                         dog: dog,
-                                                        onSave: widget
-                                                            .onEditDog))),
+                                                        onSave:
+                                                            widget.onEditDog))),
                                       ),
                                       IconButton(
-                                        icon: const Icon(
-                                            Icons.delete_outline,
+                                        icon: const Icon(Icons.delete_outline,
                                             color: Colors.redAccent),
                                         onPressed: () {
                                           widget.onDeleteDog(dog);
@@ -394,18 +442,16 @@ class _UploadScreenState extends State<UploadScreen> {
                                       decoration: BoxDecoration(
                                         color: _getStatusColor(currentStatus)
                                             .withOpacity(0.15),
-                                        borderRadius:
-                                            BorderRadius.circular(20),
+                                        borderRadius: BorderRadius.circular(20),
                                       ),
                                       child: DropdownButton<String>(
                                         value: currentStatus,
                                         underline: const SizedBox(),
                                         icon: Icon(Icons.arrow_drop_down,
-                                            color: _getStatusColor(
-                                                currentStatus)),
+                                            color:
+                                                _getStatusColor(currentStatus)),
                                         style: TextStyle(
-                                          color:
-                                              _getStatusColor(currentStatus),
+                                          color: _getStatusColor(currentStatus),
                                           fontWeight: FontWeight.bold,
                                           fontFamily: 'Roboto',
                                         ),

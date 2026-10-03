@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../database/database.module.js';
+import { ChatService } from '../chat/chat.service.js';
 import { AppException } from '../common/app-exception.js';
 import {
   genderDbToLabel,
@@ -9,6 +10,7 @@ import {
   statusLabelToDb,
   weightDbToLabel,
   weightToDb,
+  PET_SPECIES,
 } from './pet-mappers.js';
 import type { CreatePetDto } from './dto/create-pet.dto.js';
 import type { UpdatePetDto } from './dto/update-pet.dto.js';
@@ -18,7 +20,7 @@ import type { UpdatePetDto } from './dto/update-pet.dto.js';
 const PET_SELECT = `
   SELECT
     p.id, p.owner_id, u.display_name AS owner_name, u.avatar_url AS owner_avatar,
-    p.name, p.breed, p.location AS province, p.age_label, p.sex, p.weight_kg,
+    p.name, p.species::text AS species, p.species_other, p.breed, p.location AS province, p.age_label, p.sex, p.weight_kg,
     p.description AS story, p.status, p.like_count,
     (SELECT pm.url FROM pet_media pm WHERE pm.pet_id = p.id ORDER BY pm.sort_order LIMIT 1) AS image_url,
     COALESCE(
@@ -36,6 +38,8 @@ interface PetRow {
   owner_name: string;
   owner_avatar: string | null;
   name: string;
+  species: string;
+  species_other: string | null;
   breed: string | null;
   province: string;
   age_label: string | null;
@@ -50,7 +54,16 @@ interface PetRow {
 
 @Injectable()
 export class PetsService {
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly chatService: ChatService,
+  ) {}
+
+  /** นาฬิกา DB ก่อนเปลี่ยนสถานะ ใช้หาข้อความระบบที่ trigger เพิ่งใส่ให้ (ดู ChatService.broadcastSystemMessages) */
+  private async dbNow(): Promise<Date> {
+    const res = await this.pool.query<{ now: Date }>(`SELECT clock_timestamp() AS now`);
+    return res.rows[0].now;
+  }
 
   private toDog(row: PetRow) {
     return {
@@ -59,6 +72,8 @@ export class PetsService {
       ownerName: row.owner_name,
       ownerAvatar: row.owner_avatar ?? '',
       name: row.name,
+      species: row.species,
+      speciesOther: row.species_other ?? '',
       breed: row.breed ?? 'พันทาง',
       province: row.province,
       age: row.age_label ?? '-',
@@ -78,12 +93,14 @@ export class PetsService {
       await client.query('BEGIN');
 
       const petRes = await client.query<{ id: string }>(
-        `INSERT INTO pets (owner_id, name, breed, sex, location, age_label, weight_kg, description, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'available')
+        `INSERT INTO pets (owner_id, name, species, species_other, breed, sex, location, age_label, weight_kg, description, status)
+         VALUES ($1, $2, $3::pet_species, $4, $5, $6, $7, $8, $9, $10, 'available')
          RETURNING id`,
         [
           ownerId,
           dto.name.trim(),
+          dto.species ?? 'dog',
+          dto.species === 'other' ? dto.speciesOther?.trim() || null : null,
           dto.breed?.trim() || 'พันทาง',
           genderLabelToDb(dto.gender),
           dto.province,
@@ -143,6 +160,7 @@ export class PetsService {
 
   async update(id: string, ownerId: string, dto: UpdatePetDto) {
     await this.assertOwner(id, ownerId);
+    const since = await this.dbNow();
 
     const client = await this.pool.connect();
     try {
@@ -158,6 +176,15 @@ export class PetsService {
 
       if (dto.name !== undefined) set('name', dto.name.trim());
       if (dto.breed !== undefined) set('breed', dto.breed.trim() || 'พันทาง');
+      if (dto.species !== undefined) {
+        set('species', dto.species);
+        // species_other มีได้เฉพาะตอนเป็น 'other' (CHECK ใน DB) — เปลี่ยนชนิดแล้วต้องล้างทิ้งด้วย
+        set('species_other', dto.species === 'other' ? dto.speciesOther?.trim() || null : null);
+      } else if (dto.speciesOther !== undefined) {
+        // แก้แค่ข้อความ "อื่น ๆ" โดยไม่ส่งชนิดมา — ใช้ได้เฉพาะสัตว์ที่เป็น other อยู่แล้ว
+        fields.push(`species_other = CASE WHEN species::text = 'other' THEN $${i++} ELSE NULL END`);
+        values.push(dto.speciesOther.trim() || null);
+      }
       if (dto.province !== undefined) set('location', dto.province);
       if (dto.age !== undefined) set('age_label', dto.age);
       if (dto.gender !== undefined) set('sex', genderLabelToDb(dto.gender));
@@ -193,17 +220,20 @@ export class PetsService {
       client.release();
     }
 
+    if (dto.status !== undefined) await this.chatService.broadcastSystemMessages(id, since);
     return this.findOne(id);
   }
 
   async remove(id: string, ownerId: string) {
     await this.assertOwner(id, ownerId);
+    const since = await this.dbNow();
     // soft delete เท่านั้น — ตาราง likes/conversations ของคนอื่นที่อ้าง pet นี้
     // จะพังถ้าลบแถวจริง (เหตุผลเต็มใน backend/db/README.md กลุ่มที่ 2)
     await this.pool.query(
       `UPDATE pets SET deleted_at = now(), status = 'cancelled', adopted_at = NULL WHERE id = $1`,
       [id],
     );
+    await this.chatService.broadcastSystemMessages(id, since);
     return { success: true };
   }
 
@@ -259,7 +289,7 @@ export class PetsService {
    */
   async deck(
     userId: string,
-    opts: { cursor?: string; province?: string; traitSlugs?: string[]; limit?: number },
+    opts: { cursor?: string; province?: string; species?: string; traitSlugs?: string[]; limit?: number },
   ) {
     let cursorRank: number | null = null;
     let cursorAt: string | null = null;
@@ -273,6 +303,10 @@ export class PetsService {
       } catch {
         throw new AppException('INVALID_CURSOR', 'cursor ไม่ถูกต้อง');
       }
+    }
+
+    if (opts.species && !(PET_SPECIES as readonly string[]).includes(opts.species)) {
+      throw new AppException('INVALID_SPECIES', 'ชนิดสัตว์ไม่ถูกต้อง');
     }
 
     let traitIds: string[] | null = null;
@@ -300,7 +334,7 @@ export class PetsService {
       owner_avatar: string | null;
       proximity_rank: number;
     }>(
-      `SELECT * FROM deck_feed($1, $2, $3, $4, $5, $6, NULL, $7)`,
+      `SELECT * FROM deck_feed($1, $2, $3, $4, $5, $6, $8::pet_species, $7)`,
       [
         userId,
         opts.limit ?? 20,
@@ -309,6 +343,7 @@ export class PetsService {
         cursorId,
         opts.province ?? null,
         traitIds,
+        opts.species ?? null,
       ],
     );
 

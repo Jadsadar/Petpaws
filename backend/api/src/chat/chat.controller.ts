@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 import { ChatService } from './chat.service.js';
 import { CreateChatDto } from './dto/create-chat.dto.js';
 import { SendMessageDto } from './dto/send-message.dto.js';
@@ -21,6 +21,16 @@ export class ChatController {
   @Post()
   createOrSend(@CurrentUser() user: AuthUser, @Body() dto: CreateChatDto) {
     return this.chatService.createOrSend(user.id, dto);
+  }
+
+  @Get(':id')
+  detail(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.chatService.detail(user.id, id);
+  }
+
+  @Delete(':id')
+  hide(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.chatService.hide(user.id, id);
   }
 
   @Get(':id/messages')

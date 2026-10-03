@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../screens/detail/pet_detail_screen.dart';
 import 'pet_network_image.dart';
+import '../utils/pet_species.dart';
 
 /// การ์ดสัตว์เลี้ยงในหน้า Discover ที่ปัดซ้าย/ขวาเพื่อไม่รับ/สนใจรับเลี้ยง
 class SwipeableCard extends StatelessWidget {
@@ -99,7 +100,7 @@ class SwipeableCard extends StatelessWidget {
                             fontSize: 32,
                             fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
-                    Text(dog['breed'] ?? 'ไม่ระบุสายพันธุ์',
+                    Text('${petSpeciesLabel(dog)} • ${dog['breed'] ?? 'ไม่ระบุสายพันธุ์'}',
                         style: const TextStyle(
                             color: Colors.white70, fontSize: 18)),
                     const SizedBox(height: 8),

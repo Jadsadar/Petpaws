@@ -148,6 +148,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 controller: confirmPasswordController,
                 obscureText: _obscureConfirmPassword,
                 enabled: !_isLoading,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) {
+                  if (!_isLoading) handleRegister();
+                },
                 decoration: InputDecoration(
                     labelText: 'ยืนยันรหัสผ่าน *',
                     suffixIcon: IconButton(

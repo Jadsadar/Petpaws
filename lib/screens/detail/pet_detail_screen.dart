@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/auth_service.dart';
+import '../../utils/pet_species.dart';
 import '../../utils/pet_tags.dart';
 import '../../widgets/pet_avatar.dart';
 import '../../widgets/pet_network_image.dart';
@@ -137,7 +138,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      _buildInfoCard(Icons.pets, 'สายพันธุ์',
+                      _buildInfoCard(Icons.pets, petSpeciesLabel(widget.dog),
                           widget.dog['breed'] ?? 'ไม่ระบุ'),
                       const SizedBox(width: 16),
                       _buildInfoCard(Icons.cake, 'อายุ', widget.dog['age']),

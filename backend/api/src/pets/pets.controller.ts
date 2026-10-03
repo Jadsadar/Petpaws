@@ -24,12 +24,14 @@ export class PetsController {
     @CurrentUser() user: AuthUser,
     @Query('cursor') cursor?: string,
     @Query('province') province?: string,
+    @Query('species') species?: string,
     @Query('tags') tags?: string,
     @Query('limit') limit?: string,
   ) {
     return this.petsService.deck(user.id, {
       cursor,
       province,
+      species,
       traitSlugs: tags ? tags.split(',').filter(Boolean) : undefined,
       limit: limit ? Number(limit) : undefined,
     });

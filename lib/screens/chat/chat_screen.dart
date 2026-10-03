@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 
 import '../../services/auth_service.dart';
 import '../../services/chat_service.dart';
+import '../../services/report_service.dart';
 import '../../services/users_service.dart';
 import '../../widgets/pet_avatar.dart';
+import '../../widgets/report_dialog.dart';
 import '../profile/user_profile_screen.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -42,7 +44,18 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
 
   String? _chatId;
+  final FocusNode _msgFocus = FocusNode();
   bool _sending = false;
+
+  /// สถานะห้องจาก server — closed = อ่านย้อนหลังได้แต่พิมพ์ไม่ได้ (สัตว์ได้บ้าน/ยกเลิกประกาศ/บล็อก)
+  bool _closed = false;
+  String? _closedReason;
+  bool _blockedByMe = false;
+  int _systemCount = 0;
+
+  /// ค้นหาข้อความในห้องนี้ (null = ปิดแถบค้นหา)
+  String? _search;
+  final TextEditingController _searchController = TextEditingController();
 
   /// รูปคู่สนทนาที่จะโชว์บน AppBar — เริ่มจากค่าที่ส่งมา (มีเฉพาะตอนเข้าจากกล่องข้อความ
   /// ซึ่ง GET /chats ส่ง otherUserAvatarUrl มาให้) ถ้าไม่มีจะไปดึงเองใน _loadOtherAvatar()
@@ -138,6 +151,23 @@ class _ChatScreenState extends State<ChatScreen> {
       if (mounted) setState(() => _otherTyping = typing);
     }));
     chat.markRead(chatId).catchError((_) {});
+    _loadDetail();
+  }
+
+  Future<void> _loadDetail() async {
+    final id = _chatId;
+    if (id == null) return;
+    try {
+      final d = await ChatService.instance.detail(id);
+      if (!mounted) return;
+      setState(() {
+        _closed = d['status'] == 'closed';
+        _closedReason = d['closedReason'] as String?;
+        _blockedByMe = d['blockedByMe'] == true;
+      });
+    } catch (_) {
+      // ดึงสถานะไม่ได้ก็ปล่อยให้พิมพ์ตามเดิม ถ้าห้องปิดจริง server จะตอบ 403 ตอนส่งอยู่แล้ว
+    }
   }
 
   /// ส่ง "กำลังพิมพ์" ครั้งเดียวตอนเริ่ม แล้วส่ง "หยุด" เมื่อเว้นไป 2 วิ
@@ -219,6 +249,8 @@ class _ChatScreenState extends State<ChatScreen> {
       s.cancel();
     }
     _msgController.dispose();
+    _searchController.dispose();
+    _msgFocus.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -278,12 +310,155 @@ class _ChatScreenState extends State<ChatScreen> {
         backgroundColor: const Color(0xFFFF9E68),
         foregroundColor: Colors.white,
         elevation: 1,
+        actions: [
+          if (_chatId != null)
+            PopupMenuButton<String>(
+              key: const ValueKey('chat-menu'),
+              onSelected: _onMenu,
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'search', child: Text('ค้นหาข้อความ')),
+                if (widget.otherUserId.isNotEmpty) ...[
+                  PopupMenuItem(
+                      value: _blockedByMe ? 'unblock' : 'block',
+                      child: Text(_blockedByMe ? 'ปลดบล็อก' : 'บล็อก')),
+                  const PopupMenuItem(value: 'report', child: Text('รายงานผู้ใช้')),
+                ],
+                const PopupMenuItem(value: 'delete', child: Text('ลบแชท')),
+              ],
+            ),
+        ],
       ),
       body: Column(
         children: [
+          if (_search != null) _buildSearchBar(),
           Expanded(child: _buildMessageList(myUid)),
-          _buildComposer(),
+          _closed ? _buildClosedBanner() : _buildComposer(),
         ],
+      ),
+    );
+  }
+
+  Future<bool> _confirm(String title, String message, String ok) async {
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(ok)),
+        ],
+      ),
+    );
+    return res == true;
+  }
+
+  void _snack(String text) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+
+  Future<void> _onMenu(String action) async {
+    final chatId = _chatId;
+    if (chatId == null) return;
+    switch (action) {
+      case 'search':
+        setState(() => _search = '');
+      case 'block':
+        if (!await _confirm('บล็อก ${widget.otherUserName}',
+            'ห้องแชทนี้จะถูกปิด และคุณทั้งสองจะไม่เห็นประกาศของกันและกัน ปลดบล็อกได้ภายหลัง', 'บล็อก')) {
+          return;
+        }
+        try {
+          await ReportService.instance.blockUser(widget.otherUserId);
+          await _loadDetail();
+          if (mounted) _snack('บล็อกแล้ว');
+        } catch (_) {
+          if (mounted) _snack('บล็อกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+        }
+      case 'unblock':
+        try {
+          await ReportService.instance.unblockUser(widget.otherUserId);
+          await _loadDetail();
+          if (mounted) _snack('ปลดบล็อกแล้ว');
+        } catch (_) {
+          if (mounted) _snack('ปลดบล็อกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+        }
+      case 'report':
+        await reportWithDialog(
+          context,
+          title: 'รายงาน ${widget.otherUserName}',
+          send: (reason, detail) =>
+              ReportService.instance.reportUser(widget.otherUserId, reason: reason, detail: detail),
+          blockUserId: widget.otherUserId,
+          blockUserName: widget.otherUserName,
+          onBlocked: _loadDetail,
+        );
+      case 'delete':
+        if (!await _confirm('ลบแชท', 'แชทนี้จะหายจากรายการของคุณ (อีกฝ่ายยังเห็นอยู่) ลบแล้วกู้คืนไม่ได้', 'ลบ')) {
+          return;
+        }
+        try {
+          await ChatService.instance.hideChat(chatId);
+          if (mounted) Navigator.pop(context);
+        } catch (_) {
+          if (mounted) _snack('ลบแชทไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+        }
+    }
+  }
+
+  Widget _buildSearchBar() {
+    return Material(
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 6, 4, 6),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                key: const ValueKey('chat-search'),
+                controller: _searchController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                    hintText: 'ค้นหาข้อความในแชทนี้',
+                    border: InputBorder.none,
+                    prefixIcon: Icon(Icons.search)),
+                onChanged: (v) => setState(() => _search = v.trim()),
+              ),
+            ),
+            IconButton(
+              tooltip: 'ปิดการค้นหา',
+              icon: const Icon(Icons.close),
+              onPressed: () => setState(() {
+                _search = null;
+                _searchController.clear();
+              }),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// ห้องถูกปิด: แทนช่องพิมพ์ด้วยคำอธิบาย (ถ้าเราเป็นคนบล็อก มีปุ่มปลดบล็อกให้ตรงนี้เลย)
+  Widget _buildClosedBanner() {
+    final text = _blockedByMe
+        ? 'คุณบล็อกผู้ใช้นี้อยู่ ปลดบล็อกเพื่อคุยต่อ'
+        : switch (_closedReason) {
+            'pet_adopted' => 'สัตว์ตัวนี้มีบ้านแล้ว ห้องแชทนี้ถูกปิด',
+            'pet_deleted' => 'ประกาศนี้ถูกยกเลิกแล้ว ห้องแชทนี้ถูกปิด',
+            'blocked' => 'ไม่สามารถส่งข้อความในห้องนี้ได้',
+            _ => 'ห้องแชทนี้ถูกปิดแล้ว',
+          };
+    return SafeArea(
+      child: Container(
+        key: const ValueKey('chat-closed'),
+        width: double.infinity,
+        color: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(child: Text(text, style: const TextStyle(color: Colors.black54))),
+            if (_blockedByMe) TextButton(onPressed: () => _onMenu('unblock'), child: const Text('ปลดบล็อก')),
+          ],
+        ),
       ),
     );
   }
@@ -324,7 +499,21 @@ class _ChatScreenState extends State<ChatScreen> {
           });
         }
 
-        final messages = [...serverMessages, ...pendingStillMissing];
+        // มีข้อความระบบใหม่ (สัตว์ได้บ้าน/ประกาศถูกยกเลิก) = ห้องเพิ่งถูกปิด ดึงสถานะใหม่
+        final systemCount = serverMessages.where((m) => m['kind'] == 'system').length;
+        if (systemCount != _systemCount) {
+          _systemCount = systemCount;
+          WidgetsBinding.instance.addPostFrameCallback((_) => _loadDetail());
+        }
+
+        final query = (_search ?? '').toLowerCase();
+        final messages = [
+          for (final m in [...serverMessages, ...pendingStillMissing])
+            if (query.isEmpty || '${m['text']}'.toLowerCase().contains(query)) m,
+        ];
+        if (messages.isEmpty && query.isNotEmpty) {
+          return const Center(child: Text('ไม่พบข้อความที่ค้นหา', style: TextStyle(color: Colors.black38)));
+        }
         if (messages.isEmpty) {
           return Center(
             child: Text('ทักทายเรื่องสัตว์เลี้ยง ${widget.dogName} กันเลย!',
@@ -340,8 +529,23 @@ class _ChatScreenState extends State<ChatScreen> {
           itemCount: messages.length,
           itemBuilder: (context, index) {
             final data = messages[index];
+            if (data['kind'] == 'system') {
+              // ประกาศของระบบ แบบ "เข้าร่วม/ออกจากกลุ่ม" ในไลน์ — อยู่กลางจอ ไม่ใช่ฟองของใคร
+              return Center(
+                child: Container(
+                  key: ValueKey('system-${data['id']}'),
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(16)),
+                  child: Text('${data['text']}', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                ),
+              );
+            }
             final isMe = data['senderId'] == myUid;
-            final bubble = Align(
+            final messageId = data['id'];
+            // รายงานได้เฉพาะข้อความของอีกฝ่ายที่ถูกบันทึกลงเซิร์ฟเวอร์แล้ว (ข้อความ optimistic ยังไม่มี id จริง)
+            final reportable = !isMe && messageId is String && messageId.isNotEmpty;
+            Widget bubble = Align(
               alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
               child: Container(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -361,6 +565,13 @@ class _ChatScreenState extends State<ChatScreen> {
                     style: TextStyle(color: isMe ? Colors.white : Colors.black87, fontSize: 16)),
               ),
             );
+            if (reportable) {
+              bubble = GestureDetector(
+                key: ValueKey('msg-$messageId'),
+                onLongPress: () => _offerReport(messageId),
+                child: bubble,
+              );
+            }
             if (index != readIndex) return bubble;
             return Column(
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -375,6 +586,31 @@ class _ChatScreenState extends State<ChatScreen> {
           },
         );
       },
+    );
+  }
+
+  /// กดค้างที่ข้อความของอีกฝ่าย → เมนูรายงาน (แอดมินจะเห็นเฉพาะข้อความที่ถูกรายงานนี้ข้อความเดียว)
+  Future<void> _offerReport(String messageId) async {
+    final go = await showModalBottomSheet<bool>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: ListTile(
+          key: const ValueKey('report-message'),
+          leading: const Icon(Icons.flag_outlined),
+          title: const Text('รายงานข้อความนี้'),
+          onTap: () => Navigator.pop(ctx, true),
+        ),
+      ),
+    );
+    if (go != true || !mounted) return;
+    await reportWithDialog(
+      context,
+      title: 'รายงานข้อความนี้',
+      send: (reason, detail) =>
+          ReportService.instance.reportMessage(messageId, reason: reason, detail: detail),
+      blockUserId: widget.otherUserId.isEmpty ? null : widget.otherUserId,
+      blockUserName: widget.otherUserName,
+      onBlocked: _loadDetail,
     );
   }
 
@@ -399,7 +635,9 @@ class _ChatScreenState extends State<ChatScreen> {
           Expanded(
             child: TextField(
               controller: _msgController,
-              enabled: !_sending,
+              focusNode: _msgFocus,
+              // readOnly แทน enabled:false — ถ้า disable ช่องจะเสียโฟกัส กด Enter ส่งต่อรอบถัดไปไม่ได้
+              readOnly: _sending,
               decoration: InputDecoration(
                 hintText: 'พิมพ์ข้อความ...',
                 border: OutlineInputBorder(
@@ -409,7 +647,11 @@ class _ChatScreenState extends State<ChatScreen> {
                 contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               ),
               onChanged: _onTextChanged,
-              onSubmitted: (_) => _sendMessage(),
+              textInputAction: TextInputAction.send,
+              onSubmitted: (_) {
+                _sendMessage();
+                _msgFocus.requestFocus(); // ให้พิมพ์/Enter ต่อได้เลย
+              },
             ),
           ),
           const SizedBox(width: 8),
