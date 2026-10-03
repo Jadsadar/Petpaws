@@ -83,6 +83,7 @@ class _LoginScreenState extends State<LoginScreen> {
               TextField(
                 controller: identifierController,
                 enabled: !_isLoading,
+                textInputAction: TextInputAction.next,
                 decoration: InputDecoration(
                   labelText: 'อีเมล หรือ ชื่อผู้ใช้',
                   prefixIcon:
@@ -99,6 +100,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 controller: passwordController,
                 obscureText: _obscurePassword,
                 enabled: !_isLoading,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) {
+                  if (!_isLoading) login();
+                },
                 decoration: InputDecoration(
                   labelText: 'รหัสผ่าน',
                   prefixIcon:

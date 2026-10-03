@@ -1,12 +1,10 @@
 import {
   Body,
   Controller,
-  DefaultValuePipe,
   Get,
   HttpCode,
   HttpStatus,
   Param,
-  ParseIntPipe,
   ParseUUIDPipe,
   Post,
   Query,
@@ -15,30 +13,40 @@ import {
 import { AdminService } from './admin.service.js';
 import { AdminGuard } from './admin.guard.js';
 import { BanUserDto } from './dto/ban-user.dto.js';
+import { PaginationQueryDto, resolvePaging } from './dto/pagination.dto.js';
+import { DEFAULT_MIN_REPORTS, ReportedUsersQueryDto } from './dto/reported-users-query.dto.js';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator.js';
-
-const DEFAULT_MIN_REPORTS = 10;
 
 @Controller('admin')
 @UseGuards(AdminGuard)
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
+  @Get('summary')
+  summary() {
+    return this.adminService.summary();
+  }
+
+  /** ?minReports=&page=&pageSize= → { items, total, page, pageSize } */
   @Get('reported-users')
-  reportedUsers(
-    @Query('minReports', new DefaultValuePipe(DEFAULT_MIN_REPORTS), ParseIntPipe) minReports: number,
-  ) {
-    return this.adminService.reportedUsers(Math.max(1, minReports));
+  reportedUsers(@Query() query: ReportedUsersQueryDto) {
+    return this.adminService.reportedUsers(query.minReports ?? DEFAULT_MIN_REPORTS, resolvePaging(query));
   }
 
   @Get('banned-users')
-  bannedUsers() {
-    return this.adminService.bannedUsers();
+  bannedUsers(@Query() query: PaginationQueryDto) {
+    return this.adminService.bannedUsers(resolvePaging(query));
+  }
+
+  /** โปรไฟล์ + ประกาศทั้งหมดของผู้ใช้ พร้อมรูป (ให้แอดมินตรวจสิ่งที่ถูกรายงาน) */
+  @Get('users/:id')
+  userProfile(@Param('id', ParseUUIDPipe) id: string) {
+    return this.adminService.userProfile(id);
   }
 
   @Get('users/:id/reports')
-  userReports(@Param('id', ParseUUIDPipe) id: string) {
-    return this.adminService.userReports(id);
+  userReports(@Param('id', ParseUUIDPipe) id: string, @Query() query: PaginationQueryDto) {
+    return this.adminService.userReports(id, resolvePaging(query));
   }
 
   @HttpCode(HttpStatus.OK)

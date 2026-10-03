@@ -1,11 +1,17 @@
-# CD: รันหลัง merge เข้า main (หรือกดรันมือผ่าน workflow_dispatch ตอนทดสอบ)
-# ต้องตั้ง GitHub Secrets ก่อนใช้งานจริง (Settings > Secrets and variables > Actions):
-#   PROD_SSH_KEY   = เนื้อหาไฟล์ .pem ทั้งไฟล์ (private key ของ VPS)
-#   PROD_ENV_FILE  = เนื้อหาไฟล์ .env ของ production ทั้งไฟล์ (ดู .env.production.example)
+# CD: รันต่อจาก CI (ci.yml) อัตโนมัติเฉพาะตอนที่ CI ผ่านบน main แล้วเท่านั้น
+# (หรือกดรันมือผ่าน workflow_dispatch ตอนทดสอบ ไม่ต้องรอ CI)
 #
-# หมายเหตุ: ยังไม่ได้ต่อ SOPS จริง — ตอนนี้ .env เก็บเป็น GitHub Secret เข้ารหัสโดย
-# GitHub เอง (ปลอดภัยพอสำหรับตอนนี้) ค่อยย้ายไป SOPS ทีหลังได้ถ้าต้องการ audit trail
-# ในไฟล์ git แทน
+# เหตุผลที่ใช้ workflow_run แทน push ตรงๆ: ถ้าใช้ push เฉยๆ จะ deploy โค้ดที่ยัง
+# ไม่ผ่าน test ขึ้น production ได้ทันทีที่ push เข้า main โดยไม่รอผล CI เลย
+#
+# ต้องตั้ง GitHub Secrets ก่อนใช้งานจริง (Settings > Secrets and variables > Actions):
+#   PROD_SSH_KEY  = เนื้อหาไฟล์ .pem ทั้งไฟล์ (private key ของ VPS)
+#   PROD_AGE_KEY  = เนื้อหาไฟล์ private key ของ age ทั้งไฟล์ (~/.config/sops/age/keys.txt)
+#                   ใช้ถอดรหัส secrets/production.env.enc ที่ commit ไว้ใน repo
+#
+# ค่าจริงของ production เข้ารหัสด้วย SOPS เก็บไว้ที่ secrets/production.env.enc
+# (ดู .sops.yaml) แก้ค่าแล้ว re-encrypt ใหม่ด้วย: sops -e .env > secrets/production.env.enc
+# ไม่ต้องไปแก้ GitHub Secret ทุกครั้งที่ .env เปลี่ยน — แก้แค่ไฟล์ที่ commit เข้า git
 
 name: CD
 
@@ -58,11 +64,20 @@ jobs:
           EOF
           chmod 600 ~/.ssh/petpaws-deploy.pem
 
-      - name: เตรียมไฟล์ .env production
+      - name: ลง SOPS
         run: |
-          cat <<'EOF' > /tmp/prod.env
-          ${{ secrets.PROD_ENV_FILE }}
+          curl -sL https://github.com/getsops/sops/releases/download/v3.9.4/sops-v3.9.4.linux.amd64 -o /usr/local/bin/sops
+          sudo chmod +x /usr/local/bin/sops
+
+      - name: ถอดรหัสไฟล์ .env production ด้วย SOPS
+        run: |
+          install -m 600 -D /dev/null /tmp/age-key.txt
+          cat <<'EOF' > /tmp/age-key.txt
+          ${{ secrets.PROD_AGE_KEY }}
           EOF
+          SOPS_AGE_KEY_FILE=/tmp/age-key.txt sops --input-type dotenv --output-type dotenv \
+            -d secrets/production.env.enc > /tmp/prod.env
+          rm -f /tmp/age-key.txt
 
       - name: ลง Docker บน VPS (idempotent — ข้ามถ้ามีอยู่แล้ว)
         run: |

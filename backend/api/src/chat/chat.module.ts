@@ -11,5 +11,6 @@ import { ChatMediaService } from './chat-media.service.js';
   imports: [JwtModule.register({}), QueueModule, MediaModule],
   controllers: [ChatController],
   providers: [ChatService, ChatGateway, ChatMediaService],
+  exports: [ChatService],
 })
 export class ChatModule {}

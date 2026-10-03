@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../services/auth_service.dart';
+import '../../services/report_service.dart';
+import '../../utils/pet_species.dart';
+import '../../widgets/report_dialog.dart';
 import '../../widgets/swipeable_card.dart';
 import '../chat/chat_screen.dart';
 
@@ -13,6 +16,10 @@ class DiscoverScreen extends StatelessWidget {
   final List<Map<String, dynamic>> likedDogs;
   final Function(Map<String, dynamic>) onToggleFavorite;
 
+  /// ตัวกรองชนิดสัตว์ ('' = ทั้งหมด) — เปลี่ยนแล้ว MainScreen โหลดเด็คใหม่ตามชนิดนั้น
+  final String speciesFilter;
+  final ValueChanged<String> onSpeciesFilterChanged;
+
   const DiscoverScreen({
     super.key,
     required this.dogs,
@@ -22,6 +29,8 @@ class DiscoverScreen extends StatelessWidget {
     required this.canUndo,
     required this.likedDogs,
     required this.onToggleFavorite,
+    this.speciesFilter = '',
+    required this.onSpeciesFilterChanged,
   });
 
   Future<void> _handleLikeAndChat(
@@ -60,37 +69,24 @@ class DiscoverScreen extends StatelessWidget {
 
   Future<void> _handleReport(
       BuildContext context, Map<String, dynamic> dog) async {
-    const reasons = [
-      'ข้อมูลเป็นเท็จ',
-      'สแปมหรือโฆษณา',
-      'เนื้อหาไม่เหมาะสม',
-      'สงสัยว่าเป็นการหลอกลวง',
-      'อื่นๆ',
-    ];
-    final reason = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('รายงานประกาศนี้'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: reasons
-              .map((r) => ListTile(
-                    title: Text(r),
-                    onTap: () => Navigator.pop(context, r),
-                  ))
-              .toList(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('ยกเลิก'),
-          ),
-        ],
-      ),
+    final petId = dog['id'] as String;
+    final ownerId = dog['ownerId'] as String?;
+    await reportWithDialog(
+      context,
+      title: 'รายงานประกาศนี้',
+      send: (reason, detail) =>
+          ReportService.instance.reportPet(petId, reason: reason, detail: detail),
+      blockUserId: (ownerId == null || ownerId.isEmpty) ? null : ownerId,
+      blockUserName: dog['ownerName'] as String? ?? 'เจ้าของประกาศนี้',
+      // บล็อกแล้วถือว่าปัดทิ้ง: ตัวที่รายงานกับตัวอื่นของเจ้าของเดียวกันที่ค้างในเด็ค
+      // (server เองก็ซ่อนประกาศของคนที่บล็อกอยู่แล้ว แต่เด็คในเครื่องดึงมาไว้ก่อนหน้า)
+      onBlocked: () {
+        final sameOwner = [for (final d in dogs) if (d['ownerId'] == ownerId) d];
+        for (final d in sameOwner) {
+          onPass(d);
+        }
+      },
     );
-    if (reason == null || !context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('ส่งรายงานเรียบร้อยแล้ว ขอบคุณที่ช่วยดูแลชุมชนของเรา')));
   }
 
   @override
@@ -103,8 +99,31 @@ class DiscoverScreen extends StatelessWidget {
         backgroundColor: Colors.white,
         elevation: 1,
         centerTitle: true,
+        actions: [
+          IconButton(
+            key: const ValueKey('species-filter'),
+            tooltip: 'กรองชนิดสัตว์',
+            // สีส้ม = กำลังกรองอยู่ เทา = ดูทั้งหมด
+            icon: Icon(Icons.filter_list,
+                color: speciesFilter.isEmpty ? Colors.grey.shade600 : const Color(0xFFFF9E68)),
+            onPressed: () => _pickSpecies(context),
+          ),
+        ],
       ),
-      body: dogs.isEmpty
+      body: _deck(context),
+    );
+  }
+
+  Future<void> _pickSpecies(BuildContext context) async {
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (_) => _SpeciesPickerDialog(current: speciesFilter),
+    );
+    if (picked != null) onSpeciesFilterChanged(picked);
+  }
+
+  Widget _deck(BuildContext context) {
+    return dogs.isEmpty
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -199,7 +218,66 @@ class DiscoverScreen extends StatelessWidget {
                   ),
                 )
               ],
+            );
+  }
+}
+
+/// เลือกชนิดสัตว์: มีช่องพิมพ์ค้นหา แล้วกดเลือกจากรายการ ('' = ทั้งหมด)
+class _SpeciesPickerDialog extends StatefulWidget {
+  const _SpeciesPickerDialog({required this.current});
+
+  final String current;
+
+  @override
+  State<_SpeciesPickerDialog> createState() => _SpeciesPickerDialogState();
+}
+
+class _SpeciesPickerDialogState extends State<_SpeciesPickerDialog> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final options = <String, String>{'': 'ทั้งหมด', ...petSpeciesLabels};
+    final shown = options.entries.where((e) => e.value.contains(_query.trim())).toList();
+    return AlertDialog(
+      title: const Text('กรองชนิดสัตว์'),
+      content: SizedBox(
+        width: 320,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              key: const ValueKey('species-search'),
+              autofocus: true,
+              decoration: const InputDecoration(hintText: 'พิมพ์ค้นหา', prefixIcon: Icon(Icons.search)),
+              onChanged: (v) => setState(() => _query = v),
             ),
+            const SizedBox(height: 8),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final e in shown)
+                    ListTile(
+                      key: ValueKey('species-option-${e.key.isEmpty ? 'all' : e.key}'),
+                      dense: true,
+                      title: Text(e.value),
+                      trailing: e.key == widget.current
+                          ? const Icon(Icons.check, color: Color(0xFFFF9E68))
+                          : null,
+                      onTap: () => Navigator.pop(context, e.key),
+                    ),
+                  if (shown.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Text('ไม่พบชนิดสัตว์นี้', style: TextStyle(color: Colors.grey)),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

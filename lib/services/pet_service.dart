@@ -47,10 +47,11 @@ class PetService {
 
   /// ฟีดหน้า Discover — deck_feed() ฝั่ง DB จัดการกรอง/จัดลำดับให้หมดแล้ว
   /// (ไม่มีสัตว์ตัวเอง, ไม่มีตัวที่เคยปัด, เรียงจังหวัดใกล้ก่อน)
-  Future<DeckPage> deck({String? cursor, String? province, List<String>? tags}) async {
+  Future<DeckPage> deck({String? cursor, String? province, String? species, List<String>? tags}) async {
     final query = <String, String>{
       if (cursor != null) 'cursor': cursor,
       if (province != null && province.isNotEmpty) 'province': province,
+      if (species != null && species.isNotEmpty) 'species': species,
       if (tags != null && tags.isNotEmpty) 'tags': tags.join(','),
     };
     final res = await _api.get('/pets/deck', query: query) as Map<String, dynamic>;

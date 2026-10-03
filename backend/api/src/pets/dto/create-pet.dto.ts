@@ -1,4 +1,5 @@
-import { IsArray, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsArray, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { PET_SPECIES } from '../pet-mappers.js';
 
 // ชื่อ field ตรงกับ "dog" map ที่ upload_screen.dart ส่งมาเป๊ะ ๆ
 // (name, breed, province, age, gender, weight, tags, story, imageUrl)
@@ -11,6 +12,17 @@ export class CreatePetDto {
   @IsString()
   @MaxLength(80)
   breed?: string;
+
+  // dog | cat | bird | fish | rabbit | other (ไม่ส่งมา = dog ตามค่าเริ่มต้นของตาราง)
+  @IsOptional()
+  @IsIn(PET_SPECIES)
+  species?: string;
+
+  // ข้อความที่พิมพ์เองเมื่อ species = 'other' (เช่น หนู, เต่า) — ถูกล้างทิ้งถ้าเลือกชนิดอื่น
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  speciesOther?: string;
 
   @IsString()
   province!: string;

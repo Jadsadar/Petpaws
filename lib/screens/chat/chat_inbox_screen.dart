@@ -24,6 +24,47 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
   /// สลับแท็บ ถ้าสร้างใหม่ทุก build จะยิง REST ซ้ำและสมัครฟัง event ซ้อนกันเรื่อย ๆ
   late final Stream<List<Map<String, dynamic>>> _chatsStream;
 
+  /// null = ปิดช่องค้นหา — ค้นจากชื่อคู่สนทนา ชื่อสัตว์ และข้อความล่าสุด
+  String? _search;
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  bool _matches(Map<String, dynamic> chat, String query) {
+    if (query.isEmpty) return true;
+    final q = query.toLowerCase();
+    return ['otherUserName', 'petName', 'lastMessage']
+        .any((k) => '${chat[k] ?? ''}'.toLowerCase().contains(q));
+  }
+
+  /// ลบแชท = ซ่อนเฉพาะฝั่งเรา อีกฝ่ายยังเห็น (กดค้างที่แถวเพื่อลบ)
+  Future<void> _deleteChat(Map<String, dynamic> chat) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ลบแชท'),
+        content: Text('แชทกับ ${chat['otherUserName'] ?? 'ผู้ใช้'} จะหายจากรายการของคุณ (อีกฝ่ายยังเห็นอยู่)'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('ลบ')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ChatService.instance.hideChat(chat['id'] as String);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('ลบแชทไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+      }
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -61,6 +102,40 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
         backgroundColor: Colors.white,
         iconTheme: const IconThemeData(color: Color(0xFFFF9E68)),
         elevation: 1,
+        actions: [
+          IconButton(
+            key: const ValueKey('inbox-search-toggle'),
+            tooltip: _search == null ? 'ค้นหาแชท' : 'ปิดการค้นหา',
+            icon: Icon(_search == null ? Icons.search : Icons.close),
+            onPressed: () => setState(() {
+              _search = _search == null ? '' : null;
+              _searchController.clear();
+            }),
+          ),
+        ],
+        bottom: _search == null
+            ? null
+            : PreferredSize(
+                preferredSize: const Size.fromHeight(52),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: TextField(
+                    key: const ValueKey('inbox-search'),
+                    controller: _searchController,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      hintText: 'ค้นหาชื่อ สัตว์เลี้ยง หรือข้อความ',
+                      prefixIcon: const Icon(Icons.search),
+                      isDense: true,
+                      filled: true,
+                      fillColor: Colors.grey.shade100,
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+                    ),
+                    onChanged: (v) => setState(() => _search = v.trim()),
+                  ),
+                ),
+              ),
       ),
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: _chatsStream,
@@ -68,7 +143,11 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-          final chats = snapshot.data!;
+          final all = snapshot.data!;
+          final chats = [for (final c in all) if (_matches(c, _search ?? '')) c];
+          if (all.isNotEmpty && chats.isEmpty) {
+            return const Center(child: Text('ไม่พบแชทที่ค้นหา', style: TextStyle(color: Colors.grey)));
+          }
           if (chats.isEmpty) {
             return const Center(
               child: Column(
@@ -98,6 +177,8 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
               final isUnread = unread > 0;
 
               return ListTile(
+                key: ValueKey('chat-${chat['id']}'),
+                onLongPress: () => _deleteChat(chat),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 leading: Stack(
                   children: [

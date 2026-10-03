@@ -7,6 +7,8 @@ import '../../services/storage_service.dart';
 import '../../widgets/pet_image_picker.dart';
 import '../../utils/pet_tags.dart';
 import '../../widgets/province_picker.dart';
+import '../../widgets/species_field.dart';
+import '../../utils/pet_species.dart';
 import '../../widgets/tag_selector.dart';
 
 class EditDogScreen extends StatefulWidget {
@@ -25,6 +27,8 @@ class _EditDogScreenState extends State<EditDogScreen> {
   late TextEditingController ageController;
   late TextEditingController weightController;
   late TextEditingController storyController;
+  late TextEditingController speciesOtherController;
+  late String selectedSpecies;
 
   late List<String> selectedTags;
   late String selectedProvince;
@@ -41,6 +45,10 @@ class _EditDogScreenState extends State<EditDogScreen> {
     ageController = TextEditingController(text: widget.dog['age']);
     weightController = TextEditingController(text: widget.dog['weight']);
     storyController = TextEditingController(text: widget.dog['story']);
+    speciesOtherController = TextEditingController(
+        text: widget.dog['speciesOther'] as String? ?? '');
+    final species = widget.dog['species'] as String? ?? 'dog';
+    selectedSpecies = petSpeciesLabels.containsKey(species) ? species : 'dog';
     selectedTags = List<String>.from(petTagIds(widget.dog));
     selectedProvince = thaiProvinces.contains(widget.dog['province'])
         ? widget.dog['province']
@@ -59,6 +67,12 @@ class _EditDogScreenState extends State<EditDogScreen> {
 
   Future<void> saveChanges() async {
     if (nameController.text.isEmpty || ageController.text.isEmpty) return;
+    if (selectedSpecies == 'other' &&
+        speciesOtherController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('กรุณาระบุชนิดสัตว์เลี้ยง')));
+      return;
+    }
 
     setState(() => _isSaving = true);
     try {
@@ -71,29 +85,32 @@ class _EditDogScreenState extends State<EditDogScreen> {
       // ในเครื่องแล้วหลอกตัวเองว่าบันทึกแล้ว) แล้วใช้ผลลัพธ์ที่ server ตอบกลับมา
       // เป็นความจริงชุดใหม่ — กัน field ที่ backend คุมเอง (เช่น likeCount, status
       // ที่ควรแก้ผ่านปุ่มสถานะแยกต่างหาก) หลุดเข้ามาปนโดยไม่ตั้งใจ
-      final updatedDog = await PetService.instance.update(widget.dog['id'] as String, {
+      final updatedDog =
+          await PetService.instance.update(widget.dog['id'] as String, {
         "name": nameController.text,
-        "breed":
-            breedController.text.isEmpty ? "พันทาง" : breedController.text,
+        "species": selectedSpecies,
+        "speciesOther": selectedSpecies == 'other'
+            ? speciesOtherController.text.trim()
+            : '',
+        "breed": breedController.text.isEmpty ? "พันทาง" : breedController.text,
         "province": selectedProvince,
         "age": ageController.text,
         "gender": selectedGender,
         "weight": weightController.text.isEmpty ? "-" : weightController.text,
         "tags": List<String>.from(selectedTags),
-        "story": storyController.text.isEmpty
-            ? "ไม่มีข้อมูล"
-            : storyController.text,
+        "story":
+            storyController.text.isEmpty ? "ไม่มีข้อมูล" : storyController.text,
         "imageUrl": imageUrl,
       });
       widget.onSave(updatedDog);
       if (!mounted) return;
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('อัปเดตข้อมูลสำเร็จ!')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('อัปเดตข้อมูลสำเร็จ!')));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -124,6 +141,13 @@ class _EditDogScreenState extends State<EditDogScreen> {
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16)))),
             const SizedBox(height: 16),
+            SpeciesField(
+              species: selectedSpecies,
+              otherController: speciesOtherController,
+              enabled: !_isSaving,
+              onChanged: (v) => setState(() => selectedSpecies = v),
+            ),
+            const SizedBox(height: 16),
             TextField(
                 controller: breedController,
                 decoration: InputDecoration(
@@ -132,18 +156,6 @@ class _EditDogScreenState extends State<EditDogScreen> {
                         borderRadius: BorderRadius.circular(16)))),
             const SizedBox(height: 16),
             Row(children: [
-              Expanded(
-                  child: TextField(
-                      controller: ageController,
-                      // กันไม่ให้พิมพ์เครื่องหมายลบ แต่ยังพิมพ์ "6 เดือน" ได้
-                      inputFormatters: [
-                        FilteringTextInputFormatter.deny(RegExp(r'-'))
-                      ],
-                      decoration: InputDecoration(
-                          labelText: 'อายุ *',
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16))))),
-              const SizedBox(width: 16),
               Expanded(
                 child: DropdownButtonFormField<String>(
                   value: selectedGender,
@@ -157,6 +169,18 @@ class _EditDogScreenState extends State<EditDogScreen> {
                   onChanged: (val) => setState(() => selectedGender = val!),
                 ),
               ),
+              const SizedBox(width: 16),
+              Expanded(
+                  child: TextField(
+                      controller: ageController,
+                      // กันไม่ให้พิมพ์เครื่องหมายลบ แต่ยังพิมพ์ "6 เดือน" ได้
+                      inputFormatters: [
+                        FilteringTextInputFormatter.deny(RegExp(r'-'))
+                      ],
+                      decoration: InputDecoration(
+                          labelText: 'อายุ *',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16))))),
             ]),
             const SizedBox(height: 16),
             Row(children: [
@@ -214,8 +238,7 @@ class _EditDogScreenState extends State<EditDogScreen> {
             const SizedBox(height: 8),
             PetImagePicker(
               initialImageUrl: widget.dog['imageUrl'],
-              onChanged: (bytes) =>
-                  setState(() => _pickedImageBytes = bytes),
+              onChanged: (bytes) => setState(() => _pickedImageBytes = bytes),
             ),
             const SizedBox(height: 24),
             ElevatedButton(
@@ -235,8 +258,8 @@ class _EditDogScreenState extends State<EditDogScreen> {
                           color: Colors.white, strokeWidth: 2.5),
                     )
                   : const Text('บันทึกการแก้ไข',
-                      style: TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold)),
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ),
           ],
         ),

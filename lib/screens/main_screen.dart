@@ -29,6 +29,8 @@ class _MainScreenState extends State<MainScreen> {
   List<Map<String, dynamic>> likedDogs = [];
   List<Map<String, dynamic>> passedDogs = [];
 
+  /// ตัวกรองชนิดสัตว์ของเด็ค ('' = ทั้งหมด)
+  String _speciesFilter = '';
   String? _deckCursor;
   bool _deckHasMore = true;
   bool _isFetchingMore = false;
@@ -46,7 +48,7 @@ class _MainScreenState extends State<MainScreen> {
     });
     try {
       final results = await Future.wait([
-        _petService.deck(),
+        _petService.deck(species: _speciesFilter),
         _petService.mine(),
         _petService.myLikes(),
       ]);
@@ -70,7 +72,7 @@ class _MainScreenState extends State<MainScreen> {
     if (_isFetchingMore || !_deckHasMore || allDogs.length > 3) return;
     _isFetchingMore = true;
     try {
-      final page = await _petService.deck(cursor: _deckCursor);
+      final page = await _petService.deck(cursor: _deckCursor, species: _speciesFilter);
       if (!mounted) return;
       setState(() {
         // ตัวที่ใส่กลับเข้า deck เอง (เลิกถูกใจ/เลิกปัด) กลายเป็นตัวที่ server
@@ -87,6 +89,25 @@ class _MainScreenState extends State<MainScreen> {
       // เงียบไว้ — ถ้าโหลดเพิ่มไม่สำเร็จ ผู้ใช้แค่เห็นการ์ดน้อยลง ไม่ใช่ error ที่ต้องขัดจังหวะ
     } finally {
       _isFetchingMore = false;
+    }
+  }
+
+  /// เปลี่ยนตัวกรองชนิดสัตว์ → ดึงเด็คใหม่ตามชนิดนั้นตั้งแต่ต้น (เริ่ม cursor ใหม่)
+  Future<void> onSpeciesFilterChanged(String species) async {
+    if (species == _speciesFilter) return;
+    setState(() => _speciesFilter = species);
+    try {
+      final page = await _petService.deck(species: species);
+      // ระหว่างรอ ผู้ใช้อาจเปลี่ยนตัวกรองซ้ำ — ใช้ผลของรอบล่าสุดเท่านั้น
+      if (!mounted || species != _speciesFilter) return;
+      setState(() {
+        allDogs = page.dogs;
+        _deckCursor = page.nextCursor;
+        _deckHasMore = page.hasMore;
+        passedDogs.clear();
+      });
+    } catch (_) {
+      if (mounted) _showError('โหลดการ์ดไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
     }
   }
 
@@ -339,6 +360,8 @@ class _MainScreenState extends State<MainScreen> {
           canUndo: passedDogs.isNotEmpty,
           likedDogs: likedDogs,
           onToggleFavorite: onToggleFavoriteDog,
+          speciesFilter: _speciesFilter,
+          onSpeciesFilterChanged: onSpeciesFilterChanged,
         ),
         FavoritesScreen(
           likedDogs: likedDogs,

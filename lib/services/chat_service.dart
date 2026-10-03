@@ -78,6 +78,13 @@ class ChatService {
     return res.cast<Map<String, dynamic>>();
   }
 
+  /// สถานะห้อง: status ('active'|'closed'), closedReason, blockedByMe — ใช้เลือกว่าจะโชว์ช่องพิมพ์ไหม
+  Future<Map<String, dynamic>> detail(String chatId) async =>
+      await _api.get('/chats/$chatId') as Map<String, dynamic>;
+
+  /// ลบแชท = ซ่อนเฉพาะฝั่งเรา อีกฝ่ายยังเห็น (ข้อความใหม่ทำให้ห้องกลับมา)
+  Future<void> hideChat(String chatId) => _api.delete('/chats/$chatId');
+
   /// คืนข้อความที่บันทึกแล้วจาก server (มี id/createdAt/media URL จริง) ให้หน้าจอ
   /// ใส่ลง feed ได้ทันที ไม่ต้องรอ event จาก socket
   Future<Map<String, dynamic>> sendMessage(

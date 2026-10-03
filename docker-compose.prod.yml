@@ -4,8 +4,12 @@
 #
 # ต้องมีไฟล์ .env อยู่ข้างๆ ไฟล์นี้ก่อน (ดูตัวอย่างค่าที่ .env.production.example)
 # ห้าม commit ไฟล์ .env จริงเข้า git เด็ดขาด
-
-name: petpaws
+#
+# ตั้ง project name แยกจาก backend/docker-compose.yml (dev) โดยเฉพาะ — เคยเจอบั๊กจริง
+# ตอนทดสอบ: ถ้าใช้ชื่อ "petpaws" ซ้ำกันทั้งสองไฟล์ Docker จะ mount volume postgres_data
+# ตัวเดียวกันกับฝั่ง dev ทำให้ Postgres ใช้รหัสผ่านเก่าจาก dev ค้างอยู่ ในขณะที่ .env
+# ของ production ตั้งรหัสผ่านใหม่ ผลคือ API ต่อ DB ไม่ได้เพราะรหัสผ่านไม่ตรงกัน
+name: petpaws-prod
 
 services:
   postgres:
@@ -47,16 +51,24 @@ services:
 
   # object storage แบบ dev-grade ไว้ก่อน — สลับเป็น S3/R2 จริงทีหลังได้แค่เปลี่ยน
   # S3_ENDPOINT/S3_ACCESS_KEY_ID/S3_SECRET_ACCESS_KEY ใน .env แล้วลบ service นี้ทิ้ง
+  #
+  # ห้ามใช้ quay.io/minio/minio หรือ minio/minio — MinIO เลิกแจก image ทางการแล้ว pull ได้
+  # 401 Unauthorized (CD บน GitHub ล้มด้วยเหตุนี้จริง และทดสอบแล้วว่า tag ที่ปักเวอร์ชันไว้
+  # ก็ดึงไม่ได้ทั้ง quay.io และ Docker Hub) ใช้ bitnamilegacy/minio ซึ่งเป็น MinIO ตัวจริง
+  # ที่ถูกแช่แข็งไว้ที่ 2025.7.23 แทน (ไม่มี security patch ใหม่ และ repo legacy อาจถูกลบ
+  # ในอนาคต — ระยะยาวควรย้ายไป S3 จริงหรือ mirror image ไว้ใน GHCR ของเราเอง)
+  # ทดสอบแล้วว่า API ใช้งานได้ครบ: CreateBucket, PutBucketPolicy, PutObject,
+  # อ่านรูปแบบไม่ล็อกอิน, ListObjectsV2, DeleteObjects
   minio:
-    image: quay.io/minio/minio:latest
+    image: bitnamilegacy/minio:2025.7.23-debian-12-r3
     container_name: petpaws-minio
     restart: unless-stopped
-    command: server /data --console-address ":9001"
+    # image ของ Bitnami เปิด server เองที่ /bitnami/minio/data (ไม่ต้องใส่ command)
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
-      - minio_data:/data
+      - minio_data:/bitnami/minio/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 5s
@@ -109,7 +121,14 @@ services:
       - "80:80"
       - "443:443"
     environment:
-      PETPAWS_DOMAIN: ${PETPAWS_DOMAIN}
+      # ใช้ :- ไม่ใช่ - เฉยๆ เพราะ .env ตั้ง PETPAWS_DOMAIN= (ว่างแต่ "set" อยู่) ไม่ใช่ unset
+      # Caddyfile เองมี {$PETPAWS_DOMAIN:default} แต่ Caddy ไม่ fallback ให้ถ้าตัวแปร
+      # ถูก set เป็นค่าว่าง (ต่างจาก unset) ต้อง resolve fallback ที่ชั้น compose แทน
+      # ไม่งั้น Caddy จะได้ site address เป็นค่าว่าง แล้ว parse Caddyfile พังทั้งไฟล์
+      # fallback เป็น ":80" (รับทุก Host แบบ HTTP) ไม่ใช่ "http://<IP>" เพราะแบบหลังจะตอบ
+      # 200 ว่างเปล่าให้ทุก request ที่ Host ไม่ตรง IP เป๊ะ (เช่น เรียกผ่าน localhost, ชื่อ DNS
+      # ของ EC2, หรือ health checker) โดยไม่ส่งต่อถึง API เลย — เคยหลอกให้นึกว่าทดสอบผ่าน
+      PETPAWS_DOMAIN: ${PETPAWS_DOMAIN:-:80}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

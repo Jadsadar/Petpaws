@@ -25,6 +25,10 @@ const STATUS_TO_LABEL: Record<string, string> = {
   pending: 'ยังไม่ถูกรับเลี้ยง', // ยังไม่มีปุ่มเลือก pending ในแอป ถือว่าเปิดรับเหมือนกัน
 };
 
+/** ชนิดสัตว์ที่แอปเลือกได้ — ตรงกับ enum pet_species (migration 001 + 015) */
+export const PET_SPECIES = ['dog', 'cat', 'bird', 'fish', 'rabbit', 'other'] as const;
+export type PetSpecies = (typeof PET_SPECIES)[number];
+
 export function statusLabelToDb(label: string | undefined): string {
   if (!label) return 'available';
   return STATUS_TO_DB[label] ?? 'available';

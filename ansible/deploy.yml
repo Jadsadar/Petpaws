@@ -61,19 +61,117 @@
         dest: "{{ deploy_dir }}/backend/db/migrations/"
         mode: preserve
 
+    - name: Copy สคริปต์รัน migration (migrate.sh)
+      ansible.builtin.copy:
+        src: ../backend/db/migrate.sh
+        dest: "{{ deploy_dir }}/backend/db/migrate.sh"
+        mode: "0755"
+
     - name: Copy .env production (ค่าจริง ไม่ใช่ example)
       ansible.builtin.copy:
         src: "{{ env_file_src }}"
         dest: "{{ deploy_dir }}/.env"
         mode: "0600"
 
-    - name: Docker compose up -d --build
-      ansible.builtin.command:
-        cmd: docker compose -f docker-compose.prod.yml --env-file .env up -d --build --remove-orphans
-        chdir: "{{ deploy_dir }}"
-      register: compose_up
-      changed_when: "'Started' in compose_up.stderr or 'Created' in compose_up.stderr or 'Running' in compose_up.stderr"
+    # แยก pull / build / up เป็นขั้นๆ แทนคำสั่งเดียว เพราะ CD #3 และ #6 ค้างจน job หมดเวลา
+    # 15 นาทีโดยไม่รู้ว่าค้างตรงไหน (Ansible เก็บ output ไว้จนคำสั่งจบ) ตอนนี้ทุกขั้น
+    # (1) มี timeout ของตัวเอง (2) ใช้ async/poll กัน SSH ค้างเงียบ (3) เขียน log ไว้ที่
+    # {{ deploy_dir }}/deploy.log และถ้าล้มเหลว rescue จะดึง log + สถานะเครื่องมาแสดงให้ดูใน CI
+    - name: Deploy containers (pull → build → up → รอ healthy)
+      block:
+        - name: Docker compose pull (image สำเร็จรูป เช่น postgres, redis, caddy)
+          ansible.builtin.shell: |
+            set -o pipefail
+            timeout 600 docker compose -f docker-compose.prod.yml --env-file .env pull --ignore-buildable 2>&1 | tee -a deploy.log
+          args:
+            chdir: "{{ deploy_dir }}"
+            executable: /bin/bash
+          async: 700
+          poll: 10
+          changed_when: true
 
-    - name: แสดง log การ deploy
-      ansible.builtin.debug:
-        msg: "{{ compose_up.stderr_lines }}"
+        - name: Docker compose build (image ของเราเอง คือ api และ worker)
+          ansible.builtin.shell: |
+            set -o pipefail
+            timeout 900 docker compose -f docker-compose.prod.yml --env-file .env build 2>&1 | tee -a deploy.log
+          args:
+            chdir: "{{ deploy_dir }}"
+            executable: /bin/bash
+          async: 1000
+          poll: 10
+          changed_when: true
+
+        # initdb รันไฟล์ migration ครั้งเดียวตอน volume ว่างเท่านั้น — migration ใหม่ต้องรันเองก่อน
+        # api ตัวใหม่ขึ้น ไม่งั้นโค้ดใหม่เจอ schema เก่า (migrate.sh จำไฟล์ที่รันแล้ว รันซ้ำได้ปลอดภัย)
+        - name: เริ่ม postgres และรอ healthy ก่อนรัน migration
+          ansible.builtin.shell: |
+            set -o pipefail
+            timeout 120 docker compose -f docker-compose.prod.yml --env-file .env up -d postgres 2>&1 | tee -a deploy.log
+          args:
+            chdir: "{{ deploy_dir }}"
+            executable: /bin/bash
+          changed_when: false
+
+        - name: รอ postgres healthy
+          ansible.builtin.command:
+            cmd: docker inspect --format '{% raw %}{{.State.Health.Status}}{% endraw %}' petpaws-postgres
+          register: pg_health
+          until: pg_health.stdout == 'healthy'
+          retries: 24
+          delay: 5
+          changed_when: false
+
+        - name: รัน migration ที่ยังไม่เคยรัน
+          ansible.builtin.shell: |
+            set -o pipefail
+            export POSTGRES_USER="$(grep '^POSTGRES_USER=' .env | cut -d= -f2-)"
+            export POSTGRES_DB="$(grep '^POSTGRES_DB=' .env | cut -d= -f2-)"
+            sh backend/db/migrate.sh 2>&1 | tee -a deploy.log
+          args:
+            chdir: "{{ deploy_dir }}"
+            executable: /bin/bash
+          register: migrate_out
+          changed_when: "'รัน migration:' in migrate_out.stdout"
+
+        - name: Docker compose up
+          ansible.builtin.shell: |
+            set -o pipefail
+            timeout 300 docker compose -f docker-compose.prod.yml --env-file .env up -d --remove-orphans 2>&1 | tee -a deploy.log
+          args:
+            chdir: "{{ deploy_dir }}"
+            executable: /bin/bash
+          async: 400
+          poll: 10
+          changed_when: true
+
+        - name: รอให้ API healthy (สูงสุด ~2.5 นาที)
+          ansible.builtin.command:
+            cmd: docker inspect --format '{% raw %}{{.State.Health.Status}}{% endraw %}' petpaws-api
+          register: api_health
+          until: api_health.stdout == 'healthy'
+          retries: 30
+          delay: 5
+          changed_when: false
+
+      rescue:
+        - name: ดึง log และสถานะเครื่องมาแสดง (เพื่อรู้ว่าล้มตรงไหน)
+          ansible.builtin.shell: |
+            set -o pipefail
+            echo "== deploy.log (60 บรรทัดสุดท้าย) =="; tail -n 60 deploy.log 2>&1
+            echo "== docker compose ps =="; docker compose -f docker-compose.prod.yml --env-file .env ps 2>&1
+            echo "== แรม / ดิสก์ =="; free -m; df -h / | tail -1
+            echo "== log ของ api =="; docker logs --tail 30 petpaws-api 2>&1 || true
+          args:
+            chdir: "{{ deploy_dir }}"
+            executable: /bin/bash
+          register: deploy_diag
+          changed_when: false
+          failed_when: false
+
+        - name: แสดงผลวินิจฉัย
+          ansible.builtin.debug:
+            msg: "{{ deploy_diag.stdout_lines }}"
+
+        - name: ทำให้ playbook ล้มเหลวอย่างชัดเจน
+          ansible.builtin.fail:
+            msg: "Deploy ล้มเหลว — ดู log วินิจฉัยด้านบน"
