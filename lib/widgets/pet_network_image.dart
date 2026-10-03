@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
 /// แสดงรูปภาพจาก URL พร้อม fallback icon เมื่อไม่มีรูปหรือโหลดไม่สำเร็จ
 class PetNetworkImage extends StatelessWidget {
@@ -19,7 +20,7 @@ class PetNetworkImage extends StatelessWidget {
     this.width,
     this.height,
     this.borderRadius,
-    this.backgroundColor = const Color(0xFFFFF6F0),
+    this.backgroundColor = AppColors.background,
     this.iconColor = Colors.black12,
     this.iconSize = 64,
     this.fallbackIcon = Icons.pets,

@@ -7,6 +7,7 @@ import '../../utils/pet_tags.dart';
 import '../../widgets/pet_avatar.dart';
 import '../../widgets/pet_network_image.dart';
 import '../detail/pet_detail_screen.dart';
+import '../../theme/app_theme.dart';
 
 /// หน้าโปรไฟล์ของผู้ใช้คนอื่น เปิดได้จากประกาศสัตว์เลี้ยงหรือจากห้องแชท
 ///
@@ -61,9 +62,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   AppBar _appBar() => AppBar(
         title: const Text('โปรไฟล์ผู้ใช้',
-            style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFFF9E68))),
+            style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark)),
         backgroundColor: Colors.white,
-        iconTheme: const IconThemeData(color: Color(0xFFFF9E68)),
+        iconTheme: const IconThemeData(color: AppColors.primary),
         elevation: 1,
         centerTitle: true,
       );
@@ -72,14 +73,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: const Color(0xFFFFF6F0),
+        backgroundColor: AppColors.background,
         appBar: _appBar(),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
     if (_hasError || _profile == null) {
       return Scaffold(
-        backgroundColor: const Color(0xFFFFF6F0),
+        backgroundColor: AppColors.background,
         appBar: _appBar(),
         body: Center(
           child: Column(
@@ -99,7 +100,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Widget _scaffold(
       BuildContext context, Map<String, dynamic> profile, List<Map<String, dynamic>> pets) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF6F0),
+      backgroundColor: AppColors.background,
       appBar: _appBar(),
       body: ListView(
         padding: const EdgeInsets.all(24),
@@ -116,7 +117,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           const Divider(height: 40, color: Colors.black12),
           Text('ประกาศหาบ้านของผู้ใช้นี้ (${pets.length})',
               style: const TextStyle(
-                  fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFFFF9E68))),
+                  fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textDark)),
           const SizedBox(height: 16),
           if (pets.isEmpty)
             const Padding(
@@ -158,7 +159,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           avatar: const Icon(Icons.location_on, color: Colors.white, size: 16),
           label: Text(province.isEmpty ? 'ยังไม่ได้ระบุจังหวัด' : province,
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          backgroundColor: const Color(0xFFFFB085),
+          backgroundColor: AppColors.primarySoft,
           side: BorderSide.none,
         ),
       ],
@@ -174,10 +175,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       children: tagLabels(ids)
           .map((label) => Chip(
                 label: Text(label,
-                    style: const TextStyle(color: Color(0xFFFF9E68), fontWeight: FontWeight.bold)),
+                    style: const TextStyle(color: AppColors.textDark, fontWeight: FontWeight.bold)),
                 backgroundColor: Colors.white,
                 side: BorderSide.none,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
               ))
           .toList(),
     );
@@ -197,7 +198,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(AppRadius.card)),
       child: Column(
         children: [
           _contactRow(
@@ -228,7 +229,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: const Color(0xFFFF9E68)),
+          Icon(icon, size: 18, color: AppColors.primary),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -259,7 +260,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       color: Colors.white,
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
       child: ListTile(
         contentPadding: const EdgeInsets.all(12),
         leading: ClipRRect(
@@ -271,7 +272,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         subtitle: Text(
             '${pet['breed'] ?? '-'} · ${pet['age'] ?? '-'}${isAdopted ? ' · ถูกรับเลี้ยงแล้ว' : ''}',
             style: const TextStyle(fontSize: 13)),
-        trailing: const Icon(Icons.chevron_right, color: Color(0xFFFF9E68)),
+        trailing: const Icon(Icons.chevron_right, color: AppColors.primary),
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(

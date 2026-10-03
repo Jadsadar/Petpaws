@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'pet_network_image.dart';
+import '../theme/app_theme.dart';
 
 /// รูปโปรไฟล์ทรงกลมของสัตว์เลี้ยง/ผู้ใช้ พร้อม fallback icon
 class PetAvatar extends StatelessWidget {
@@ -15,8 +16,8 @@ class PetAvatar extends StatelessWidget {
     required this.imageUrl,
     this.radius = 24,
     this.icon = Icons.pets,
-    this.backgroundColor = const Color(0xFFFFF6F0),
-    this.iconColor = const Color(0xFFFF9E68),
+    this.backgroundColor = AppColors.background,
+    this.iconColor = AppColors.primary,
   });
 
   bool get _hasValidUrl {

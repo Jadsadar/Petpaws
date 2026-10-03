@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../utils/pet_tags.dart';
+import '../theme/app_theme.dart';
 
 /// ปุ่มเลือกแท็กนิสัย ใช้ชุดเดียวกันทั้งฝั่งผู้ใช้และฝั่งสัตว์เลี้ยง
 /// เลือกได้สูงสุด [maxTagSelection] แท็ก พอครบแล้วปุ่มที่ยังไม่ได้เลือกจะกดไม่ได้
@@ -35,27 +36,29 @@ class TagSelector extends StatelessWidget {
               label: Text(tag.label,
                   style: TextStyle(
                       color: isSelected
-                          ? Colors.white
-                          : (canTap ? Colors.black87 : Colors.black38),
+                          ? AppColors.onPrimary
+                          : (canTap ? AppColors.textDark : AppColors.textMuted),
                       fontWeight:
                           isSelected ? FontWeight.bold : FontWeight.normal)),
               selected: isSelected,
               onSelected: canTap ? (_) => onToggle(tag.id) : null,
-              selectedColor: const Color(0xFFFF9E68),
+              selectedColor: AppColors.primary,
               backgroundColor: backgroundColor,
               disabledColor: isSelected
-                  ? const Color(0xFFFF9E68).withValues(alpha: 0.65)
+                  ? AppColors.primary.withValues(alpha: 0.65)
                   : backgroundColor,
-              side: BorderSide.none,
+              side: const BorderSide(color: AppColors.sand),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20)),
+                  borderRadius: BorderRadius.circular(AppRadius.card)),
             );
           }).toList(),
         ),
         const SizedBox(height: 8),
-        Text(
-          'เลือกได้สูงสุด $maxTagSelection แท็ก (เลือกแล้ว ${selectedIds.length})',
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        TextPanel(
+          child: Text(
+            'เลือกได้สูงสุด $maxTagSelection แท็ก (เลือกแล้ว ${selectedIds.length})',
+            style: const TextStyle(fontSize: 12, color: AppColors.textDark),
+          ),
         ),
       ],
     );

@@ -8,6 +8,7 @@ import 'screens/main_screen.dart';
 import 'services/admin_service.dart';
 import 'services/auth_service.dart';
 import 'shared/app_user.dart';
+import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,11 +26,33 @@ class PetPawsApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'PetPaws',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFFFB085)),
-        useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFFFF6F0),
-      ),
+      theme: AppTheme.light,
+      // ภาพพื้นหลังอยู่ใต้ทุกหน้า + ขยายตัวอักษรทั้งแอป (คูณกับค่าที่ผู้ใช้ตั้งในเครื่อง)
+      builder: (context, child) {
+        final mq = MediaQuery.of(context);
+        return MediaQuery(
+          data: mq.copyWith(
+            textScaler: TextScaler.linear(
+                mq.textScaler.scale(1) * AppTheme.textScale),
+          ),
+          // แจ้งเตือน (SnackBar) เด้งกลางจอ ไม่ใช่ขอบล่าง: ดันขึ้นด้วย insetPadding
+          // ตามความสูงจอ และจำกัดความกว้างไม่เกิน 480 บนจอกว้าง
+          child: Builder(builder: (context) {
+            final size = MediaQuery.sizeOf(context);
+            final side = size.width > 528 ? (size.width - 480) / 2 : 24.0;
+            final theme = Theme.of(context);
+            return Theme(
+              data: theme.copyWith(
+                snackBarTheme: theme.snackBarTheme.copyWith(
+                  insetPadding:
+                      EdgeInsets.fromLTRB(side, 0, side, size.height * 0.4),
+                ),
+              ),
+              child: AppBackground(child: child!),
+            );
+          }),
+        );
+      },
       home: const AuthGate(),
     );
   }

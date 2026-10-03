@@ -10,6 +10,7 @@ import '../../widgets/province_picker.dart';
 import '../../widgets/species_field.dart';
 import '../../utils/pet_species.dart';
 import '../../widgets/tag_selector.dart';
+import '../../theme/app_theme.dart';
 
 class EditDogScreen extends StatefulWidget {
   final Map<String, dynamic> dog;
@@ -70,7 +71,7 @@ class _EditDogScreenState extends State<EditDogScreen> {
     if (selectedSpecies == 'other' &&
         speciesOtherController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('กรุณาระบุชนิดสัตว์เลี้ยง')));
+          const SnackBar(duration: AppTheme.snackDuration, content: Text('กรุณาระบุชนิดสัตว์เลี้ยง')));
       return;
     }
 
@@ -106,10 +107,10 @@ class _EditDogScreenState extends State<EditDogScreen> {
       if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('อัปเดตข้อมูลสำเร็จ!')));
+          .showSnackBar(const SnackBar(duration: AppTheme.snackDuration, content: Text('อัปเดตข้อมูลสำเร็จ!')));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(duration: AppTheme.snackDuration, 
           content: Text('บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -123,9 +124,9 @@ class _EditDogScreenState extends State<EditDogScreen> {
       appBar: AppBar(
         title: const Text('แก้ไขข้อมูล',
             style: TextStyle(
-                fontWeight: FontWeight.bold, color: Color(0xFFFF9E68))),
+                fontWeight: FontWeight.bold, color: AppColors.textDark)),
         backgroundColor: Colors.white,
-        iconTheme: const IconThemeData(color: Color(0xFFFF9E68)),
+        iconTheme: const IconThemeData(color: AppColors.primary),
         elevation: 1,
         centerTitle: true,
       ),
@@ -134,111 +135,111 @@ class _EditDogScreenState extends State<EditDogScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            TextField(
-                controller: nameController,
-                decoration: InputDecoration(
-                    labelText: 'ชื่อสัตว์เลี้ยง *',
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16)))),
-            const SizedBox(height: 16),
-            SpeciesField(
-              species: selectedSpecies,
-              otherController: speciesOtherController,
-              enabled: !_isSaving,
-              onChanged: (v) => setState(() => selectedSpecies = v),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-                controller: breedController,
-                decoration: InputDecoration(
-                    labelText: 'สายพันธุ์',
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16)))),
-            const SizedBox(height: 16),
-            Row(children: [
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  value: selectedGender,
-                  decoration: InputDecoration(
-                      labelText: 'เพศ',
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16))),
-                  items: genders
-                      .map((g) => DropdownMenuItem(value: g, child: Text(g)))
-                      .toList(),
-                  onChanged: (val) => setState(() => selectedGender = val!),
+            SectionCard(
+              title: 'ข้อมูลสัตว์เลี้ยง',
+              children: [
+                TextField(
+                    controller: nameController,
+                    decoration: InputDecoration(
+                        labelText: 'ชื่อสัตว์เลี้ยง *',
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.card)))),
+                const SizedBox(height: 16),
+                SpeciesField(
+                  species: selectedSpecies,
+                  otherController: speciesOtherController,
+                  enabled: !_isSaving,
+                  onChanged: (v) => setState(() => selectedSpecies = v),
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                  child: TextField(
-                      controller: ageController,
-                      // กันไม่ให้พิมพ์เครื่องหมายลบ แต่ยังพิมพ์ "6 เดือน" ได้
-                      inputFormatters: [
-                        FilteringTextInputFormatter.deny(RegExp(r'-'))
-                      ],
+                const SizedBox(height: 16),
+                TextField(
+                    controller: breedController,
+                    decoration: InputDecoration(
+                        labelText: 'สายพันธุ์',
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.card)))),
+                const SizedBox(height: 16),
+                Row(children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: selectedGender,
                       decoration: InputDecoration(
-                          labelText: 'อายุ *',
+                          labelText: 'เพศ',
                           border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16))))),
-            ]),
+                              borderRadius: BorderRadius.circular(AppRadius.card))),
+                      items: genders
+                          .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+                          .toList(),
+                      onChanged: (val) => setState(() => selectedGender = val!),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                      child: TextField(
+                          controller: ageController,
+                          // กันไม่ให้พิมพ์เครื่องหมายลบ แต่ยังพิมพ์ "6 เดือน" ได้
+                          inputFormatters: [
+                            FilteringTextInputFormatter.deny(RegExp(r'-'))
+                          ],
+                          decoration: InputDecoration(
+                              labelText: 'อายุ *',
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(AppRadius.card))))),
+                ]),
+                const SizedBox(height: 16),
+                Row(children: [
+                  Expanded(
+                    child: ProvinceField(
+                      value: selectedProvince,
+                      onChanged: (val) => setState(() => selectedProvince = val),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                      child: TextField(
+                          controller: weightController,
+                          keyboardType:
+                              const TextInputType.numberWithOptions(decimal: true),
+                          // รับเฉพาะตัวเลขกับจุดทศนิยม พิมพ์เครื่องหมายลบไม่ได้
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))
+                          ],
+                          decoration: InputDecoration(
+                              labelText: 'น้ำหนัก (กก.)',
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(AppRadius.card))))),
+                ]),
+              ],
+            ),
             const SizedBox(height: 16),
-            Row(children: [
-              Expanded(
-                child: ProvinceField(
-                  value: selectedProvince,
-                  onChanged: (val) => setState(() => selectedProvince = val),
+            SectionCard(
+              title: 'นิสัยเด่นๆ ของสัตว์เลี้ยง',
+              children: [
+                TagSelector(
+                  selectedIds: selectedTags,
+                  onToggle: _toggleTag,
+                  enabled: !_isSaving,
+                  backgroundColor: AppColors.background,
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                  child: TextField(
-                      controller: weightController,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      // รับเฉพาะตัวเลขกับจุดทศนิยม พิมพ์เครื่องหมายลบไม่ได้
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))
-                      ],
-                      decoration: InputDecoration(
-                          labelText: 'น้ำหนัก (กก.)',
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16))))),
-            ]),
-            const SizedBox(height: 16),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text('นิสัยเด่นๆ ของสัตว์เลี้ยง',
-                  style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey.shade700)),
-            ),
-            const SizedBox(height: 12),
-            TagSelector(
-              selectedIds: selectedTags,
-              onToggle: _toggleTag,
-              enabled: !_isSaving,
-              backgroundColor: const Color(0xFFFFF6F0),
+                const SizedBox(height: 16),
+                TextField(
+                    controller: storyController,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                        labelText: 'รายละเอียดเพิ่มเติม / เรื่องราวของสัตว์เลี้ยง',
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.card)))),
+              ],
             ),
             const SizedBox(height: 16),
-            TextField(
-                controller: storyController,
-                maxLines: 3,
-                decoration: InputDecoration(
-                    labelText: 'รายละเอียดเพิ่มเติม / เรื่องราวของสัตว์เลี้ยง',
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16)))),
-            const SizedBox(height: 16),
-            const Text('รูปภาพ',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Colors.black87)),
-            const SizedBox(height: 8),
-            PetImagePicker(
-              initialImageUrl: widget.dog['imageUrl'],
-              onChanged: (bytes) => setState(() => _pickedImageBytes = bytes),
+            SectionCard(
+              title: 'รูปภาพ',
+              children: [
+                PetImagePicker(
+                  initialImageUrl: widget.dog['imageUrl'],
+                  onChanged: (bytes) => setState(() => _pickedImageBytes = bytes),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             ElevatedButton(

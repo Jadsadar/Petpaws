@@ -4,6 +4,7 @@ import '../../services/admin_service.dart';
 import '../../widgets/pet_avatar.dart';
 import 'admin_photos.dart';
 import 'admin_widgets.dart';
+import '../../theme/app_theme.dart';
 
 /// โปรไฟล์ของผู้ใช้ที่ถูกรายงาน (อ่านอย่างเดียว): ข้อมูลบัญชี + ประกาศทั้งหมดพร้อมรูป
 /// รวมประกาศที่ถูกลบ/รับเลี้ยงแล้ว เพราะรายงานอาจชี้ไปที่ประกาศที่หายจากเด็คไปแล้ว
@@ -112,7 +113,7 @@ class _ProfileHeader extends StatelessWidget {
               runSpacing: 4,
               children: [
                 if (p.pendingReportCount > 0)
-                  _Tag(text: 'ถูกรายงานรอตรวจ ${p.pendingReportCount} คน', color: Colors.redAccent),
+                  _Tag(text: 'ถูกรายงานรอตรวจ ${p.pendingReportCount} คน', color: AppColors.danger),
                 if (p.isSuspended)
                   _Tag(
                     text: p.suspendedUntil == null ? 'ถูกแบนถาวร' : 'ถูกแบนถึง ${formatDate(p.suspendedUntil)}',
@@ -194,7 +195,7 @@ class _PetCard extends StatelessWidget {
                 Expanded(
                   child: Text(pet.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
-                _Tag(text: pet.statusLabel, color: muted ? Colors.grey.shade700 : Colors.green.shade700),
+                _Tag(text: pet.statusLabel, color: muted ? Colors.grey.shade700 : AppColors.success),
               ],
             ),
             if (pet.location.isNotEmpty)

@@ -4,6 +4,7 @@ import '../../services/auth_service.dart';
 import '../../widgets/pet_avatar.dart';
 import '../chat/chat_screen.dart';
 import '../detail/pet_detail_screen.dart';
+import '../../theme/app_theme.dart';
 
 class FavoritesScreen extends StatefulWidget {
   final List<Map<String, dynamic>> likedDogs;
@@ -82,14 +83,14 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     final ownerId = dog['ownerId'] as String?;
     final myUid = AuthService.instance.currentUser?.uid;
     if (ownerId == null || ownerId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(duration: AppTheme.snackDuration, 
           content: Text(
               'สัตว์เลี้ยงตัวอย่างนี้ยังไม่มีเจ้าของจริงในระบบให้แชทด้วย')));
       return;
     }
     if (ownerId == myUid) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('นี่คือประกาศของคุณเอง')));
+          .showSnackBar(const SnackBar(duration: AppTheme.snackDuration, content: Text('นี่คือประกาศของคุณเอง')));
       return;
     }
     final ownerName = dog['ownerName'] as String? ?? 'เจ้าของ';
@@ -112,14 +113,14 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         title: Text(
             _selecting ? 'เลือกแล้ว ${_selected.length} ตัว' : 'รายการที่สนใจ',
             style: const TextStyle(
-                fontWeight: FontWeight.bold, color: Color(0xFFFF9E68))),
-        backgroundColor: Colors.white,
-        elevation: 1,
+                fontWeight: FontWeight.bold, color: AppColors.textDark)),
+        backgroundColor: AppColors.appBar,
+        elevation: 0,
         centerTitle: true,
         leading: _selecting
             ? IconButton(
                 key: const ValueKey('fav-cancel-select'),
-                icon: const Icon(Icons.close, color: Color(0xFFFF9E68)),
+                icon: const Icon(Icons.close, color: AppColors.primary),
                 onPressed: _exitSelecting)
             : null,
         actions: [
@@ -149,7 +150,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                   icon: const Icon(Icons.heart_broken),
                   label: Text('เลิกถูกใจ (${_selected.length})'),
                   style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.redAccent,
+                      backgroundColor: AppColors.danger,
                       foregroundColor: Colors.white),
                 ),
               ),
@@ -157,8 +158,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           : null,
       body: likedDogs.isEmpty
           ? const Center(
-              child: Text('ยังไม่มีสัตว์เลี้ยงที่ถูกใจเลย',
-                  style: TextStyle(fontSize: 16, color: Colors.grey)))
+              child: TextPanel(center: true, child: Text('ยังไม่มีสัตว์เลี้ยงที่ถูกใจเลย',
+                  style: TextStyle(fontSize: 16, color: Colors.grey))))
           : ListView.builder(
               padding: const EdgeInsets.all(12),
               itemCount: likedDogs.length,
@@ -169,7 +170,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                   margin: const EdgeInsets.only(bottom: 12),
                   elevation: 1,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
+                      borderRadius: BorderRadius.circular(AppRadius.card)),
                   child: ListTile(
                     contentPadding:
                         const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -184,7 +185,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                         ? Checkbox(
                             key: ValueKey('fav-check-$id'),
                             value: _selected.contains(id),
-                            activeColor: const Color(0xFFFF9E68),
+                            activeColor: AppColors.primary,
                             onChanged: (_) => _toggleSelected(id),
                           )
                         : ElevatedButton.icon(
@@ -192,8 +193,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                             icon: const Icon(Icons.chat, size: 18),
                             label: const Text('ทักแชท'),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFFFB085),
-                              foregroundColor: Colors.white,
+                              backgroundColor: AppColors.primarySoft,
+                              foregroundColor: AppColors.onPrimary,
                               elevation: 0,
                             ),
                           ),

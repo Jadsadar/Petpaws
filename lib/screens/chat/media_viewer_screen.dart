@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../widgets/chat_media_bubble.dart' show formatDuration;
+import '../../theme/app_theme.dart';
 
 /// ดูรูปเต็มจอ ซูม/เลื่อนได้ — โชว์ thumbnail (มีใน cache แล้วจาก bubble) ระหว่างรอตัวจริง
 class ImageViewerScreen extends StatelessWidget {
@@ -208,7 +209,7 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
             trackHeight: 3,
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
             overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-            activeTrackColor: const Color(0xFFFF9E68),
+            activeTrackColor: AppColors.primary,
             inactiveTrackColor: Colors.white38,
             thumbColor: Colors.white,
           ),
@@ -270,7 +271,7 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
                                 VideoProgressIndicator(
                                   _controller,
                                   allowScrubbing: true,
-                                  colors: const VideoProgressColors(playedColor: Color(0xFFFF9E68)),
+                                  colors: const VideoProgressColors(playedColor: AppColors.primary),
                                 ),
                               ],
                             ),

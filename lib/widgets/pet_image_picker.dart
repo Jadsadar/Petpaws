@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'pet_network_image.dart';
+import '../theme/app_theme.dart';
 
 /// กล่องแตะเพื่อเลือกรูปสัตว์เลี้ยงจากเครื่อง พร้อมพรีวิวรูปที่เลือก/รูปเดิม
 class PetImagePicker extends StatefulWidget {
@@ -39,13 +40,18 @@ class _PetImagePickerState extends State<PetImagePicker> {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: _pickImage,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(AppRadius.card),
       child: Container(
         height: 160,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: const Color(0xFFFFF6F0),
-          border: Border.all(color: const Color(0xFFFFE0C7)),
+          borderRadius: BorderRadius.circular(AppRadius.card),
+          color: AppColors.section,
+        ),
+        // ขอบวาดทับด้านบน (foreground) ไม่ให้รูปที่เต็มกรอบบังขอบจนดูจาง
+        // สีและความหนาเดียวกับขอบช่องกรอกข้อความ
+        foregroundDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppRadius.card),
+          border: Border.all(color: AppColors.mocha, width: 1.6),
         ),
         clipBehavior: Clip.antiAlias,
         child: Stack(
@@ -56,6 +62,7 @@ class _PetImagePickerState extends State<PetImagePicker> {
             else
               PetNetworkImage(
                 imageUrl: widget.initialImageUrl,
+                backgroundColor: AppColors.section,
                 fit: BoxFit.cover,
                 iconSize: 48,
               ),
@@ -65,7 +72,7 @@ class _PetImagePickerState extends State<PetImagePicker> {
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: const BoxDecoration(
-                  color: Color(0xFFFF9E68),
+                  color: AppColors.primary,
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.add_a_photo,

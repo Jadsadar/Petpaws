@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/auth_service.dart';
 import 'register_screen.dart';
+import '../../theme/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -23,7 +24,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
     if (registered == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('สมัครสมาชิกสำเร็จ กรุณาเข้าสู่ระบบ')));
+          const SnackBar(duration: AppTheme.snackDuration, content: Text('สมัครสมาชิกสำเร็จ กรุณาเข้าสู่ระบบ')));
     }
   }
 
@@ -32,7 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = passwordController.text;
     if (identifier.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('กรุณากรอกอีเมล/ชื่อผู้ใช้ และรหัสผ่าน')));
+          const SnackBar(duration: AppTheme.snackDuration, content: Text('กรุณากรอกอีเมล/ชื่อผู้ใช้ และรหัสผ่าน')));
       return;
     }
 
@@ -44,7 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } on AuthFailure catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.message)));
+          .showSnackBar(SnackBar(duration: AppTheme.snackDuration, content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -66,18 +67,25 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.pets, size: 100, color: Color(0xFFFF9E68)),
+              const Icon(Icons.pets,
+                  size: 100,
+                  color: AppColors.primary,
+                  shadows: AppTheme.outlineThick),
               const SizedBox(height: 16),
               const Text(
                 'PetPaws',
                 style: TextStyle(
-                    fontSize: 36,
+                    fontSize: 40,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFFFF9E68)),
+                    color: AppColors.primary,
+                    shadows: AppTheme.outlineThick),
               ),
               const Text(
                 'หาบ้านใหม่ให้สัตว์เลี้ยงแสนรัก',
-                style: TextStyle(fontSize: 16, color: Colors.black54),
+                style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textDark),
               ),
               const SizedBox(height: 48),
               TextField(
@@ -87,7 +95,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 decoration: InputDecoration(
                   labelText: 'อีเมล หรือ ชื่อผู้ใช้',
                   prefixIcon:
-                      const Icon(Icons.person, color: Color(0xFFFFB085)),
+                      const Icon(Icons.person, color: AppColors.primarySoft),
                   filled: true,
                   fillColor: Colors.white,
                   border: OutlineInputBorder(
@@ -107,7 +115,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 decoration: InputDecoration(
                   labelText: 'รหัสผ่าน',
                   prefixIcon:
-                      const Icon(Icons.lock, color: Color(0xFFFFB085)),
+                      const Icon(Icons.lock, color: AppColors.primarySoft),
                   suffixIcon: IconButton(
                     icon: Icon(
                       _obscurePassword
@@ -131,8 +139,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : login,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFF9E68),
-                    foregroundColor: Colors.white,
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.onPrimary,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(30)),
@@ -152,18 +160,24 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 24),
               Row(
+                mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Text('ยังไม่มีบัญชีเหรอ? ',
-                      style: TextStyle(color: Colors.black54)),
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textDark)),
                   GestureDetector(
                     onTap: _isLoading ? null : _goToRegister,
                     child: const Text(
                       'สมัครเลย',
                       style: TextStyle(
-                          color: Color(0xFFFF9E68),
+                          fontSize: 20,
+                          color: AppColors.textDark,
                           fontWeight: FontWeight.bold,
-                          decoration: TextDecoration.underline),
+                          decoration: TextDecoration.underline,
+                          decorationColor: AppColors.outline),
                     ),
                   ),
                 ],

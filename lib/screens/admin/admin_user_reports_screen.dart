@@ -7,6 +7,7 @@ import 'admin_paged_list.dart';
 import 'admin_photos.dart';
 import 'admin_user_profile_screen.dart';
 import 'admin_widgets.dart';
+import '../../theme/app_theme.dart';
 
 /// รายละเอียดรีพอร์ตของผู้ใช้หนึ่งคน + ปุ่มตัดสิน (แบน / ปัดตก)
 /// ปิดหน้านี้พร้อมค่า true เมื่อมีการตัดสินแล้ว เพื่อให้หน้ารายการโหลดใหม่
@@ -142,7 +143,7 @@ class _AdminUserReportsScreenState extends State<AdminUserReportsScreen> {
               Expanded(
                 child: ElevatedButton(
                   onPressed: _busy ? null : () => _ban(permanent: true),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger, foregroundColor: Colors.white),
                   child: const Text('แบนถาวร'),
                 ),
               ),
@@ -173,7 +174,7 @@ class _ReportCard extends StatelessWidget {
                 Chip(
                   label: Text(reportReasonLabel(report.reason)),
                   backgroundColor: Colors.redAccent.withValues(alpha: 0.12),
-                  labelStyle: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+                  labelStyle: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold),
                 ),
                 const Spacer(),
                 Text(formatDateTime(report.createdAt),
@@ -226,7 +227,7 @@ class _ReportCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(12),
-                border: Border(left: BorderSide(color: Colors.redAccent.shade200, width: 4)),
+                border: const Border(left: BorderSide(color: AppColors.danger, width: 4)),
               ),
               child: Text(report.messageBody ?? '(ข้อความนี้ถูกลบแล้ว)'),
             ),

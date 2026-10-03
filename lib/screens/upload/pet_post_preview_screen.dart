@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../utils/pet_species.dart';
 import '../../utils/pet_tags.dart';
+import '../../theme/app_theme.dart';
 
 /// พรีวิวประกาศก่อนโพสต์จริง — หน้าตาเหมือนหน้ารายละเอียดที่คนอื่นจะเห็น
 /// ปิดหน้านี้พร้อมค่า true เมื่อกด "ยืนยันโพสต์" (กด "แก้ไข" หรือย้อนกลับ = false/null)
@@ -14,7 +15,7 @@ class PetPostPreviewScreen extends StatelessWidget {
   final Map<String, dynamic> dog;
   final Uint8List imageBytes;
 
-  static const _orange = Color(0xFFFF9E68);
+  static const _orange = AppColors.primary;
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +57,7 @@ class PetPostPreviewScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(Icons.location_on, color: Color(0xFFFFB085)),
+                      const Icon(Icons.location_on, color: AppColors.primarySoft),
                       const SizedBox(width: 8),
                       Text('${dog['province']}',
                           style: TextStyle(fontSize: 18, color: Colors.grey[700])),
@@ -84,7 +85,7 @@ class PetPostPreviewScreen extends StatelessWidget {
                         Chip(
                           label: Text(t,
                               style: const TextStyle(color: _orange, fontWeight: FontWeight.bold)),
-                          backgroundColor: const Color(0xFFFFF6F0),
+                          backgroundColor: AppColors.background,
                           side: BorderSide.none,
                         ),
                     ],
@@ -138,7 +139,7 @@ class PetPostPreviewScreen extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
           decoration: BoxDecoration(
-              color: const Color(0xFFFFF6F0), borderRadius: BorderRadius.circular(16)),
+              color: AppColors.background, borderRadius: BorderRadius.circular(AppRadius.card)),
           child: Column(
             children: [
               Icon(icon, color: _orange),

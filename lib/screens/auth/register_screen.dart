@@ -4,6 +4,7 @@ import '../../data/mock_data.dart';
 import '../../services/auth_service.dart';
 import '../../utils/password_policy.dart';
 import '../../widgets/password_checklist.dart';
+import '../../theme/app_theme.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -28,11 +29,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
         emailController.text.isEmpty ||
         passwordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('กรุณากรอกข้อมูลให้ครบถ้วน')));
+          const SnackBar(duration: AppTheme.snackDuration, content: Text('กรุณากรอกข้อมูลให้ครบถ้วน')));
       return;
     }
     if (username.contains('@') || username.contains(' ')) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(duration: AppTheme.snackDuration, 
           content: Text('ชื่อผู้ใช้ห้ามมีเว้นวรรคหรือเครื่องหมาย @')));
       return;
     }
@@ -43,12 +44,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
     if (passwordError != null) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(passwordError)));
+          .showSnackBar(SnackBar(duration: AppTheme.snackDuration, content: Text(passwordError)));
       return;
     }
     if (passwordController.text != confirmPasswordController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('รหัสผ่านไม่ตรงกัน')));
+          const SnackBar(duration: AppTheme.snackDuration, content: Text('รหัสผ่านไม่ตรงกัน')));
       return;
     }
 
@@ -66,7 +67,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } on AuthFailure catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.message)));
+          .showSnackBar(SnackBar(duration: AppTheme.snackDuration, content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -87,10 +88,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       appBar: AppBar(
         title: const Text('สมัครสมาชิก',
             style: TextStyle(
-                fontWeight: FontWeight.bold, color: Color(0xFFFF9E68))),
-        backgroundColor: Colors.white,
-        iconTheme: const IconThemeData(color: Color(0xFFFF9E68)),
-        elevation: 1,
+                fontWeight: FontWeight.bold, color: AppColors.textDark)),
+        backgroundColor: AppColors.appBar,
+        iconTheme: const IconThemeData(color: AppColors.primary),
+        elevation: 0,
         centerTitle: true,
       ),
       body: SingleChildScrollView(
@@ -98,77 +99,78 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('ข้อมูลพื้นฐานบัญชีผู้ใช้',
-                style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFFFF9E68))),
-            const SizedBox(height: 16),
-            TextField(
-                controller: usernameController,
-                enabled: !_isLoading,
-                decoration: InputDecoration(
-                    labelText: 'Username (สำหรับใช้ล็อกอิน) *',
-                    helperText: 'ห้ามเว้นวรรค ใช้ล็อกอินแทนอีเมลได้',
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16)))),
-            const SizedBox(height: 16),
-            TextField(
-                controller: emailController,
-                enabled: !_isLoading,
-                keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(
-                    labelText: 'อีเมล *',
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16)))),
-            const SizedBox(height: 16),
-            TextField(
-                controller: passwordController,
-                obscureText: _obscurePassword,
-                enabled: !_isLoading,
-                onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(
-                    labelText: 'รหัสผ่าน *',
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscurePassword
-                          ? Icons.visibility_off
-                          : Icons.visibility),
-                      onPressed: () => setState(
-                          () => _obscurePassword = !_obscurePassword),
-                    ),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16)))),
-            PasswordChecklist(
-              password: passwordController.text,
-              username: usernameController.text,
-              email: emailController.text,
+            SectionCard(
+              title: 'ข้อมูลพื้นฐานบัญชีผู้ใช้',
+              children: [
+                TextField(
+                    controller: usernameController,
+                    enabled: !_isLoading,
+                    decoration: InputDecoration(
+                        labelText: 'Username (สำหรับใช้ล็อกอิน) *',
+                        helper: const Text('ห้ามเว้นวรรค ใช้ล็อกอินแทนอีเมลได้',
+                            style: TextStyle(
+                                fontSize: 13, color: AppColors.textDark)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.card)))),
+                const SizedBox(height: 16),
+                TextField(
+                    controller: emailController,
+                    enabled: !_isLoading,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: InputDecoration(
+                        labelText: 'อีเมล *',
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.card)))),
+                const SizedBox(height: 16),
+                TextField(
+                    controller: passwordController,
+                    obscureText: _obscurePassword,
+                    enabled: !_isLoading,
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                        labelText: 'รหัสผ่าน *',
+                        suffixIcon: IconButton(
+                          icon: Icon(_obscurePassword
+                              ? Icons.visibility_off
+                              : Icons.visibility),
+                          onPressed: () => setState(
+                              () => _obscurePassword = !_obscurePassword),
+                        ),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.card)))),
+                PasswordChecklist(
+                  password: passwordController.text,
+                  username: usernameController.text,
+                  email: emailController.text,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                    controller: confirmPasswordController,
+                    obscureText: _obscureConfirmPassword,
+                    enabled: !_isLoading,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) {
+                      if (!_isLoading) handleRegister();
+                    },
+                    decoration: InputDecoration(
+                        labelText: 'ยืนยันรหัสผ่าน *',
+                        suffixIcon: IconButton(
+                          icon: Icon(_obscureConfirmPassword
+                              ? Icons.visibility_off
+                              : Icons.visibility),
+                          onPressed: () => setState(() =>
+                              _obscureConfirmPassword = !_obscureConfirmPassword),
+                        ),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.card)))),
+              ],
             ),
-            const SizedBox(height: 16),
-            TextField(
-                controller: confirmPasswordController,
-                obscureText: _obscureConfirmPassword,
-                enabled: !_isLoading,
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) {
-                  if (!_isLoading) handleRegister();
-                },
-                decoration: InputDecoration(
-                    labelText: 'ยืนยันรหัสผ่าน *',
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscureConfirmPassword
-                          ? Icons.visibility_off
-                          : Icons.visibility),
-                      onPressed: () => setState(() =>
-                          _obscureConfirmPassword = !_obscureConfirmPassword),
-                    ),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16)))),
             const SizedBox(height: 32),
             ElevatedButton(
               onPressed: _isLoading ? null : handleRegister,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF9E68),
-                foregroundColor: Colors.white,
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.onPrimary,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30)),

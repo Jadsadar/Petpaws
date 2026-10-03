@@ -6,6 +6,7 @@ import '../../utils/pet_species.dart';
 import '../../widgets/report_dialog.dart';
 import '../../widgets/swipeable_card.dart';
 import '../chat/chat_screen.dart';
+import '../../theme/app_theme.dart';
 
 class DiscoverScreen extends StatelessWidget {
   final List<Map<String, dynamic>> dogs;
@@ -40,13 +41,13 @@ class DiscoverScreen extends StatelessWidget {
     final ownerId = dog['ownerId'] as String?;
     final myUid = AuthService.instance.currentUser?.uid;
     if (ownerId == null || ownerId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(duration: AppTheme.snackDuration, 
           content: Text('สัตว์เลี้ยงตัวอย่างนี้ยังไม่มีเจ้าของจริงในระบบให้แชทด้วย')));
       return;
     }
     if (ownerId == myUid) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('นี่คือประกาศของคุณเอง')));
+          .showSnackBar(const SnackBar(duration: AppTheme.snackDuration, content: Text('นี่คือประกาศของคุณเอง')));
       return;
     }
     final ownerName = dog['ownerName'] as String? ?? 'เจ้าของ';
@@ -95,9 +96,9 @@ class DiscoverScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('PetPaws',
             style: TextStyle(
-                fontWeight: FontWeight.bold, color: Color(0xFFFF9E68))),
-        backgroundColor: Colors.white,
-        elevation: 1,
+                fontWeight: FontWeight.bold, color: AppColors.primary, shadows: AppTheme.outline)),
+        backgroundColor: AppColors.appBar,
+        elevation: 0,
         centerTitle: true,
         actions: [
           IconButton(
@@ -105,7 +106,7 @@ class DiscoverScreen extends StatelessWidget {
             tooltip: 'กรองชนิดสัตว์',
             // สีส้ม = กำลังกรองอยู่ เทา = ดูทั้งหมด
             icon: Icon(Icons.filter_list,
-                color: speciesFilter.isEmpty ? Colors.grey.shade600 : const Color(0xFFFF9E68)),
+                color: speciesFilter.isEmpty ? Colors.grey.shade600 : AppColors.primary),
             onPressed: () => _pickSpecies(context),
           ),
         ],
@@ -137,8 +138,8 @@ class DiscoverScreen extends StatelessWidget {
                       icon: const Icon(Icons.replay),
                       label: const Text('ลองดูสัตว์เลี้ยงอีกครั้ง'),
                       style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFFB085),
-                          foregroundColor: Colors.white),
+                          backgroundColor: AppColors.primarySoft,
+                          foregroundColor: AppColors.onPrimary),
                     )
                   ]
                 ],
@@ -178,7 +179,7 @@ class DiscoverScreen extends StatelessWidget {
                         heroTag: "btn_pass",
                         onPressed: () => onPass(dogs.first),
                         backgroundColor: Colors.white,
-                        foregroundColor: Colors.redAccent.shade200,
+                        foregroundColor: AppColors.danger,
                         elevation: 2,
                         child: const Icon(Icons.close, size: 30),
                       ),
@@ -188,7 +189,7 @@ class DiscoverScreen extends StatelessWidget {
                         onPressed: canUndo ? onUndoPass : null,
                         backgroundColor:
                             canUndo ? Colors.white : Colors.grey[200],
-                        foregroundColor: const Color(0xFFFFB085),
+                        foregroundColor: AppColors.primarySoft,
                         mini: true,
                         elevation: canUndo ? 2 : 0,
                         child: const Icon(Icons.replay, size: 24),
@@ -198,7 +199,7 @@ class DiscoverScreen extends StatelessWidget {
                         heroTag: "btn_like",
                         onPressed: () => onLike(dogs.first),
                         backgroundColor: Colors.white,
-                        foregroundColor: Colors.green.shade400,
+                        foregroundColor: AppColors.success,
                         elevation: 2,
                         child: const Icon(Icons.favorite, size: 30),
                       ),
@@ -263,7 +264,7 @@ class _SpeciesPickerDialogState extends State<_SpeciesPickerDialog> {
                       dense: true,
                       title: Text(e.value),
                       trailing: e.key == widget.current
-                          ? const Icon(Icons.check, color: Color(0xFFFF9E68))
+                          ? const Icon(Icons.check, color: AppColors.primary)
                           : null,
                       onTap: () => Navigator.pop(context, e.key),
                     ),

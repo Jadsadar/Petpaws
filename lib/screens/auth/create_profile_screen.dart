@@ -6,6 +6,7 @@ import '../../data/mock_data.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/province_picker.dart';
 import '../../widgets/tag_selector.dart';
+import '../../theme/app_theme.dart';
 
 /// บังคับให้กรอกโปรไฟล์หลังล็อกอินครั้งแรก (บัญชีที่ยังไม่มี displayName)
 /// ไม่มีปุ่มย้อนกลับ เพราะเป็นขั้นตอนบังคับก่อนเข้าใช้งานแอป
@@ -58,18 +59,18 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
     final name = nameController.text.trim();
     if (name.isEmpty) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('กรุณากรอกชื่อผู้ใช้ / ชื่อเล่น')));
+          .showSnackBar(const SnackBar(duration: AppTheme.snackDuration, content: Text('กรุณากรอกชื่อผู้ใช้ / ชื่อเล่น')));
       return;
     }
     // ช่องกรอกจำกัดไว้ 10 หลักและรับเฉพาะตัวเลขอยู่แล้ว เหลือกรณีเดียวคือกรอกไม่ครบ
     final phone = phoneController.text.trim();
     if (phone.length != 10) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('กรุณากรอกเบอร์โทรศัพท์ให้ครบ 10 หลัก')));
+          const SnackBar(duration: AppTheme.snackDuration, content: Text('กรุณากรอกเบอร์โทรศัพท์ให้ครบ 10 หลัก')));
       return;
     }
     if (selectedTraitIds.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(duration: AppTheme.snackDuration, 
           content: Text('กรุณาเลือกไลฟ์สไตล์ / นิสัยของคุณอย่างน้อย 1 อย่าง')));
       return;
     }
@@ -113,7 +114,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+          const SnackBar(duration: AppTheme.snackDuration, content: Text('บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -131,7 +132,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF6F0),
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
@@ -152,7 +153,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                           shape: BoxShape.circle,
                           color: Colors.white,
                           border: Border.all(
-                              color: const Color(0xFFFF9E68), width: 2),
+                              color: AppColors.primary, width: 2),
                         ),
                         child: _pickedImageBytes != null
                             ? ClipOval(
@@ -160,12 +161,12 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                                     width: 110, height: 110, fit: BoxFit.cover),
                               )
                             : const Icon(Icons.person,
-                                size: 56, color: Color(0xFFFFB085)),
+                                size: 56, color: AppColors.primarySoft),
                       ),
                       Container(
                         padding: const EdgeInsets.all(6),
                         decoration: const BoxDecoration(
-                          color: Color(0xFFFF9E68),
+                          color: AppColors.primary,
                           shape: BoxShape.circle,
                           border: Border.fromBorderSide(
                               BorderSide(color: Colors.white, width: 2)),
@@ -183,7 +184,10 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                     ? 'แตะเพื่อเลือกรูปโปรไฟล์ (ไม่บังคับ)'
                     : 'แตะเพื่อเปลี่ยนรูปโปรไฟล์',
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 12, color: Colors.black45),
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.brown),
               ),
               const SizedBox(height: 12),
               const Text(
@@ -192,150 +196,143 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                 style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFFFF9E68)),
+                    color: AppColors.textDark),
               ),
               const SizedBox(height: 4),
               const Text(
                 'กรอกข้อมูลก่อนเริ่มใช้งาน PetPaws',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Colors.black54),
+                style: TextStyle(
+                    fontFamily: 'Sarabun',
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.brown),
               ),
               const SizedBox(height: 28),
-              TextField(
-                controller: nameController,
-                enabled: !_isSaving,
-                autofocus: true,
-                decoration: InputDecoration(
-                  labelText: 'ชื่อผู้ใช้ / ชื่อเล่น *',
-                  prefixIcon:
-                      const Icon(Icons.badge, color: Color(0xFFFFB085)),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text('ข้อมูลสถานที่',
-                    style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey.shade700)),
-              ),
-              const SizedBox(height: 12),
-              ProvinceField(
-                value: selectedProvince,
-                labelText: 'จังหวัดที่อยู่ปัจจุบัน',
-                enabled: !_isSaving,
-                onChanged: (val) => setState(() => selectedProvince = val),
-              ),
-              const SizedBox(height: 24),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text('ข้อมูลการติดต่อ',
-                    style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey.shade700)),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: phoneController,
-                enabled: !_isSaving,
-                keyboardType: TextInputType.phone,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(10),
-                ],
-                decoration: InputDecoration(
-                  labelText: 'เบอร์โทรศัพท์ * (10 หลัก)',
-                  prefixIcon: const Icon(Icons.phone),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: lineController,
-                enabled: !_isSaving,
-                decoration: InputDecoration(
-                  labelText: 'LINE ID',
-                  prefixIcon: const Icon(Icons.chat_bubble_outline),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: fbController,
-                enabled: !_isSaving,
-                decoration: InputDecoration(
-                  labelText: 'ชื่อ Facebook',
-                  hintText: 'เช่น สมชาย ใจดี',
-                  prefixIcon: const Icon(Icons.facebook),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text('ข้อมูลเสริมคัดกรองผู้เลี้ยง',
-                    style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey.shade700)),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                value: selectedHomeType,
-                decoration: InputDecoration(
-                    labelText: 'ประเภทที่พักอาศัย',
+              SectionCard(
+                title: 'ข้อมูลทั่วไป',
+                children: [
+                TextField(
+                  controller: nameController,
+                  enabled: !_isSaving,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    labelText: 'ชื่อผู้ใช้ / ชื่อเล่น *',
+                    prefixIcon:
+                        const Icon(Icons.badge, color: AppColors.primarySoft),
                     filled: true,
                     fillColor: Colors.white,
                     border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide.none)),
-                items: homeTypes
-                    .map((h) => DropdownMenuItem(value: h, child: Text(h)))
-                    .toList(),
-                onChanged: _isSaving
-                    ? null
-                    : (val) => setState(() => selectedHomeType = val!),
+                        borderRadius: BorderRadius.circular(AppRadius.card),
+                        borderSide: BorderSide.none),
+                  ),
+                ),
+                ],
               ),
-              const SizedBox(height: 24),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text('ไลฟ์สไตล์ / นิสัยของคุณ *',
-                    style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey.shade700)),
+              const SizedBox(height: 16),
+              SectionCard(
+                title: 'ข้อมูลสถานที่',
+                children: [
+                ProvinceField(
+                  value: selectedProvince,
+                  labelText: 'จังหวัดที่อยู่ปัจจุบัน',
+                  enabled: !_isSaving,
+                  onChanged: (val) => setState(() => selectedProvince = val),
+                ),
+                ],
               ),
-              const SizedBox(height: 12),
-              TagSelector(
-                selectedIds: selectedTraitIds,
-                onToggle: _toggleTrait,
-                enabled: !_isSaving,
+              const SizedBox(height: 16),
+              SectionCard(
+                title: 'ข้อมูลการติดต่อ',
+                children: [
+                TextField(
+                  controller: phoneController,
+                  enabled: !_isSaving,
+                  keyboardType: TextInputType.phone,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(10),
+                  ],
+                  decoration: InputDecoration(
+                    labelText: 'เบอร์โทรศัพท์ * (10 หลัก)',
+                    prefixIcon: const Icon(Icons.phone),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.card),
+                        borderSide: BorderSide.none),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: lineController,
+                  enabled: !_isSaving,
+                  decoration: InputDecoration(
+                    labelText: 'LINE ID',
+                    prefixIcon: const Icon(Icons.chat_bubble_outline),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.card),
+                        borderSide: BorderSide.none),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: fbController,
+                  enabled: !_isSaving,
+                  decoration: InputDecoration(
+                    labelText: 'ชื่อ Facebook',
+                    hintText: 'เช่น สมชาย ใจดี',
+                    prefixIcon: const Icon(Icons.facebook),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.card),
+                        borderSide: BorderSide.none),
+                  ),
+                ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SectionCard(
+                title: 'ข้อมูลเสริมคัดกรองผู้เลี้ยง',
+                children: [
+                DropdownButtonFormField<String>(
+                  value: selectedHomeType,
+                  decoration: InputDecoration(
+                      labelText: 'ประเภทที่พักอาศัย',
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.card),
+                          borderSide: BorderSide.none)),
+                  items: homeTypes
+                      .map((h) => DropdownMenuItem(value: h, child: Text(h)))
+                      .toList(),
+                  onChanged: _isSaving
+                      ? null
+                      : (val) => setState(() => selectedHomeType = val!),
+                ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SectionCard(
+                title: 'ไลฟ์สไตล์ / นิสัยของคุณ *',
+                children: [
+                TagSelector(
+                  selectedIds: selectedTraitIds,
+                  onToggle: _toggleTrait,
+                  enabled: !_isSaving,
+                ),
+                ],
               ),
               const SizedBox(height: 32),
               ElevatedButton(
                 onPressed: _isSaving ? null : _saveProfile,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFF9E68),
-                  foregroundColor: Colors.white,
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.onPrimary,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(30)),

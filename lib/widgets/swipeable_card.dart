@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../screens/detail/pet_detail_screen.dart';
 import 'pet_network_image.dart';
 import '../utils/pet_species.dart';
+import '../theme/app_theme.dart';
 
 /// การ์ดสัตว์เลี้ยงในหน้า Discover ที่ปัดซ้าย/ขวาเพื่อไม่รับ/สนใจรับเลี้ยง
 class SwipeableCard extends StatelessWidget {
@@ -34,16 +35,16 @@ class SwipeableCard extends StatelessWidget {
       },
       background: Container(
         decoration: BoxDecoration(
-            color: Colors.green.shade300,
-            borderRadius: BorderRadius.circular(20)),
+            color: AppColors.successSoft,
+            borderRadius: BorderRadius.circular(AppRadius.card)),
         alignment: Alignment.centerLeft,
         padding: const EdgeInsets.symmetric(horizontal: 40),
         child: const Icon(Icons.favorite, color: Colors.white, size: 50),
       ),
       secondaryBackground: Container(
         decoration: BoxDecoration(
-            color: Colors.redAccent.shade100,
-            borderRadius: BorderRadius.circular(20)),
+            color: AppColors.dangerSoft,
+            borderRadius: BorderRadius.circular(AppRadius.card)),
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.symmetric(horizontal: 40),
         child: const Icon(Icons.close, color: Colors.white, size: 50),
@@ -62,7 +63,7 @@ class SwipeableCard extends StatelessWidget {
           width: double.infinity,
           height: double.infinity,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(AppRadius.card),
             color: Colors.white,
             boxShadow: const [
               BoxShadow(color: Colors.black12, blurRadius: 8, spreadRadius: 1)
@@ -72,7 +73,7 @@ class SwipeableCard extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               ClipRRect(
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(AppRadius.card),
                 child: PetNetworkImage(
                   imageUrl: dog['imageUrl'],
                   fit: BoxFit.cover,
@@ -81,7 +82,7 @@ class SwipeableCard extends StatelessWidget {
               ),
               Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(AppRadius.card),
                   gradient: const LinearGradient(
                     colors: [Colors.transparent, Colors.black87],
                     begin: Alignment.topCenter,
@@ -107,7 +108,7 @@ class SwipeableCard extends StatelessWidget {
                     Row(
                       children: [
                         const Icon(Icons.location_on,
-                            color: Color(0xFFFFB085), size: 20),
+                            color: AppColors.primarySoft, size: 20),
                         const SizedBox(width: 4),
                         Text(dog['province'],
                             style: const TextStyle(
