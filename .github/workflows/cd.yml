@@ -37,7 +37,9 @@ jobs:
   deploy:
     name: Deploy to VPS
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 30 นาที: build image บน VPS ตัวเล็กใช้ ~10 นาที + pull + migration + รอ healthy
+    # เดิม 15 นาทีเฉียดเส้นอยู่แล้ว (รอบสำเร็จใช้ 14m26s) พอมี dependency/ขั้นตอนเพิ่มจึงโดนตัดกลางทาง
+    timeout-minutes: 30
     # workflow_dispatch = คนกดรันเองโดยตั้งใจ, workflow_run = CI ของ push เข้า main ผ่านแล้วเท่านั้น
     if: >-
       github.event_name == 'workflow_dispatch' ||
