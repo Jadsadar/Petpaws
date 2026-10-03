@@ -21,6 +21,38 @@
         msg: "ต้องส่ง --extra-vars \"env_file_src=/path/to/.env\" มาด้วย"
       when: env_file_src is not defined
 
+    # t3.micro มี RAM แค่ 1GB — docker build ของ Nest ร่วมกับ postgres/redis/api/worker/caddy
+    # ทำให้เครื่องค้างจน SSH ไม่ตอบ (CD ล้มด้วย "timed out during banner exchange")
+    # swap 2GB กันเครื่องค้าง ไม่เร็วเท่า RAM จริง แต่ดีกว่าโดน OOM / ค้างทั้งเครื่อง
+    - name: สร้างไฟล์ swap ขนาด 2GB (ข้ามถ้ามีอยู่แล้ว)
+      ansible.builtin.command:
+        cmd: fallocate -l 2G /swapfile
+        creates: /swapfile
+
+    - name: ตั้งสิทธิ์ไฟล์ swap ให้ root อ่านได้คนเดียว
+      ansible.builtin.file:
+        path: /swapfile
+        mode: "0600"
+
+    - name: เปิดใช้งาน swap (ข้ามถ้าเปิดอยู่แล้ว)
+      ansible.builtin.shell: |
+        set -o pipefail
+        if swapon --show=NAME --noheadings | grep -qx /swapfile; then
+          echo "already-active"
+        else
+          mkswap /swapfile && swapon /swapfile && echo "activated"
+        fi
+      args:
+        executable: /bin/bash
+      register: swap_result
+      changed_when: "'activated' in swap_result.stdout"
+
+    - name: ให้ swap เปิดอัตโนมัติหลังรีบูต
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        line: "/swapfile none swap sw 0 0"
+        state: present
+
     - name: สร้างโฟลเดอร์ deploy
       ansible.builtin.file:
         path: "{{ deploy_dir }}/backend/api"
