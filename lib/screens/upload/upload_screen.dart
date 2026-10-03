@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../data/mock_data.dart';
 import '../../services/pet_service.dart';
+import '../../services/users_service.dart';
 import '../../services/storage_service.dart';
 import '../../widgets/pet_avatar.dart';
 import '../../widgets/pet_image_picker.dart';
@@ -50,6 +52,28 @@ class _UploadScreenState extends State<UploadScreen> {
   final List<String> selectedTags = [];
 
   String selectedProvince = 'กรุงเทพมหานคร';
+
+  /// ผู้ใช้เลือกจังหวัดเองแล้ว — ถ้าใช่ ห้ามเอาจังหวัดของเจ้าของมาทับตอนโหลดโปรไฟล์เสร็จทีหลัง
+  bool _provinceTouched = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOwnerProvince();
+  }
+
+  /// จังหวัดเริ่มต้นของประกาศ = จังหวัดในโปรไฟล์ของเจ้าของ (แก้เองได้)
+  Future<void> _loadOwnerProvince() async {
+    try {
+      final province = (await UsersService.instance.getMe())['province'] as String?;
+      if (!mounted || _provinceTouched) return;
+      if (province != null && thaiProvinces.contains(province)) {
+        setState(() => selectedProvince = province);
+      }
+    } catch (_) {
+      // โหลดไม่ได้ก็ใช้ค่าเริ่มต้นเดิม ไม่ขัดจังหวะการลงประกาศ
+    }
+  }
   String selectedGender = 'ผู้';
   Uint8List? _pickedImageBytes;
   int _imagePickerResetKey = 0;
@@ -274,7 +298,10 @@ class _UploadScreenState extends State<UploadScreen> {
               Expanded(
                 child: ProvinceField(
                   value: selectedProvince,
-                  onChanged: (val) => setState(() => selectedProvince = val),
+                  onChanged: (val) => setState(() {
+                    _provinceTouched = true;
+                    selectedProvince = val;
+                  }),
                 ),
               ),
               const SizedBox(width: 16),
