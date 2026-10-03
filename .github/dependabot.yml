@@ -1,0 +1,56 @@
+# Dependabot: อัปเดต dependency อัตโนมัติ แยกเป็น 2 ส่วน
+#
+# 1) Security updates: เปิด PR ทันทีเมื่อแพ็กเกจที่ใช้มีช่องโหว่ที่มีเวอร์ชันแก้แล้ว
+#    ไม่ได้ตั้งในไฟล์นี้ เปิดที่ Settings > Advanced Security > Dependabot security updates
+#
+# 2) Version updates (ไฟล์นี้): รายเดือน เฉพาะ minor/patch รวมเป็น PR เดียวต่อระบบ
+#    เวอร์ชันใหญ่ (major) ไม่เปิด PR ให้ เพราะมักมี breaking change ต้องให้ทีมตัดสินใจ
+#    และอัปเดตเองตอนพร้อม
+#
+# ทุก PR ต้องผ่าน CI (test, e2e, Gitleaks, Semgrep, Trivy, npm audit, osv-scanner) ก่อน merge
+version: 2
+updates:
+  # backend NestJS
+  - package-ecosystem: npm
+    directory: /backend/api
+    schedule:
+      interval: monthly
+    groups:
+      backend-minor-patch:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # แอป Flutter (pubspec.yaml ที่ root)
+  - package-ecosystem: pub
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      mobile-minor-patch:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # base image ใน backend/api/Dockerfile (node:22-bookworm-slim) อยู่ที่ Node 22 ตาม CI
+  - package-ecosystem: docker
+    directory: /backend/api
+    schedule:
+      interval: monthly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # actions ที่ใช้ใน .github/workflows (ปักด้วย commit SHA, Dependabot อัปเดต SHA ให้)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]

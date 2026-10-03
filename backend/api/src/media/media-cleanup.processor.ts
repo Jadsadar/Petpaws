@@ -9,6 +9,8 @@ import { MediaService } from './media.service.js';
 const ORPHAN_AGE_MS = 24 * 60 * 60 * 1000;
 const NIGHTLY_CRON = '0 3 * * *'; // ตี 3 เวลาไทย — ช่วงที่คนใช้น้อยที่สุด
 const SCHEDULER_ID = 'media-cleanup-nightly';
+// กวาดไฟล์แชททีละชุด — คืนไหนค้างเยอะผิดปกติก็ไม่ถือ query/ลิสต์ก้อนใหญ่ค้างไว้ในหน่วยความจำ
+const CHAT_SWEEP_BATCH = 1000;
 
 /**
  * ลบไฟล์ใน S3 ที่ไม่มีแถวไหนใน DB อ้างถึง และค้างนานเกิน 24 ชม.
@@ -16,6 +18,12 @@ const SCHEDULER_ID = 'media-cleanup-nightly';
  *
  * เกณฑ์ 24 ชม. กันลบไฟล์ที่เพิ่งอัปแล้วผู้ใช้ยังกรอกฟอร์มอยู่
  * ประกาศที่ soft delete แล้วยังมีแถว pet_media อยู่ รูปจึงไม่ถูกลบ (ห้องแชทยังเปิดดูได้)
+ *
+ * ไฟล์มี 2 กลุ่ม ตรวจคนละวิธี:
+ * - uploads/ (รูปประกาศ/avatar ที่อัปผ่าน API) — ลิสต์ไฟล์ใน S3 แล้วเทียบกับ URL ใน DB
+ * - chat/    (รูป/วิดีโอแชท อัปผ่าน presigned POST) — ไม่ต้องลิสต์ S3 เลย ทุกไฟล์มีแถว
+ *            media_uploads อยู่แล้ว แค่หาแถวที่ไม่ถูก claim ผ่าน index media_uploads_orphan_idx
+ *            ข้อความที่ถูก soft delete ยังถือว่า claim อยู่ ไฟล์จึงยังอยู่เป็นหลักฐานตอนถูกรายงาน
  */
 @Processor(MEDIA_CLEANUP_QUEUE)
 export class MediaCleanupProcessor extends WorkerHost implements OnApplicationBootstrap {
@@ -39,6 +47,41 @@ export class MediaCleanupProcessor extends WorkerHost implements OnApplicationBo
   }
 
   async process() {
+    const uploads = await this.sweepUploads();
+    const chat = await this.sweepChatMedia();
+    return { ...uploads, chatDeleted: chat };
+  }
+
+  private async sweepChatMedia() {
+    const cutoff = new Date(Date.now() - ORPHAN_AGE_MS);
+    let deleted = 0;
+    for (;;) {
+      // ลบแถวก่อน (DELETE ... RETURNING ใน statement เดียว) แล้วค่อยลบไฟล์ — ถ้ามีคน
+      // claim ไฟล์นี้พอดีระหว่างนั้น claim จะหาแถวไม่เจอแล้วส่งไม่ผ่าน แทนที่จะได้ข้อความ
+      // ที่ชี้ไปไฟล์ที่ถูกลบไปแล้ว (ถ้าพังหลังลบแถว ไฟล์ค้างใน S3 — เสียพื้นที่ แต่ไม่พัง)
+      const res = await this.pool.query<{ storage_key: string }>(
+        `DELETE FROM media_uploads
+         WHERE id IN (
+           SELECT id FROM media_uploads
+           WHERE claimed_at IS NULL AND created_at < $1
+           ORDER BY created_at
+           LIMIT $2
+           FOR UPDATE SKIP LOCKED
+         ) AND claimed_at IS NULL
+         RETURNING storage_key`,
+        [cutoff, CHAT_SWEEP_BATCH],
+      );
+      const keys = res.rows.map((r) => r.storage_key);
+      if (keys.length === 0) break;
+      await this.media.deleteObjects(keys);
+      deleted += keys.length;
+      if (keys.length < CHAT_SWEEP_BATCH) break;
+    }
+    if (deleted > 0) this.logger.log(`ลบไฟล์แชทที่ไม่ถูกส่ง ${deleted} ไฟล์`);
+    return deleted;
+  }
+
+  private async sweepUploads() {
     const candidates = await this.media.listUploadsOlderThan(new Date(Date.now() - ORPHAN_AGE_MS));
     if (candidates.length === 0) return { deleted: 0 };
 

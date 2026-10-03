@@ -19,9 +19,18 @@ class ChatService {
   /// สร้างห้องแชทถ้ายังไม่มี พร้อมข้อความแรกในธุรกรรมเดียวกัน (ตาม SKILL.md
   /// "ห้องแชทเกิดตอนผู้ใช้กดส่งข้อความแรกเท่านั้น") หรือถ้ามีห้องอยู่แล้ว
   /// จะแนบข้อความนี้ต่อท้ายห้องเดิมให้เลย คืนค่า chatId เสมอ
-  Future<String> createOrSend({required String petId, required String message}) async {
-    final res = await _api.post('/chats', body: {'petId': petId, 'message': message})
-        as Map<String, dynamic>;
+  ///
+  /// ข้อความแรกเป็นรูป/วิดีโอได้ — [media] คือค่าที่ได้จาก ChatMediaService.upload
+  Future<String> createOrSend({
+    required String petId,
+    String message = '',
+    Map<String, dynamic>? media,
+  }) async {
+    final res = await _api.post('/chats', body: {
+      'petId': petId,
+      if (message.isNotEmpty) 'message': message,
+      if (media != null) 'media': media,
+    }) as Map<String, dynamic>;
     return res['chatId'] as String;
   }
 
@@ -56,8 +65,16 @@ class ChatService {
     return null;
   }
 
-  Future<List<Map<String, dynamic>>> messages(String chatId) async {
-    final res = await _api.get('/chats/$chatId/messages') as List;
+  /// จำนวนข้อความต่อหน้า (ตรงกับค่า default ฝั่ง backend)
+  static const int pageSize = 50;
+
+  /// ข้อความทีละหน้า เรียงเก่า -> ใหม่ ไม่ส่ง [before] = หน้าล่าสุด
+  /// ได้น้อยกว่า [pageSize] แปลว่าไม่มีข้อความเก่ากว่านี้แล้ว
+  Future<List<Map<String, dynamic>>> messages(String chatId, {String? before}) async {
+    final res = await _api.get('/chats/$chatId/messages', query: {
+      'limit': '$pageSize',
+      if (before != null) 'before': before,
+    }) as List;
     return res.cast<Map<String, dynamic>>();
   }
 
@@ -68,8 +85,19 @@ class ChatService {
   /// ลบแชท = ซ่อนเฉพาะฝั่งเรา อีกฝ่ายยังเห็น (ข้อความใหม่ทำให้ห้องกลับมา)
   Future<void> hideChat(String chatId) => _api.delete('/chats/$chatId');
 
-  Future<void> sendMessage(String chatId, String text) =>
-      _api.post('/chats/$chatId/messages', body: {'text': text});
+  /// คืนข้อความที่บันทึกแล้วจาก server (มี id/createdAt/media URL จริง) ให้หน้าจอ
+  /// ใส่ลง feed ได้ทันที ไม่ต้องรอ event จาก socket
+  Future<Map<String, dynamic>> sendMessage(
+    String chatId, {
+    String text = '',
+    Map<String, dynamic>? media,
+  }) async {
+    final res = await _api.post('/chats/$chatId/messages', body: {
+      if (text.isNotEmpty) 'text': text,
+      if (media != null) 'media': media,
+    }) as Map<String, dynamic>;
+    return res['message'] as Map<String, dynamic>;
+  }
 
   Future<void> markRead(String chatId) => _api.post('/chats/$chatId/read');
 
@@ -82,78 +110,9 @@ class ChatService {
   // สด
   // ---------------------------------------------------------------------------
 
-  /// ข้อความในห้อง — ประวัติจาก REST + ข้อความใหม่จาก event 'message'
-  /// เก็บตาม id กันซ้ำ (ข้อความเดียวกันมาได้ทั้งจาก event และจากการดึงซ้ำตอนต่อใหม่)
-  ///
-  /// ข้อความของอีกฝ่ายที่เข้ามาระหว่างเปิดห้องอยู่ = อ่านแล้ว mark read ให้เลย
-  /// อีกฝ่ายจะเห็น "อ่านแล้ว" และ badge ของเราไม่ขึ้น
-  ///
-  /// สถานะอ่านอยู่ที่ `readAt` ของแต่ละข้อความ: ค่าเริ่มมาจาก REST (DB เก็บไว้ถาวร)
-  /// แล้ว event 'read' เติมลงข้อความของเราที่ส่งก่อนเวลานั้น — อยู่ใน list เดียวกับ
-  /// ข้อความ จึงไม่หายตอนหน้าจอ rebuild หรือออกแล้วเข้าห้องใหม่
-  Stream<List<Map<String, dynamic>>> watchMessages(String chatId, {required String myUid}) {
-    final byId = <String, Map<String, dynamic>>{};
-    final subs = <StreamSubscription>[];
-    late final StreamController<List<Map<String, dynamic>>> ctrl;
-
-    void publish() {
-      final list = byId.values.toList()
-        ..sort((a, b) => '${a['createdAt']}'.compareTo('${b['createdAt']}'));
-      if (!ctrl.isClosed) ctrl.add(list);
-    }
-
-    Future<void> load() async {
-      try {
-        for (final m in await messages(chatId)) {
-          byId[m['id'] as String] = m;
-        }
-        publish();
-      } catch (_) {
-        // เน็ตหลุด — รอบต่อใหม่ของ socket จะดึงให้อีกครั้ง
-      }
-    }
-
-    ctrl = StreamController(
-      onListen: () {
-        _socket.join(chatId);
-        subs
-          ..add(_socket.events
-              .where((e) => e.name == 'message' && e.data['conversationId'] == chatId)
-              .listen((e) {
-            byId[e.data['id'] as String] = e.data;
-            publish();
-            if (e.data['senderId'] != myUid) markRead(chatId).catchError((_) {});
-          }))
-          ..add(_socket.events
-              .where((e) =>
-                  e.name == 'read' &&
-                  e.data['conversationId'] == chatId &&
-                  e.data['userId'] != myUid)
-              .listen((e) {
-            final readAt = DateTime.parse(e.data['readAt'] as String);
-            for (final m in byId.values) {
-              final sentAt = DateTime.tryParse('${m['createdAt']}');
-              if (m['senderId'] == myUid &&
-                  m['readAt'] == null &&
-                  sentAt != null &&
-                  !sentAt.isAfter(readAt)) {
-                m['readAt'] = e.data['readAt'];
-              }
-            }
-            publish();
-          }))
-          ..add(_socket.onConnect.listen((_) => load()));
-        load();
-      },
-      onCancel: () {
-        for (final s in subs) {
-          s.cancel();
-        }
-        _socket.leave(chatId);
-      },
-    );
-    return ctrl.stream;
-  }
+  /// เปิดฟังข้อความของห้อง — ดู [MessageFeed]
+  MessageFeed openMessages(String chatId, {required String myUid}) =>
+      MessageFeed._(this, _socket, chatId, myUid);
 
   /// รายการห้อง — ดึงใหม่เมื่อมี 'notification' (ข้อความใหม่/อ่านแล้ว) หรือต่อใหม่
   Stream<List<Map<String, dynamic>>> watchChats({String? petName}) =>
@@ -213,5 +172,122 @@ class ChatService {
       },
     );
     return ctrl.stream;
+  }
+}
+
+/// ข้อความในห้อง 1 ห้อง — หน้าล่าสุดจาก REST + ข้อความใหม่จาก event 'message'
+/// + หน้าเก่ากว่าที่ผู้ใช้กดโหลดเพิ่ม ([loadOlder]) เก็บตาม id กันซ้ำ
+/// (ข้อความเดียวกันมาได้ทั้งจาก event, จากผลของ POST และจากการดึงซ้ำตอนต่อใหม่)
+///
+/// ข้อความของอีกฝ่ายที่เข้ามาระหว่างเปิดห้องอยู่ = อ่านแล้ว mark read ให้เลย
+/// อีกฝ่ายจะเห็น "อ่านแล้ว" และ badge ของเราไม่ขึ้น
+///
+/// สถานะอ่านอยู่ที่ `readAt` ของแต่ละข้อความ: ค่าเริ่มมาจาก REST (DB เก็บไว้ถาวร)
+/// แล้ว event 'read' เติมลงข้อความของเราที่ส่งก่อนเวลานั้น — อยู่ใน list เดียวกับ
+/// ข้อความ จึงไม่หายตอนหน้าจอ rebuild หรือออกแล้วเข้าห้องใหม่
+class MessageFeed {
+  MessageFeed._(this._chat, this._socket, this.chatId, this._myUid) {
+    _ctrl = StreamController(onListen: _start, onCancel: _stop);
+  }
+
+  final ChatService _chat;
+  final ChatSocket _socket;
+  final String chatId;
+  final String _myUid;
+
+  final _byId = <String, Map<String, dynamic>>{};
+  final _subs = <StreamSubscription>[];
+  late final StreamController<List<Map<String, dynamic>>> _ctrl;
+
+  bool _hasMore = false;
+  bool _loadingOlder = false;
+
+  Stream<List<Map<String, dynamic>>> get stream => _ctrl.stream;
+
+  /// ยังมีข้อความเก่ากว่าที่โหลดอยู่ให้ดึงเพิ่ม
+  bool get hasMore => _hasMore;
+  bool get loadingOlder => _loadingOlder;
+
+  /// ใส่ข้อความที่ได้จากผลของ POST ลง feed ทันที
+  void upsert(Map<String, dynamic> message) {
+    _byId[message['id'] as String] = message;
+    _publish();
+  }
+
+  Future<void> loadOlder() async {
+    if (!_hasMore || _loadingOlder || _byId.isEmpty) return;
+    _loadingOlder = true;
+    _publish();
+    try {
+      final page = await _chat.messages(chatId, before: _sorted().first['id'] as String);
+      _hasMore = page.length >= ChatService.pageSize;
+      for (final m in page) {
+        _byId[m['id'] as String] = m;
+      }
+    } finally {
+      _loadingOlder = false;
+      _publish();
+    }
+  }
+
+  List<Map<String, dynamic>> _sorted() => _byId.values.toList()
+    ..sort((a, b) => '${a['createdAt']}'.compareTo('${b['createdAt']}'));
+
+  void _publish() {
+    if (!_ctrl.isClosed) _ctrl.add(_sorted());
+  }
+
+  /// ดึงหน้าล่าสุด (ครั้งแรก และทุกครั้งที่ socket ต่อใหม่)
+  Future<void> _loadLatest() async {
+    try {
+      final page = await _chat.messages(chatId);
+      // หลุดไปนานจนหน้าล่าสุดไม่ต่อกับของที่มีอยู่เลย = มีช่องโหว่ตรงกลาง
+      // ทิ้งของเก่าแล้วเริ่มจากหน้าล่าสุดใหม่ ให้ loadOlder ไล่ย้อนต่อได้ถูก
+      final connected = page.isEmpty || _byId.isEmpty || page.any((m) => _byId.containsKey(m['id']));
+      if (!connected) _byId.clear();
+      if (_byId.isEmpty) _hasMore = page.length >= ChatService.pageSize;
+      for (final m in page) {
+        _byId[m['id'] as String] = m;
+      }
+      _publish();
+    } catch (_) {
+      // เน็ตหลุด — รอบต่อใหม่ของ socket จะดึงให้อีกครั้ง
+    }
+  }
+
+  void _start() {
+    _socket.join(chatId);
+    _subs
+      ..add(_socket.events
+          .where((e) => e.name == 'message' && e.data['conversationId'] == chatId)
+          .listen((e) {
+        upsert(e.data);
+        if (e.data['senderId'] != _myUid) _chat.markRead(chatId).catchError((_) {});
+      }))
+      ..add(_socket.events
+          .where((e) =>
+              e.name == 'read' && e.data['conversationId'] == chatId && e.data['userId'] != _myUid)
+          .listen((e) {
+        final readAt = DateTime.parse(e.data['readAt'] as String);
+        for (final m in _byId.values) {
+          final sentAt = DateTime.tryParse('${m['createdAt']}');
+          if (m['senderId'] == _myUid &&
+              m['readAt'] == null &&
+              sentAt != null &&
+              !sentAt.isAfter(readAt)) {
+            m['readAt'] = e.data['readAt'];
+          }
+        }
+        _publish();
+      }))
+      ..add(_socket.onConnect.listen((_) => _loadLatest()));
+    _loadLatest();
+  }
+
+  void _stop() {
+    for (final s in _subs) {
+      s.cancel();
+    }
+    _socket.leave(chatId);
   }
 }

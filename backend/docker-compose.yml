@@ -79,9 +79,10 @@ services:
   # MINIO_ROOT_USER / MINIO_ROOT_PASSWORD แล้วสร้าง bucket ชื่อตาม S3_BUCKET เอง
   # (ยังไม่ auto-create ให้ — ทำตอนเขียน media module ค่อยเพิ่ม init script)
   minio:
-    # MinIO ถอด image ออกจาก Docker Hub แล้ว (ย้าย distribution ไป quay.io)
-    # ห้ามเปลี่ยนกลับไปใช้ minio/minio เพราะ pull จะถูกปฏิเสธ (ยืนยันแล้วตอนตั้งค่า)
-    image: quay.io/minio/minio:latest
+    # MinIO เลิกแจก image สาธารณะแล้ว: minio/minio บน Docker Hub ถูกถอด และ
+    # quay.io/minio/minio ตอบ 401 (ยืนยันเมื่อ 2026-10-02) — ใช้ build ของ Chainguard แทน
+    # image นี้ไม่มี curl จึงเช็คสุขภาพด้วย `mc ready` ที่ติดมากับ image
+    image: cgr.dev/chainguard/minio:latest
     container_name: petpaws-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -94,7 +95,7 @@ services:
     volumes:
       - minio_data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD-SHELL", "MC_HOST_local=http://$${MINIO_ROOT_USER}:$${MINIO_ROOT_PASSWORD}@localhost:9000 mc ready local"]
       interval: 5s
       timeout: 5s
       retries: 10

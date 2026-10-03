@@ -1,48 +1,45 @@
 # วิธีรัน migration + mock data (PowerShell)
 
-## 1. เปิดฐานข้อมูล
+## 1. เปิดฐานข้อมูล + migration + mock data (คำสั่งเดียว)
+
+จากโฟลเดอร์ `Project`:
 
 ```powershell
-cd backend
-docker compose up -d
+.\backend\seed.cmd
 ```
 
-DB ใหม่ (สร้างครั้งแรก) จะรัน migration ทุกไฟล์ใน `db/migrations/` ให้อัตโนมัติ
+สคริปต์จะ:
 
-## 2. รัน migration ที่เพิ่มมาใหม่ (เฉพาะ DB ที่มีอยู่แล้ว)
-
-ถ้าเคย `docker compose up` มาก่อนแล้ว migration ใหม่จะไม่รันเอง ต้องรันมือครั้งเดียว:
-
-```powershell
-Get-Content db\migrations\013_suspension_expiry.sql -Raw -Encoding UTF8 | docker exec -i petpaws-postgres psql -U petpaws -d petpaws -v ON_ERROR_STOP=1
-```
-
-รันซ้ำได้ไม่พัง
-
-## 3. ใส่ mock data
-
-```powershell
-Get-Content db\seeds\003_demo_accounts.sql -Raw -Encoding UTF8 | docker exec -i petpaws-postgres psql -U petpaws -d petpaws -v ON_ERROR_STOP=1
-```
+1. เปิด container (postgres, redis, minio) แล้วรอจน postgres พร้อม
+2. รัน migration ที่ DB นี้ยังไม่เคยรัน เช่นไฟล์ใหม่ที่เพิ่มหลังสร้าง DB (`initdb` ของ Docker ไม่รันให้)
+3. ใส่ `003_demo_accounts.sql` แล้วโชว์จำนวนบัญชี/ประกาศ/ห้องแชท
 
 | บัญชี | รหัสผ่าน |
 |---|---|
 | `demo01` … `demo10` | `Petpaws1!` |
 | `admin` (แอดมิน) | `Petpaws1!` |
 
-รันซ้ำได้ ข้อมูลกลับเป็นสภาพเริ่มต้น
+รันซ้ำได้ ข้อมูลสาธิตกลับเป็นสภาพเริ่มต้นทุกครั้ง
 
-## 4. เปิด backend
+| ตัวเลือก | ทำอะไร |
+|---|---|
+| `.\backend\seed.cmd -Reset` | ล้าง DB ทั้งหมด (`docker compose down -v`) แล้วสร้างใหม่ |
+| `.\backend\seed.cmd -All` | ใส่ seed ทุกไฟล์ (`001`, `002`, `003`) |
+
+> ประวัติว่ารัน migration ไฟล์ไหนไปแล้วเก็บใน `dev_tools.applied_migrations` (คนละ schema กับตารางของแอป)
+> ถ้า migration ไฟล์ไหนล้ม สคริปต์จะหยุดและโชว์ error ของ psql
+
+## 2. เปิด backend
 
 ```powershell
-cd api
+cd backend\api
 npm install
 npm run start:dev
 ```
 
 เช็ก: http://localhost:3000/health ต้องได้ `{"status":"ok","db":"connected"}`
 
-## 5. เปิด worker (อีก terminal)
+## 3. เปิด worker (อีก terminal)
 
 ```powershell
 cd backend\api
@@ -54,9 +51,7 @@ npm run start:worker:dev
 ## ถ้า DB พัง / อยากเริ่มใหม่หมด
 
 ```powershell
-cd backend
-docker compose down -v
-docker compose up -d
+.\backend\seed.cmd -Reset
 ```
 
-`-v` ลบข้อมูลทั้งหมด แล้ว migration ทุกไฟล์ (รวม 013) จะรันใหม่อัตโนมัติ — จากนั้นรันขั้นที่ 3 ต่อ
+ลบข้อมูลทั้งหมด (รวมบัญชีที่สมัครเองตอนทดสอบ) แล้วสร้าง DB + mock data ใหม่

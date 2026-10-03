@@ -158,7 +158,7 @@ export class AdminService {
               p.name AS pet_name, p.species::text AS pet_species, p.status::text AS pet_status,
               (p.deleted_at IS NOT NULL) AS pet_deleted, p.description AS pet_description,
               ${PET_PHOTOS_SQL} AS pet_photos,
-              r.reported_message_id, m.body AS message_body, m.created_at AS message_created_at,
+              r.reported_message_id, message_preview(m.body, m.media_type) AS message_body, m.created_at AS message_created_at,
               count(*) OVER() AS total_count
        FROM target t
        JOIN reports r   ON r.id = t.id

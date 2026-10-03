@@ -27,7 +27,7 @@
         state: directory
         mode: "0755"
 
-    - name: copy docker-compose.prod.yml และ Caddyfile
+    - name: Copy docker-compose.prod.yml และ Caddyfile
       ansible.builtin.copy:
         src: "../{{ item }}"
         dest: "{{ deploy_dir }}/{{ item }}"
@@ -36,7 +36,7 @@
         - docker-compose.prod.yml
         - Caddyfile
 
-    - name: copy ไฟล์ config ของ backend/api ที่ build image ต้องใช้
+    - name: Copy ไฟล์ config ของ backend/api ที่ build image ต้องใช้
       ansible.builtin.copy:
         src: "../backend/api/{{ item }}"
         dest: "{{ deploy_dir }}/backend/api/{{ item }}"
@@ -49,19 +49,19 @@
         - tsconfig.build.json
         - nest-cli.json
 
-    - name: copy source code (src/)
+    - name: Copy source code (src/)
       ansible.builtin.copy:
         src: ../backend/api/src/
         dest: "{{ deploy_dir }}/backend/api/src/"
         mode: preserve
 
-    - name: copy migration SQL (db/migrations/)
+    - name: Copy migration SQL (db/migrations/)
       ansible.builtin.copy:
         src: ../backend/db/migrations/
         dest: "{{ deploy_dir }}/backend/db/migrations/"
         mode: preserve
 
-    - name: copy .env production (ค่าจริง ไม่ใช่ example)
+    - name: Copy .env production (ค่าจริง ไม่ใช่ example)
       ansible.builtin.copy:
         src: "{{ env_file_src }}"
         dest: "{{ deploy_dir }}/.env"

@@ -8,6 +8,9 @@ on:
 permissions:
   contents: read
 
+# actions ทุกตัวปักด้วย commit SHA (tag อย่าง @v5 ถูกย้ายไปชี้ commit อื่นได้ ถ้า repo ต้นทาง
+# ถูกเจาะ) คอมเมนต์ท้ายบรรทัดบอกเวอร์ชัน Dependabot อัปเดต SHA ให้อัตโนมัติ
+
 # push ใหม่เข้า branch/PR เดิม ให้ยกเลิกรอบเก่าที่ยังรันไม่เสร็จ ไม่ต้องรอผลที่ล้าสมัยแล้ว
 concurrency:
   group: ci-${{ github.ref }}
@@ -22,9 +25,9 @@ jobs:
       run:
         working-directory: backend/api
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
           cache: npm
@@ -36,20 +39,106 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Unit test
-        run: npm test
+      # รันเทสต์พร้อมวัด coverage เกณฑ์ขั้นต่ำอยู่ใน vitest.config.ts (ต่ำกว่าเกณฑ์ = แดง)
+      - name: Unit test + coverage
+        run: npm run test:cov
 
       - name: Build
         run: npm run build
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: backend-coverage
+          path: backend/api/coverage/lcov.info
+          retention-days: 14
+
+  # e2e: บูต API ทั้งตัวต่อ Postgres/Redis/S3 จริง (ไม่ mock) แล้วยิง HTTP เข้าไปทดสอบ
+  backend-e2e:
+    name: Backend e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend/api
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: petpaws
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: petpaws
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U petpaws -d petpaws"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      # S3 จำลองสำหรับเทสต์ (MinIO เลิกแจก image สาธารณะแล้ว ดึง quay.io/minio/minio ไม่ได้)
+      s3:
+        image: localstack/localstack:3.8.1
+        env:
+          SERVICES: s3
+        ports: ["4566:4566"]
+        options: >-
+          --health-cmd "curl -sf http://localhost:4566/_localstack/health"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    # ค่าเฉพาะใน CI ชั่วคราว ไม่ใช่ความลับจริง ฐานข้อมูลถูกสร้างใหม่และทิ้งไปทุกรอบ
+    env:
+      DATABASE_URL: postgres://petpaws:ci_password@localhost:5432/petpaws
+      REDIS_URL: redis://localhost:6379
+      JWT_ACCESS_SECRET: ci-only-access-secret
+      JWT_REFRESH_SECRET: ci-only-refresh-secret
+      JWT_ACCESS_TTL: 15m
+      JWT_REFRESH_TTL: 7d
+      API_PORT: "3000"
+      CORS_ORIGIN: "*"
+      S3_ENDPOINT: http://localhost:4566
+      S3_REGION: us-east-1
+      S3_BUCKET: petpaws-ci
+      S3_ACCESS_KEY_ID: test
+      S3_SECRET_ACCESS_KEY: test
+      S3_FORCE_PATH_STYLE: "true"
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/api/package-lock.json
+
+      # สร้าง bucket ไว้ก่อน: LocalStack โหลด S3 ตอนถูกเรียกครั้งแรก ซึ่งอาจช้ากว่า
+      # timeout ตอนแอปบูตในเทสต์ เรียกครั้งแรกตรงนี้แทน
+      - name: Create S3 bucket
+        run: curl -sf -X PUT "$S3_ENDPOINT/$S3_BUCKET" -o /dev/null
+
+      # schema ชุดเดียวกับที่ production ใช้ (backend/db/migrations) เรียงตามเลขไฟล์
+      - name: Apply DB migrations
+        run: |
+          for f in ../db/migrations/*.sql; do
+            echo "apply $f"
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+
+      - name: Install
+        run: npm ci
+
+      - name: e2e test
+        run: npm run test:e2e
 
   mobile:
     name: Mobile (Flutter)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           channel: stable
           flutter-version: 3.44.3
@@ -63,8 +152,13 @@ jobs:
       - name: Analyze
         run: flutter analyze --no-fatal-infos
 
-      - name: Unit test
-        run: flutter test
+      # วัด coverage เก็บเป็นรายงาน (ไม่ตั้งเกณฑ์): flutter นับเฉพาะไฟล์ที่เทสต์ import
+      # ตัวเลขจึงสูงเกินจริง ตั้งเกณฑ์ไปก็ไม่สะท้อนโค้ดทั้งแอป ดูจำนวนบรรทัดที่ถูกนับประกอบเสมอ
+      - name: Unit test + coverage
+        run: |
+          flutter test --coverage
+          awk -F: '/^LF:/{lf+=$2} /^LH:/{lh+=$2} END{printf "Flutter coverage: %d/%d lines (%.1f%%) ในไฟล์ที่เทสต์ import\n", lh, lf, lh*100/lf}' \
+            coverage/lcov.info | tee -a "$GITHUB_STEP_SUMMARY"
 
       # ubuntu-latest ของ GitHub มี Android SDK ติดตั้งมาให้ล่วงหน้าอยู่แล้ว ไม่ต้อง
       # setup เพิ่ม — build debug (ไม่เซ็นด้วย keystore) แค่พิสูจน์ว่า pipeline
@@ -72,10 +166,16 @@ jobs:
       - name: Build debug APK
         run: flutter build apk --debug
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: petpaws-debug-apk
           path: build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 14
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mobile-coverage
+          path: coverage/lcov.info
           retention-days: 14
 
   security:
@@ -86,7 +186,7 @@ jobs:
       contents: read
       pull-requests: write # ให้ gitleaks-action คอมเมนต์สรุปผลใน PR ได้ (ไม่มีสิทธิ์แก้โค้ด)
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           # Gitleaks ต้องอ่านย้อนทุก commit ไม่ใช่แค่ commit ล่าสุด checkout ปกติ
           # (fetch-depth: 1) จะโคลนมาแค่ commit เดียวทำให้สแกนประวัติเก่าไม่เจอ
@@ -96,11 +196,11 @@ jobs:
       # และในประวัติ commit ทั้งหมด อ่าน .gitleaksignore เพื่อข้ามรายการที่ตรวจแล้ว
       # ว่าไม่ใช่ความลับจริง (ดูเหตุผลแต่ละรายการในไฟล์นั้น)
       - name: Secrets scan (Gitleaks)
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
           cache: npm
@@ -133,9 +233,114 @@ jobs:
           fi
 
       # SCA ฝั่ง Flutter — อ่าน pubspec.lock เทียบกับฐานข้อมูล CVE ของ OSV
+      # ปักเวอร์ชันและตรวจ SHA256 กับค่าที่ประกาศใน release ทางการ ก่อนรันไฟล์ที่โหลดมา
+      # (เดิมโหลด latest ไม่ตรวจอะไร ถ้าไฟล์ต้นทางถูกแก้ CI ก็จะรันโค้ดนั้นทันที)
       - name: Dependency scan — mobile (osv-scanner)
+        env:
+          OSV_VERSION: v2.2.2
+          OSV_SHA256: c799274b682e0437c802d4714a136ad09b39c65547c460049ba5358d28afa576
         run: |
-          curl -sL -o osv-scanner \
-            https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64
+          curl -fsSL -o osv-scanner \
+            "https://github.com/google/osv-scanner/releases/download/${OSV_VERSION}/osv-scanner_linux_amd64"
+          echo "${OSV_SHA256}  osv-scanner" | sha256sum -c -
           chmod +x osv-scanner
-          ./osv-scanner --lockfile=pubspec.lock
+          ./osv-scanner scan source --lockfile pubspec.lock
+
+  # SAST: อ่านซอร์สโค้ด backend หาแพทเทิร์นที่เป็นช่องโหว่ (injection, crypto อ่อน,
+  # JWT ผิดวิธี, ความลับฝังในโค้ด ฯลฯ) ใช้กฎชุดฟรีของ Semgrep Registry
+  sast:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      image: semgrep/semgrep:1.99.0
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      # รอบแรกเก็บผลทุกระดับเป็นรายงาน (ไม่ fail) รอบสองใช้ตัดสิน: บล็อกเฉพาะระดับ ERROR
+      # ระดับ WARNING/INFO ดูในรายงานได้ แต่ไม่ทำให้ CI แดง (นโยบายเดียวกับ npm audit)
+      - name: Semgrep scan
+        env:
+          SEMGREP_RULES: p/typescript p/nodejs p/owasp-top-ten p/secrets
+        run: |
+          semgrep scan --metrics=off --disable-version-check \
+            --sarif --output semgrep.sarif backend/api/src
+          semgrep scan --metrics=off --disable-version-check \
+            --severity ERROR --error backend/api/src
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: semgrep-report
+          path: semgrep.sarif
+          retention-days: 14
+
+  # build Docker image ของ backend แบบเดียวกับที่ขึ้น VPS แล้วสแกนก่อนจะได้ deploy จริง
+  # (CD build image บน VPS เอง ถ้าไม่สแกนที่นี่ image ที่ขึ้น production จะไม่เคยถูกตรวจเลย)
+  container:
+    name: Container & config scan (Trivy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TRIVY: docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v trivy-cache:/root/.cache -v ${{ github.workspace }}:/src -w /src aquasec/trivy:0.58.1
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Build image
+        run: docker build -t petpaws-api:ci backend/api
+
+      # บล็อกเมื่อเจอช่องโหว่ HIGH/CRITICAL ที่มีเวอร์ชันแก้แล้ว (--ignore-unfixed)
+      # ตัวที่ยังไม่มีแพตช์จาก upstream แก้เองไม่ได้ ไม่ควรทำให้ทุก PR แดงค้าง
+      - name: Image scan
+        run: |
+          mkdir -p reports
+          $TRIVY image --no-progress --scanners vuln --ignore-unfixed --severity HIGH,CRITICAL \
+            --format sarif --output reports/trivy-image.sarif petpaws-api:ci
+          $TRIVY image --no-progress --scanners vuln --skip-db-update --ignore-unfixed \
+            --severity HIGH,CRITICAL --exit-code 1 petpaws-api:ci
+
+      # สแกน misconfiguration ของไฟล์ IaC/config ในทั้ง repo (เช่น Dockerfile รันเป็น root,
+      # ไม่มี HEALTHCHECK) --skip-check-update ใช้ชุดกฎที่มากับ Trivy เวอร์ชันนี้ตรง ๆ
+      - name: Config scan
+        run: |
+          $TRIVY config --skip-check-update --severity HIGH,CRITICAL \
+            --format sarif --output reports/trivy-config.sarif .
+          $TRIVY config --skip-check-update --severity HIGH,CRITICAL --exit-code 1 .
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: trivy-reports
+          path: reports/
+          retention-days: 14
+
+  # playbook ที่ CD ใช้ deploy ขึ้น VPS จริง ต้องผ่านมาตรฐานก่อน (ใช้ profile production)
+  ansible-lint:
+    name: IaC lint (ansible-lint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: ansible-lint
+        working-directory: ansible
+        run: |
+          # ปักเวอร์ชันที่ทดสอบแล้ว เวอร์ชันใหม่มักเพิ่มกฎใหม่ทำให้ CI แดงเองโดยโค้ดไม่ได้เปลี่ยน
+          pip install --disable-pip-version-check ansible-lint==24.12.2 ansible-core==2.17.7
+          ansible-lint --profile production provision.yml deploy.yml
+
+  # ตรวจไฟล์ workflow เอง (syntax, expression ผิด, shell script ใน run: ด้วย shellcheck)
+  # workflow คือโค้ดที่ถือสิทธิ์ token/secret ของ repo ต้องถูกตรวจเหมือนโค้ดแอป
+  actionlint:
+    name: Workflow lint (actionlint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: actionlint
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7 -color

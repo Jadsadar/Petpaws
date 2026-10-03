@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/chat_service.dart';
 import '../services/pet_service.dart';
+import '../shared/api_exception.dart';
 import 'chat/chat_inbox_screen.dart';
 import 'discover/discover_screen.dart';
 import 'favorites/favorites_screen.dart';
@@ -121,8 +122,13 @@ class _MainScreenState extends State<MainScreen> {
       allDogs.remove(dog);
     });
     _maybeFetchMoreDeck();
-    _petService.like(dog['id'] as String).catchError((_) {
+    _petService.like(dog['id'] as String).catchError((Object e) {
       if (!mounted) return;
+      if (_isGone(e)) {
+        setState(() => likedDogs.remove(dog));
+        _onPetGone();
+        return;
+      }
       setState(() {
         likedDogs.remove(dog);
         allDogs.insert(0, dog);
@@ -137,9 +143,41 @@ class _MainScreenState extends State<MainScreen> {
       allDogs.remove(dog);
     });
     _maybeFetchMoreDeck();
-    _petService.pass(dog['id'] as String).catchError((_) {
+    _petService.pass(dog['id'] as String).catchError((Object e) {
       // ปัดซ้ายพลาดไม่ร้ายแรง แค่ตัวนี้อาจโผล่มาให้เห็นซ้ำในเซสชันหน้า ไม่ต้องแจ้งเตือน
+      // ยกเว้นประกาศหายไปแล้ว — ไม่ต้องให้ย้อนกลับมาได้
+      if (mounted && _isGone(e)) {
+        setState(() => passedDogs.remove(dog));
+        _onPetGone();
+      }
     });
+  }
+
+  /// server ตอบ 404 = ประกาศถูกลบไปแล้ว (เจ้าของลบ หรือข้อมูลถูกรีเซ็ต) แต่การ์ดยังค้าง
+  /// อยู่ในเครื่อง — ไม่ต้องใส่การ์ดกลับ ไม่งั้นปัดเท่าไรก็ตีกลับมาที่เดิมไม่จบ
+  bool _isGone(Object error) => error is ApiException && error.statusCode == 404;
+
+  bool _reloadingStaleDeck = false;
+
+  /// เจอการ์ดที่หายไปแล้วหนึ่งใบ ที่เหลือในเครื่องก็น่าจะเก่าเหมือนกัน — โหลด deck ใหม่
+  /// (กันไว้ไม่ให้โหลดซ้อนถ้าปัดเร็ว ๆ แล้วเจอหลายใบติดกัน)
+  Future<void> _onPetGone() async {
+    _showError('ประกาศนี้ถูกลบไปแล้ว');
+    if (_reloadingStaleDeck) return;
+    _reloadingStaleDeck = true;
+    try {
+      final page = await _petService.deck();
+      if (!mounted) return;
+      setState(() {
+        allDogs = page.dogs;
+        _deckCursor = page.nextCursor;
+        _deckHasMore = page.hasMore;
+      });
+    } catch (_) {
+      // โหลดไม่สำเร็จก็ใช้การ์ดเดิมต่อไป ไม่ต้องแจ้งซ้ำ
+    } finally {
+      _reloadingStaleDeck = false;
+    }
   }
 
   void onUndoPass() {

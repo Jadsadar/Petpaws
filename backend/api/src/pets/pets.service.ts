@@ -238,11 +238,7 @@ export class PetsService {
   }
 
   async like(petId: string, userId: string) {
-    await this.pool.query(
-      `INSERT INTO likes (user_id, pet_id) VALUES ($1, $2)
-       ON CONFLICT (user_id, pet_id) DO NOTHING`,
-      [userId, petId],
-    );
+    await this.recordSwipe('likes', petId, userId);
     return { success: true };
   }
 
@@ -255,12 +251,26 @@ export class PetsService {
   }
 
   async pass(petId: string, userId: string) {
-    await this.pool.query(
-      `INSERT INTO passes (user_id, pet_id) VALUES ($1, $2)
-       ON CONFLICT (user_id, pet_id) DO NOTHING`,
+    await this.recordSwipe('passes', petId, userId);
+    return { success: true };
+  }
+
+  /**
+   * INSERT เฉพาะประกาศที่ยังอยู่ — ถ้าใส่ตรง ๆ ประกาศที่ไม่มีจะชน FK กลายเป็น 400
+   * "จังหวัดหรือแท็กไม่มีอยู่จริง" ซึ่งชวนงง และประกาศที่ลบแล้ว (soft delete) จะยังกดได้
+   * ปัดซ้ำ (ON CONFLICT) ยังนับว่าสำเร็จ เพราะผลลัพธ์ที่ผู้ใช้ต้องการเกิดขึ้นแล้ว
+   */
+  private async recordSwipe(table: 'likes' | 'passes', petId: string, userId: string) {
+    const res = await this.pool.query<{ found: boolean }>(
+      `WITH pet AS (SELECT id FROM pets WHERE id = $2 AND deleted_at IS NULL),
+       ins AS (
+         INSERT INTO ${table} (user_id, pet_id) SELECT $1, id FROM pet
+         ON CONFLICT (user_id, pet_id) DO NOTHING
+       )
+       SELECT EXISTS (SELECT 1 FROM pet) AS found`,
       [userId, petId],
     );
-    return { success: true };
+    if (!res.rows[0].found) throw AppException.notFound('ไม่พบประกาศนี้');
   }
 
   async unpass(petId: string, userId: string) {

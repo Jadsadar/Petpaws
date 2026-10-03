@@ -103,6 +103,60 @@ class ApiClient {
         return _decode(res);
       }, true);
 
+  /// อัปไฟล์ตรงไป S3/MinIO ด้วย presigned POST ที่ backend ออกให้ (ไฟล์แชท) —
+  /// ไม่ผ่าน API และไม่แนบ token (สิทธิ์อยู่ใน policy ที่ลงลายเซ็นมาแล้ว)
+  ///
+  /// [fields] ต้องมาก่อน "file" ซึ่งต้องเป็น field สุดท้ายตามกติกาของ S3
+  /// [onProgress] ได้ค่า 0.0–1.0 (บน web ตัว browser ส่งทั้งก้อนทีเดียว ค่าจะกระโดดเป็น 1)
+  Future<void> uploadPresigned({
+    required String url,
+    required Map<String, String> fields,
+    required Uint8List bytes,
+    required String contentType,
+    void Function(double progress)? onProgress,
+  }) async {
+    final form = http.MultipartRequest('POST', Uri.parse(url))
+      ..fields.addAll(fields)
+      ..files.add(http.MultipartFile.fromBytes(
+        'file',
+        bytes,
+        filename: 'upload',
+        contentType: _parseContentType(contentType),
+      ));
+
+    // MultipartRequest ไม่มี callback ความคืบหน้า — ห่อ body ที่ประกอบเสร็จแล้ว
+    // ด้วยตัวนับ byte แล้วส่งเป็น StreamedRequest แทน
+    final total = form.contentLength;
+    var sent = 0;
+    // finalize() ก่อนคัดลอก header เสมอ — header content-type (พร้อม boundary)
+    // ถูกใส่ตอน finalize ถ้าคัดลอกก่อน S3 จะได้คำขอที่ไม่มี content-type แล้วตอบ 400
+    final body = form.finalize();
+    final request = http.StreamedRequest('POST', form.url)
+      ..headers.addAll(form.headers)
+      ..contentLength = total;
+    body.listen(
+      (chunk) {
+        request.sink.add(chunk);
+        sent += chunk.length;
+        onProgress?.call(total == 0 ? 1 : sent / total);
+      },
+      onDone: request.sink.close,
+      onError: request.sink.addError,
+      cancelOnError: true,
+    );
+
+    final res = await http.Response.fromStream(await request.send());
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      // S3 ตอบ error เป็น XML (<Code>EntityTooLarge</Code> ฯลฯ) ไม่ใช่รูปแบบของ API เรา
+      final code = RegExp(r'<Code>(\w+)</Code>').firstMatch(res.body)?.group(1);
+      throw ApiException(
+        res.statusCode,
+        code ?? 'UPLOAD_FAILED',
+        code == 'EntityTooLarge' ? 'ไฟล์มีขนาดใหญ่เกินไป' : 'อัปโหลดไฟล์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง',
+      );
+    }
+  }
+
   /// ทำ request ที่ส่งเข้ามา ถ้าเจอ 401 (token หมดอายุ) จะ refresh แล้วลองซ้ำ
   /// "ครั้งเดียว" กันวนลูปไม่รู้จบถ้า refresh token เองก็ใช้ไม่ได้แล้ว
   Future<dynamic> _withRefresh(Future<dynamic> Function() run, bool auth) async {
