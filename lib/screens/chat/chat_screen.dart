@@ -625,6 +625,28 @@ class _ChatScreenState extends State<ChatScreen> {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: messagesStream,
       builder: (context, snapshot) {
+        if (snapshot.hasError && !snapshot.hasData) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.cloud_off, size: 48, color: Colors.black26),
+                const SizedBox(height: 12),
+                const Text('โหลดข้อความไม่สำเร็จ',
+                    key: ValueKey('chat-load-error'), style: TextStyle(color: Colors.black54)),
+                const SizedBox(height: 4),
+                const Text('เซิร์ฟเวอร์ตอบช้าหรือไม่ตอบสนอง',
+                    style: TextStyle(fontSize: 12, color: Colors.black38)),
+                const SizedBox(height: 12),
+                OutlinedButton(
+                  key: const ValueKey('chat-retry'),
+                  onPressed: () => _feed?.reload(),
+                  child: const Text('ลองใหม่'),
+                ),
+              ],
+            ),
+          );
+        }
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
