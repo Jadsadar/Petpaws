@@ -41,6 +41,11 @@ class EnvVars {
   @IsNotEmpty()
   S3_ENDPOINT!: string;
 
+  // ที่อยู่ S3 ที่แอปเข้าถึงได้ (ไม่ตั้ง = ใช้ S3_ENDPOINT) ใช้เมื่อ endpoint ภายในเป็นชื่อ container
+  @IsOptional()
+  @IsString()
+  S3_PUBLIC_ENDPOINT?: string;
+
   @IsString()
   @IsNotEmpty()
   S3_REGION!: string;

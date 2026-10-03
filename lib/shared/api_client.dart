@@ -17,10 +17,12 @@ class ApiClient {
   ApiClient._();
   static final ApiClient instance = ApiClient._();
 
-  // ตอนนี้แอปรันเป็น web เท่านั้น (ไม่มีโฟลเดอร์ android/ios) จึง hardcode
-  // localhost ตรง ๆ ได้ — วันที่ลงมือถือจริงต้องเปลี่ยนเป็น 10.0.2.2 (Android
-  // emulator) หรือ IP เครื่อง แล้วอาจต้องทำเป็น build-time config แทน
-  static const String baseUrl = 'http://localhost:3000';
+  // ค่าเริ่มต้นชี้เซิร์ฟเวอร์จริงบน EC2 เพื่อให้ git pull แล้ว flutter run ได้แอปล่าสุดทันที
+  // โดยไม่ต้องรัน backend/DB เอง ส่วนคนที่พัฒนา backend ในเครื่องให้ชี้กลับ localhost ด้วย
+  //   flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:3000
+  // (Android emulator ใช้ http://10.0.2.2:3000) APK ที่ CI สร้างก็ใช้ค่าเริ่มต้นนี้
+  static const String baseUrl =
+      String.fromEnvironment('API_BASE_URL', defaultValue: 'http://3.24.61.96');
 
   final _tokenStorage = TokenStorage.instance;
 

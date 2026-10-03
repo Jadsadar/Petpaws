@@ -84,7 +84,7 @@ flutter run -d chrome
 
 ## หมายเหตุ
 
-- **แอปรันเป็น web เท่านั้นตอนนี้** (ยังไม่มีโฟลเดอร์ `android/` `ios/`) — `ApiClient.baseUrl` จึง hardcode เป็น `http://localhost:3000` ถ้าจะลงมือถือต้อง `flutter create --platforms=android .` ก่อนแล้วเปลี่ยน URL เป็น `10.0.2.2` (Android emulator) หรือ IP เครื่อง
+- **แอปชี้เซิร์ฟเวอร์จริงบน EC2 เป็นค่าเริ่มต้น** (`ApiClient.baseUrl`) — `git pull` แล้ว `flutter run -d chrome` ก็ใช้งานได้เลย ไม่ต้องรัน backend/DB เอง ถ้าพัฒนา backend ในเครื่อง ให้ชี้กลับด้วย `flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:3000` (Android emulator ใช้ `http://10.0.2.2:3000`)
 - **backend ต้องรันอยู่เสมอ** ไม่งั้นหน้า login จะค้าง (ยังไม่มี timeout ฝั่ง client)
 - **แก้ไฟล์ migration แล้วไม่มีผล** เพราะกลไก `docker-entrypoint-initdb.d` รันครั้งเดียวตอน volume ว่าง ต้อง `docker compose down -v` (ล้างข้อมูลทั้งหมด) แล้ว `up -d` ใหม่ จากนั้นรัน seed ซ้ำ
 

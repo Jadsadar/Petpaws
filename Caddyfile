@@ -7,5 +7,14 @@
 {$PETPAWS_DOMAIN::80} {
 	encode gzip
 
-	reverse_proxy petpaws-api:3000
+	# รูป/วิดีโอ: แอปโหลดและอัปตรงมาที่ path ของ bucket (S3_PUBLIC_ENDPOINT ชี้มาที่โดเมนนี้)
+	# แล้วส่งต่อให้ MinIO ภายใน — ไม่ต้องเปิด port 9000 ออกอินเทอร์เน็ต
+	# ชื่อ bucket ต้องตรงกับ S3_BUCKET ใน .env (ค่าเริ่มต้น petpaws-media)
+	handle /petpaws-media/* {
+		reverse_proxy petpaws-minio:9000
+	}
+
+	handle {
+		reverse_proxy petpaws-api:3000
+	}
 }

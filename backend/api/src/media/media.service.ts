@@ -44,13 +44,20 @@ export interface PresignedPost {
 export class MediaService implements OnModuleInit {
   private readonly client: S3Client;
   private readonly bucket: string;
+  /** ที่อยู่ที่ API เรียก S3 เอง (ใน production คือชื่อ container ภายใน เช่น http://minio:9000) */
+  private readonly internalEndpoint: string;
+  /** ที่อยู่ที่ "แอป" เข้าถึงได้จริง ใช้ประกอบ URL รูปและ URL อัปโหลด */
   private readonly publicEndpoint: string;
 
   constructor(private readonly config: ConfigService) {
     this.bucket = config.getOrThrow<string>('S3_BUCKET');
-    this.publicEndpoint = config.getOrThrow<string>('S3_ENDPOINT');
+    this.internalEndpoint = config.getOrThrow<string>('S3_ENDPOINT');
+    // ถ้าไม่ตั้ง S3_PUBLIC_ENDPOINT = ใช้ตัวเดียวกัน (dev / LocalStack ที่ทั้งสองฝั่งเห็น localhost เหมือนกัน)
+    // production ต้องตั้ง เพราะชื่อ container อย่าง minio:9000 มีแต่ใน Docker — มือถือ/เบราว์เซอร์เข้าไม่ถึง
+    // แล้วรูปทุกใบที่ API ตอบกลับจะโหลดไม่ขึ้น
+    this.publicEndpoint = (config.get<string>('S3_PUBLIC_ENDPOINT') || this.internalEndpoint).replace(/\/+$/, '');
     this.client = new S3Client({
-      endpoint: this.publicEndpoint,
+      endpoint: this.internalEndpoint,
       region: config.getOrThrow<string>('S3_REGION'),
       credentials: {
         accessKeyId: config.getOrThrow<string>('S3_ACCESS_KEY_ID'),
@@ -136,7 +143,11 @@ export class MediaService implements OnModuleInit {
       Conditions: [['content-length-range', 1, maxBytes]],
       Expires: ttlSeconds,
     });
-    return { url, fields };
+    // SDK สร้าง url จาก endpoint ภายใน — เปลี่ยนเป็นที่อยู่สาธารณะก่อนส่งให้แอป
+    const publicUrl = url.startsWith(this.internalEndpoint)
+      ? this.publicEndpoint + url.slice(this.internalEndpoint.length)
+      : url;
+    return { url: publicUrl, fields };
   }
 
   /** ขนาดของไฟล์ที่อัปขึ้นไปแล้วจริง หรือ null ถ้ายังไม่มีไฟล์ใต้ key นี้ */

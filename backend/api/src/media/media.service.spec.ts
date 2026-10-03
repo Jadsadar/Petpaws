@@ -14,6 +14,29 @@ const env: Record<string, string> = {
 const config = { getOrThrow: (k: string) => env[k], get: (k: string) => env[k] } as unknown as ConfigService;
 const media = new MediaService(config);
 
+describe('MediaService public endpoint', () => {
+  const split = (extra: Record<string, string>) => {
+    const e: Record<string, string> = { ...env, S3_ENDPOINT: 'http://minio:9000', ...extra };
+    const cfg = { getOrThrow: (k: string) => e[k], get: (k: string) => e[k] } as unknown as ConfigService;
+    return new MediaService(cfg);
+  };
+
+  it('ตั้ง S3_PUBLIC_ENDPOINT แล้ว URL รูปที่ให้แอปใช้ชี้ที่อยู่สาธารณะ ไม่ใช่ชื่อ container', () => {
+    const m = split({ S3_PUBLIC_ENDPOINT: 'http://203.0.113.9/' });
+    expect(m.urlForKey('uploads/a.jpg')).toBe('http://203.0.113.9/petpaws-media/uploads/a.jpg');
+  });
+
+  it('ไม่ตั้ง S3_PUBLIC_ENDPOINT ใช้ S3_ENDPOINT ตามเดิม', () => {
+    expect(split({}).urlForKey('uploads/a.jpg')).toBe('http://minio:9000/petpaws-media/uploads/a.jpg');
+  });
+
+  it('presigned POST ส่ง url ที่อยู่สาธารณะให้แอป (ไม่ใช่ minio:9000)', async () => {
+    const m = split({ S3_PUBLIC_ENDPOINT: 'http://203.0.113.9' });
+    const post = await m.presignPost('chat/x.jpg', 'image/jpeg', 1000, 60);
+    expect(post.url).toBe('http://203.0.113.9/petpaws-media');
+  });
+});
+
 describe('MediaService.keyFromUrl', () => {
   it('ดึง key ออกจาก URL ของ bucket เรา', () => {
     expect(media.keyFromUrl('http://localhost:9000/petpaws-media/uploads/a.jpg')).toBe('uploads/a.jpg');
