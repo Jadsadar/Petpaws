@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../services/chat_service.dart';
 import '../../widgets/pet_avatar.dart';
 import 'chat_screen.dart';
+import '../../theme/app_theme.dart';
 
 class ChatInboxScreen extends StatefulWidget {
   /// ถ้าระบุ = โหมดเจ้าของดูแชทของ "ประกาศนี้" ตัวเดียว (กรองด้วยชื่อสัตว์
@@ -60,7 +61,7 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('ลบแชทไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+            .showSnackBar(const SnackBar(duration: AppTheme.snackDuration, content: Text('ลบแชทไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
       }
     }
   }
@@ -84,23 +85,24 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF6F0),
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('กล่องข้อความ',
                 style: TextStyle(
-                    fontWeight: FontWeight.bold, color: Color(0xFFFF9E68), fontSize: 18)),
+                    fontWeight: FontWeight.bold, color: AppColors.textDark, fontSize: 18)),
             Text(
                 widget.dogName == null
                     ? 'ข้อความทั้งหมด'
                     : 'สัตว์เลี้ยง: ${widget.dogName}',
-                style: const TextStyle(fontSize: 12, color: Colors.black45)),
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.textMuted, shadows: [])),
           ],
         ),
-        backgroundColor: Colors.white,
-        iconTheme: const IconThemeData(color: Color(0xFFFF9E68)),
+        backgroundColor: AppColors.appBar,
+        iconTheme: const IconThemeData(color: AppColors.primary),
         elevation: 1,
         actions: [
           IconButton(
@@ -155,19 +157,19 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                 children: [
                   Icon(Icons.chat_bubble_outline, size: 64, color: Colors.black12),
                   SizedBox(height: 16),
-                  Text('ยังไม่มีคนทักมาเลย',
-                      style: TextStyle(fontSize: 16, color: Colors.grey)),
+                  TextPanel(center: true, child: Text('ยังไม่มีคนทักมาเลย',
+                      style: TextStyle(fontSize: 16, color: Colors.grey))),
                   SizedBox(height: 8),
-                  Text('แชร์โพสต์เพื่อให้คนรู้จักสัตว์เลี้ยงของคุณมากขึ้น',
-                      style: TextStyle(fontSize: 13, color: Colors.black38)),
+                  TextPanel(center: true, child: Text('แชร์โพสต์เพื่อให้คนรู้จักสัตว์เลี้ยงของคุณมากขึ้น',
+                      style: TextStyle(fontSize: 13, color: Colors.black38))),
                 ],
               ),
             );
           }
           return ListView.separated(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.all(12),
             itemCount: chats.length,
-            separatorBuilder: (_, __) => const Divider(height: 1, indent: 80),
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final chat = chats[index];
               final otherName = chat['otherUserName'] as String? ?? 'ผู้สนใจรับเลี้ยง';
@@ -176,7 +178,11 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
               final unread = (chat['unreadCount'] as num?)?.toInt() ?? 0;
               final isUnread = unread > 0;
 
-              return ListTile(
+              return Card(
+                clipBehavior: Clip.antiAlias,
+                elevation: 2,
+                shadowColor: Colors.black26,
+                child: ListTile(
                 key: ValueKey('chat-${chat['id']}'),
                 onLongPress: () => _deleteChat(chat),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -191,7 +197,7 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                       const Positioned(
                         right: 0,
                         top: 0,
-                        child: CircleAvatar(radius: 6, backgroundColor: Color(0xFFFF9E68)),
+                        child: CircleAvatar(radius: 6, backgroundColor: AppColors.primary),
                       ),
                   ],
                 ),
@@ -208,7 +214,7 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                     Text(_formatTime(chat['lastMessageAt'] as String?),
                         style: TextStyle(
                             fontSize: 12,
-                            color: isUnread ? const Color(0xFFFF9E68) : Colors.grey,
+                            color: isUnread ? AppColors.textDark : Colors.grey,
                             fontWeight: isUnread ? FontWeight.bold : FontWeight.normal)),
                   ],
                 ),
@@ -219,7 +225,7 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                      color: isUnread ? Colors.black87 : Colors.grey,
+                      color: isUnread ? AppColors.textDark : AppColors.textMuted,
                       fontWeight: isUnread ? FontWeight.w500 : FontWeight.normal),
                 ),
                 onTap: () {
@@ -237,6 +243,7 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                     ),
                   );
                 },
+              ),
               );
             },
           );

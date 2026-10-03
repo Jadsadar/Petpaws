@@ -9,6 +9,7 @@ import '../../widgets/pet_avatar.dart';
 import '../../widgets/province_picker.dart';
 import '../../widgets/tag_selector.dart';
 import '../chat/chat_inbox_screen.dart';
+import '../../theme/app_theme.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -64,7 +65,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('โหลดโปรไฟล์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+          const SnackBar(duration: AppTheme.snackDuration, content: Text('โหลดโปรไฟล์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -118,7 +119,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           duration: Duration(seconds: 2)));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(duration: AppTheme.snackDuration, 
           content: Text('บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -145,11 +146,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) return;
       setState(() => _profile['profileImageUrl'] = url);
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('อัปเดตรูปโปรไฟล์แล้ว')));
+          const SnackBar(duration: AppTheme.snackDuration, content: Text('อัปเดตรูปโปรไฟล์แล้ว')));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+          const SnackBar(duration: AppTheme.snackDuration, content: Text('อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
     }
   }
 
@@ -167,7 +168,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('ออกจากระบบ',
-                style: TextStyle(color: Colors.redAccent)),
+                style: TextStyle(color: AppColors.danger)),
           ),
         ],
       ),
@@ -190,26 +191,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         appBar: AppBar(
           title: const Text('โปรไฟล์ของฉัน',
               style: TextStyle(
-                  fontWeight: FontWeight.bold, color: Color(0xFFFF9E68))),
-          backgroundColor: Colors.white,
-          elevation: 1,
+                  fontWeight: FontWeight.bold, color: AppColors.textDark)),
+          backgroundColor: AppColors.appBar,
+          elevation: 0,
           centerTitle: true,
         ),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text('โปรไฟล์ของฉัน',
             style: TextStyle(
-                fontWeight: FontWeight.bold, color: Color(0xFFFF9E68))),
-        backgroundColor: Colors.white,
-        elevation: 1,
+                fontWeight: FontWeight.bold, color: AppColors.textDark)),
+        backgroundColor: AppColors.appBar,
+        elevation: 0,
         centerTitle: true,
         // badge แจ้งเตือนแชทที่ AppBar
         actions: [
@@ -226,7 +227,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     alignment: Alignment.center,
                     children: [
                       const Icon(Icons.notifications,
-                          color: Color(0xFFFF9E68), size: 28),
+                          color: AppColors.primary, size: 28),
                       Positioned(
                         right: 0,
                         top: 0,
@@ -234,7 +235,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           width: 16,
                           height: 16,
                           decoration: const BoxDecoration(
-                            color: Colors.redAccent,
+                            color: AppColors.danger,
                             shape: BoxShape.circle,
                           ),
                           child: Center(
@@ -256,7 +257,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           IconButton(
             onPressed: _logout,
-            icon: const Icon(Icons.logout, color: Color(0xFFFF9E68)),
+            icon: const Icon(Icons.logout, color: AppColors.danger),
             tooltip: 'ออกจากระบบ',
           ),
         ],
@@ -280,7 +281,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFF9E68),
+                        color: AppColors.primary,
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 2),
                       ),
@@ -295,16 +296,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 style: const TextStyle(
                     fontSize: 26,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFFFF9E68))),
+                    color: AppColors.textDark)),
             Text(_profile['email'] ?? '',
-                style: const TextStyle(fontSize: 14, color: Colors.black54)),
+                style: const TextStyle(
+                    fontFamily: 'Sarabun',
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textDark)),
             Chip(
               avatar:
                   const Icon(Icons.location_on, color: Colors.white, size: 16),
               label: Text(_profile['province'] ?? '-',
                   style: const TextStyle(
                       color: Colors.white, fontWeight: FontWeight.bold)),
-              backgroundColor: const Color(0xFFFFB085),
+              backgroundColor: AppColors.primarySoft,
               side: BorderSide.none,
             ),
 
@@ -323,10 +328,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 14),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFF9E68).withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(16),
+                        color: AppColors.primary.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(AppRadius.card),
                         border: Border.all(
-                            color: const Color(0xFFFF9E68).withOpacity(0.4),
+                            color: AppColors.primary.withOpacity(0.4),
                             width: 1.5),
                       ),
                       child: Row(
@@ -334,7 +339,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: const BoxDecoration(
-                              color: Color(0xFFFF9E68),
+                              color: AppColors.primary,
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(Icons.chat,
@@ -350,7 +355,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 15,
-                                      color: Color(0xFFFF9E68)),
+                                      color: AppColors.textDark),
                                 ),
                                 const Text(
                                   'มีคนสนใจรับเลี้ยงสัตว์เลี้ยงของคุณ กดเพื่อดูแชท',
@@ -361,7 +366,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
                           const Icon(Icons.chevron_right,
-                              color: Color(0xFFFF9E68)),
+                              color: AppColors.primary),
                         ],
                       ),
                     ),
@@ -370,115 +375,86 @@ class _ProfileScreenState extends State<ProfileScreen> {
               },
             ),
 
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16.0),
-              child: Divider(color: Colors.black12),
+            const SizedBox(height: 20),
+            SectionCard(
+              title: 'ไลฟ์สไตล์ / นิสัยของคุณ',
+              children: [
+              _lockedHint(TagSelector(
+                selectedIds: selectedTraitIds,
+                onToggle: toggleTrait,
+                enabled: _isEditing,
+                backgroundColor: AppColors.background,
+              )),
+              ],
             ),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'ไลฟ์สไตล์ / นิสัยของคุณ',
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade700),
+            const SizedBox(height: 16),
+            SectionCard(
+              title: 'ข้อมูลการติดต่อ',
+              children: [
+              TextField(
+                controller: phoneController,
+                enabled: _isEditing,
+                keyboardType: TextInputType.phone,
+                decoration: InputDecoration(
+                    labelText: 'เบอร์โทรศัพท์',
+                    prefixIcon: const Icon(Icons.phone),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.card))),
               ),
-            ),
-            const SizedBox(height: 12),
-            _lockedHint(TagSelector(
-              selectedIds: selectedTraitIds,
-              onToggle: toggleTrait,
-              enabled: _isEditing,
-              backgroundColor: const Color(0xFFFFF6F0),
-            )),
-            const SizedBox(height: 24),
-            const Divider(color: Colors.black12),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'ข้อมูลการติดต่อ',
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade700),
+              const SizedBox(height: 16),
+              TextField(
+                controller: lineController,
+                enabled: _isEditing,
+                decoration: InputDecoration(
+                    labelText: 'LINE ID',
+                    prefixIcon: const Icon(Icons.chat_bubble_outline),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.card))),
               ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: phoneController,
-              enabled: _isEditing,
-              keyboardType: TextInputType.phone,
-              decoration: InputDecoration(
-                  labelText: 'เบอร์โทรศัพท์',
-                  prefixIcon: const Icon(Icons.phone),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16))),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: lineController,
-              enabled: _isEditing,
-              decoration: InputDecoration(
-                  labelText: 'LINE ID',
-                  prefixIcon: const Icon(Icons.chat_bubble_outline),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16))),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: fbController,
-              enabled: _isEditing,
-              decoration: InputDecoration(
-                  labelText: 'ชื่อ Facebook',
-                  prefixIcon: const Icon(Icons.facebook),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16))),
-            ),
-            const SizedBox(height: 24),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'ข้อมูลสถานที่',
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade700),
+              const SizedBox(height: 16),
+              TextField(
+                controller: fbController,
+                enabled: _isEditing,
+                decoration: InputDecoration(
+                    labelText: 'ชื่อ Facebook',
+                    prefixIcon: const Icon(Icons.facebook),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.card))),
               ),
+              ],
             ),
             const SizedBox(height: 16),
-            _lockedHint(ProvinceField(
-              value: currentProvince,
-              labelText: 'จังหวัดที่อยู่ปัจจุบัน',
-              enabled: _isEditing,
-              onChanged: (val) => setState(() => currentProvince = val),
-            )),
-            const SizedBox(height: 24),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'ข้อมูลเสริมคัดกรองผู้เลี้ยง',
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade700),
-              ),
+            SectionCard(
+              title: 'ข้อมูลสถานที่',
+              children: [
+              _lockedHint(ProvinceField(
+                value: currentProvince,
+                labelText: 'จังหวัดที่อยู่ปัจจุบัน',
+                enabled: _isEditing,
+                onChanged: (val) => setState(() => currentProvince = val),
+              )),
+              ],
             ),
             const SizedBox(height: 16),
-            _lockedHint(DropdownButtonFormField<String>(
-              value: currentHomeType,
-              disabledHint: Text(currentHomeType),
-              decoration: InputDecoration(
-                  labelText: 'ประเภทที่พักอาศัย',
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16))),
-              items: homeTypes
-                  .map((h) => DropdownMenuItem(value: h, child: Text(h)))
-                  .toList(),
-              onChanged: _isEditing
-                  ? (val) => setState(() => currentHomeType = val!)
-                  : null,
-            )),
+            SectionCard(
+              title: 'ข้อมูลเสริมคัดกรองผู้เลี้ยง',
+              children: [
+              _lockedHint(DropdownButtonFormField<String>(
+                value: currentHomeType,
+                disabledHint: Text(currentHomeType),
+                decoration: InputDecoration(
+                    labelText: 'ประเภทที่พักอาศัย',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.card))),
+                items: homeTypes
+                    .map((h) => DropdownMenuItem(value: h, child: Text(h)))
+                    .toList(),
+                onChanged: _isEditing
+                    ? (val) => setState(() => currentHomeType = val!)
+                    : null,
+              )),
+              ],
+            ),
             const SizedBox(height: 32),
             SizedBox(
               width: double.infinity,
@@ -498,8 +474,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: const TextStyle(
                         fontSize: 18, fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFF9E68),
-                  foregroundColor: Colors.white,
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.onPrimary,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(30)),

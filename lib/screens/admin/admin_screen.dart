@@ -6,6 +6,7 @@ import '../../widgets/pet_avatar.dart';
 import 'admin_paged_list.dart';
 import 'admin_user_reports_screen.dart';
 import 'admin_widgets.dart';
+import '../../theme/app_theme.dart';
 
 /// แดชบอร์ดของแอดมิน — แอดมินเห็นแค่หน้านี้ ไม่มีหน้าปัดการ์ด/ลงประกาศ/แชทของผู้ใช้ทั่วไป
 /// ทำได้อย่างเดียวคือ: ดูสิ่งที่ถูกรายงาน → แบนถาวร / แบนชั่วคราว / ปัดตก → ปลดแบน
@@ -35,7 +36,7 @@ class _AdminScreenState extends State<AdminScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('ออกจากระบบ', style: TextStyle(color: Colors.redAccent)),
+            child: const Text('ออกจากระบบ', style: TextStyle(color: AppColors.danger)),
           ),
         ],
       ),
@@ -114,7 +115,7 @@ class _SummaryBar extends StatelessWidget {
                   key: const ValueKey('stat-reported'),
                   label: 'ผู้ถูกรายงาน',
                   value: v(s?.reported),
-                  color: Colors.redAccent),
+                  color: AppColors.danger),
               const SizedBox(width: 8),
               _StatCard(
                   key: const ValueKey('stat-temporary'),
@@ -258,7 +259,7 @@ class _ReportedUserTile extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text('${user.reportCount} คน',
-              style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+              style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold)),
         ),
       ),
     );

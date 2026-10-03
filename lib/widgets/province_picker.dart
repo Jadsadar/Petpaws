@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/mock_data.dart';
+import '../theme/app_theme.dart';
 
 /// เปิด bottom sheet ให้เลือกจังหวัดแบบค้นหาได้ คืนค่าจังหวัดที่เลือก หรือ null ถ้ายกเลิก
 Future<String?> showProvincePicker(
@@ -79,7 +80,7 @@ class _ProvincePickerSheetState extends State<_ProvincePickerSheet> {
                   style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFFFF9E68))),
+                      color: AppColors.textDark)),
               const SizedBox(height: 12),
               TextField(
                 controller: _searchController,
@@ -88,9 +89,9 @@ class _ProvincePickerSheetState extends State<_ProvincePickerSheet> {
                   hintText: 'ค้นหาจังหวัด',
                   prefixIcon: const Icon(Icons.search),
                   filled: true,
-                  fillColor: const Color(0xFFFFF6F0),
+                  fillColor: AppColors.background,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(AppRadius.card),
                     borderSide: BorderSide.none,
                   ),
                 ),
@@ -117,14 +118,14 @@ class _ProvincePickerSheetState extends State<_ProvincePickerSheet> {
                                         ? FontWeight.bold
                                         : FontWeight.normal,
                                     color: isSelected
-                                        ? const Color(0xFFFF9E68)
+                                        ? AppColors.textDark
                                         : Colors.black87)),
                             trailing: isSelected
                                 ? const Icon(Icons.check,
-                                    color: Color(0xFFFF9E68))
+                                    color: AppColors.primary)
                                 : null,
                             tileColor:
-                                isSelected ? const Color(0xFFFFF6F0) : null,
+                                isSelected ? AppColors.background : null,
                             onTap: () => Navigator.pop(context, province),
                           );
                         },
@@ -163,11 +164,11 @@ class ProvinceField extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: enabled ? () => _openPicker(context) : null,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(AppRadius.card),
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: labelText,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
           suffixIcon: const Icon(Icons.arrow_drop_down),
         ),
         child: Text(value),

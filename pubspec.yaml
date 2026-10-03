@@ -30,3 +30,25 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # ภาพพื้นหลังลายอุ้งเท้า: bg_web แนวนอน, bg_mobile แนวตั้ง (แอปเลือกตามสัดส่วนจอ)
+  assets:
+    - assets/images/
+
+  # ฟอนต์ฝังในแอป ไม่ต้องโหลดจากเน็ต (ใบอนุญาต OFL ดู assets/fonts/OFL-*.txt)
+  # TitanOne = ตัวอักษรอังกฤษ/ตัวเลข, Sarabun = ภาษาไทย (fallback)
+  fonts:
+    - family: TitanOne
+      fonts:
+        - asset: assets/fonts/TitanOne-Regular.ttf
+    - family: Sarabun
+      fonts:
+        - asset: assets/fonts/Sarabun-Regular.ttf
+        - asset: assets/fonts/Sarabun-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Sarabun-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Sarabun-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Sarabun-ExtraBold.ttf
+          weight: 800

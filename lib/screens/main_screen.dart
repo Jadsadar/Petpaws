@@ -8,6 +8,7 @@ import 'discover/discover_screen.dart';
 import 'favorites/favorites_screen.dart';
 import 'profile/profile_screen.dart';
 import 'upload/upload_screen.dart';
+import '../theme/app_theme.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -113,7 +114,7 @@ class _MainScreenState extends State<MainScreen> {
 
   void _showError(String message) {
     _messengerKey.currentState?.clearSnackBars();
-    _messengerKey.currentState?.showSnackBar(SnackBar(content: Text(message)));
+    _messengerKey.currentState?.showSnackBar(SnackBar(duration: AppTheme.snackDuration, content: Text(message)));
   }
 
   void onLike(Map<String, dynamic> dog) {
@@ -281,8 +282,8 @@ class _MainScreenState extends State<MainScreen> {
           currentIndex: _selectedIndex,
           onTap: (index) => setState(() => _selectedIndex = index),
           type: BottomNavigationBarType.fixed,
-          selectedItemColor: const Color(0xFFFF9E68),
-          unselectedItemColor: Colors.grey.shade400,
+          selectedItemColor: AppColors.primary,
+          unselectedItemColor: AppColors.textMuted,
           backgroundColor: Colors.white,
           items: [
             const BottomNavigationBarItem(icon: Icon(Icons.search), label: 'ค้นหา'),
@@ -305,7 +306,7 @@ class _MainScreenState extends State<MainScreen> {
                             width: 16,
                             height: 16,
                             decoration: const BoxDecoration(
-                              color: Colors.redAccent,
+                              color: AppColors.danger,
                               shape: BoxShape.circle,
                             ),
                             child: Center(

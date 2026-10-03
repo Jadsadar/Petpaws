@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/report_service.dart';
 import '../shared/api_exception.dart';
 import '../utils/report_reasons.dart';
+import '../theme/app_theme.dart';
 
 class ReportChoice {
   const ReportChoice(this.reason, this.detail);
@@ -38,7 +39,7 @@ Future<void> reportWithDialog(
   final messenger = ScaffoldMessenger.of(context);
   try {
     await send(choice.reason, choice.detail);
-    messenger.showSnackBar(const SnackBar(
+    messenger.showSnackBar(const SnackBar(duration: AppTheme.snackDuration, 
         content: Text('ส่งรายงานเรียบร้อยแล้ว ขอบคุณที่ช่วยดูแลชุมชนของเรา')));
     if (blockUserId != null && context.mounted) {
       await _offerBlock(context, messenger, blockUserId, blockUserName, onBlocked);
@@ -48,7 +49,7 @@ Future<void> reportWithDialog(
     final text = e is ApiException
         ? (e.statusCode == 409 ? 'คุณรายงานเรื่องนี้ไปแล้ว' : e.message)
         : 'ส่งรายงานไม่สำเร็จ กรุณาลองใหม่อีกครั้ง';
-    messenger.showSnackBar(SnackBar(content: Text(text)));
+    messenger.showSnackBar(SnackBar(duration: AppTheme.snackDuration, content: Text(text)));
   }
 }
 
@@ -80,9 +81,9 @@ Future<void> _offerBlock(
   try {
     await ReportService.instance.blockUser(userId);
     onBlocked?.call();
-    messenger.showSnackBar(SnackBar(content: Text('บล็อก $userName แล้ว')));
+    messenger.showSnackBar(SnackBar(duration: AppTheme.snackDuration, content: Text('บล็อก $userName แล้ว')));
   } catch (_) {
-    messenger.showSnackBar(const SnackBar(content: Text('บล็อกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+    messenger.showSnackBar(const SnackBar(duration: AppTheme.snackDuration, content: Text('บล็อกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
   }
 }
 

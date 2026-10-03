@@ -8,6 +8,7 @@ import '../../widgets/pet_network_image.dart';
 import '../profile/user_profile_screen.dart';
 import '../chat/chat_inbox_screen.dart';
 import '../chat/chat_screen.dart';
+import '../../theme/app_theme.dart';
 
 class PetDetailScreen extends StatefulWidget {
   final Map<String, dynamic> dog;
@@ -40,13 +41,13 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     final ownerId = widget.dog['ownerId'] as String?;
     final myUid = AuthService.instance.currentUser?.uid;
     if (ownerId == null || ownerId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(duration: AppTheme.snackDuration, 
           content: Text('สัตว์เลี้ยงตัวอย่างนี้ยังไม่มีเจ้าของจริงในระบบให้แชทด้วย')));
       return;
     }
     if (ownerId == myUid) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('นี่คือประกาศของคุณเอง')));
+          const SnackBar(duration: AppTheme.snackDuration, content: Text('นี่คือประกาศของคุณเอง')));
       return;
     }
 
@@ -111,7 +112,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                           style: const TextStyle(
                               fontSize: 32,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFFFF9E68))),
+                              color: AppColors.textDark)),
                       Icon(
                           widget.dog['gender'] == 'ผู้'
                               ? Icons.male
@@ -126,7 +127,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   Row(
                     children: [
                       const Icon(Icons.location_on,
-                          color: Color(0xFFFFB085)),
+                          color: AppColors.primarySoft),
                       const SizedBox(width: 8),
                       Text(widget.dog['province'],
                           style: TextStyle(
@@ -164,12 +165,12 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                       return Chip(
                         label: Text(temp,
                             style: const TextStyle(
-                                color: Color(0xFFFF9E68),
+                                color: AppColors.textDark,
                                 fontWeight: FontWeight.bold)),
-                        backgroundColor: const Color(0xFFFFF6F0),
+                        backgroundColor: AppColors.background,
                         side: BorderSide.none,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20)),
+                            borderRadius: BorderRadius.circular(AppRadius.card)),
                       );
                     }).toList(),
                   ),
@@ -205,8 +206,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                               fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFF9E68),
-                          foregroundColor: Colors.white,
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: AppColors.onPrimary,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(30)),
@@ -222,10 +223,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                         Container(
                           decoration: BoxDecoration(
                             border: Border.all(
-                                color: const Color(0xFFFF9E68), width: 2),
+                                color: AppColors.primary, width: 2),
                             shape: BoxShape.circle,
                             color: _isFavorited
-                                ? const Color(0xFFFF9E68).withOpacity(0.1)
+                                ? AppColors.primary.withOpacity(0.1)
                                 : Colors.white,
                           ),
                           child: IconButton(
@@ -235,8 +236,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                                   ? Icons.favorite
                                   : Icons.favorite_border,
                               color: _isFavorited
-                                  ? Colors.redAccent
-                                  : const Color(0xFFFF9E68),
+                                  ? AppColors.danger
+                                  : AppColors.primary,
                             ),
                             onPressed: _handleToggleFavorite,
                           ),
@@ -253,8 +254,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                                   fontSize: 18, fontWeight: FontWeight.bold),
                             ),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFFF9E68),
-                              foregroundColor: Colors.white,
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: AppColors.onPrimary,
                               padding:
                                   const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(
@@ -281,7 +282,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     if (ownerId == null || ownerId.isEmpty) return const SizedBox.shrink();
 
     return InkWell(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(AppRadius.card),
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
@@ -294,8 +295,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-            color: const Color(0xFFFFF6F0),
-            borderRadius: BorderRadius.circular(16)),
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(AppRadius.card)),
         child: Row(
           children: [
             const PetAvatar(imageUrl: null, radius: 20, icon: Icons.person),
@@ -314,8 +315,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
             ),
             const Text('ดูโปรไฟล์',
                 style: TextStyle(
-                    color: Color(0xFFFF9E68), fontWeight: FontWeight.bold)),
-            const Icon(Icons.chevron_right, color: Color(0xFFFF9E68)),
+                    color: AppColors.textDark, fontWeight: FontWeight.bold)),
+            const Icon(Icons.chevron_right, color: AppColors.primary),
           ],
         ),
       ),
@@ -327,12 +328,12 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
         decoration: BoxDecoration(
-            color: const Color(0xFFFFF6F0),
-            borderRadius: BorderRadius.circular(16)),
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(AppRadius.card)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(icon, color: const Color(0xFFFFB085)),
+            Icon(icon, color: AppColors.primarySoft),
             const SizedBox(height: 8),
             Text(title,
                 style: const TextStyle(color: Colors.black54, fontSize: 14)),
@@ -341,7 +342,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
-                    color: Color(0xFFFF9E68)),
+                    color: AppColors.textDark),
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis),

@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../screens/chat/media_viewer_screen.dart';
+import '../theme/app_theme.dart';
 
 /// กรอบรูป/วิดีโอใน bubble แชท — โหลดแค่ thumbnail (~30KB) ตัวจริงโหลดตอนกดเปิด
 ///
@@ -83,7 +84,7 @@ class ChatMediaBubble extends StatelessWidget {
     return GestureDetector(
       onTap: uploading || url == null ? null : () => _open(context),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.card),
         child: SizedBox(
           width: size.width,
           height: size.height,

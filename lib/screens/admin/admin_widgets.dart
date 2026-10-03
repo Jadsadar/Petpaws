@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../shared/api_exception.dart';
+import '../../theme/app_theme.dart';
 
-const Color adminOrange = Color(0xFFFF9E68);
+const Color adminOrange = AppColors.primary;
 
 final DateFormat _dateTimeFormat = DateFormat('dd/MM/yyyy HH:mm');
 final DateFormat _dateFormat = DateFormat('dd/MM/yyyy');
@@ -18,7 +19,7 @@ String adminErrorMessage(Object e) =>
 void showAdminSnack(BuildContext context, String message) {
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(message)));
+    ..showSnackBar(SnackBar(duration: AppTheme.snackDuration, content: Text(message)));
 }
 
 class AdminErrorView extends StatelessWidget {
@@ -35,7 +36,7 @@ class AdminErrorView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.redAccent),
+            const Icon(Icons.error_outline, size: 48, color: AppColors.danger),
             const SizedBox(height: 12),
             Text(adminErrorMessage(error), textAlign: TextAlign.center),
             const SizedBox(height: 12),

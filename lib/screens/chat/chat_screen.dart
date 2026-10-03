@@ -14,6 +14,7 @@ import '../../widgets/chat_media_bubble.dart';
 import '../../widgets/pet_avatar.dart';
 import '../../widgets/report_dialog.dart';
 import '../profile/user_profile_screen.dart';
+import '../../theme/app_theme.dart';
 
 /// รูป/วิดีโอที่กำลังอัป — โชว์เป็น bubble ท้ายห้องพร้อมความคืบหน้าจนกว่าจะส่งสำเร็จ
 class _PendingMedia {
@@ -235,7 +236,7 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ส่งข้อความไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+          const SnackBar(duration: AppTheme.snackDuration, content: Text('ส่งข้อความไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -356,8 +357,8 @@ class _ChatScreenState extends State<ChatScreen> {
               onTap: () => Navigator.pop(sheet, true),
             ),
             ListTile(
-              leading: const Icon(Icons.delete_outline, color: Colors.red),
-              title: const Text('ยกเลิก', style: TextStyle(color: Colors.red)),
+              leading: const Icon(Icons.delete_outline, color: AppColors.danger),
+              title: const Text('ยกเลิก', style: TextStyle(color: AppColors.danger)),
               onTap: () => Navigator.pop(sheet, false),
             ),
           ],
@@ -375,7 +376,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void _showError(Object error, String fallback) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error is ApiException ? error.message : fallback)));
+        SnackBar(duration: AppTheme.snackDuration, content: Text(error is ApiException ? error.message : fallback)));
   }
 
   @override
@@ -397,7 +398,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final myUid = AuthService.instance.currentUser?.uid ?? '';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF6F0),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: GestureDetector(
           onTap: widget.otherUserId.isEmpty
@@ -423,7 +424,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   : const CircleAvatar(
                       backgroundColor: Colors.white,
                       radius: 20,
-                      child: Icon(Icons.person, color: Color(0xFFFF9E68), size: 22),
+                      child: Icon(Icons.person, color: AppColors.primary, size: 22),
                     ),
               const SizedBox(width: 12),
               Expanded(
@@ -444,8 +445,8 @@ class _ChatScreenState extends State<ChatScreen> {
             ],
           ),
         ),
-        backgroundColor: const Color(0xFFFF9E68),
-        foregroundColor: Colors.white,
+        backgroundColor: AppColors.primary,
+        foregroundColor: AppColors.onPrimary,
         elevation: 1,
         actions: [
           if (_chatId != null)
@@ -490,7 +491,7 @@ class _ChatScreenState extends State<ChatScreen> {
     return res == true;
   }
 
-  void _snack(String text) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  void _snack(String text) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(duration: AppTheme.snackDuration, content: Text(text)));
 
   Future<void> _onMenu(String action) async {
     final chatId = _chatId;
@@ -684,7 +685,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   key: ValueKey('system-${data['id']}'),
                   margin: const EdgeInsets.symmetric(vertical: 8),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(16)),
+                  decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(AppRadius.card)),
                   child: Text('${data['text']}', style: const TextStyle(fontSize: 12, color: Colors.black54)),
                 ),
               );
@@ -791,7 +792,7 @@ class _ChatScreenState extends State<ChatScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
             decoration: BoxDecoration(
-              color: isMe ? const Color(0xFFFF9E68) : Colors.white,
+              color: isMe ? AppColors.primary : Colors.white,
               borderRadius: BorderRadius.only(
                 topLeft: const Radius.circular(20),
                 topRight: const Radius.circular(20),
@@ -842,7 +843,7 @@ class _ChatScreenState extends State<ChatScreen> {
           IconButton(
             tooltip: 'แนบรูปหรือวิดีโอ',
             onPressed: _canAttach ? _showAttachSheet : null,
-            color: const Color(0xFFFF9E68),
+            color: AppColors.primary,
             icon: _preparingMedia
                 ? const SizedBox(
                     width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
@@ -875,7 +876,7 @@ class _ChatScreenState extends State<ChatScreen> {
             onTap: _sending ? null : _sendMessage,
             child: Container(
               padding: const EdgeInsets.all(12),
-              decoration: const BoxDecoration(color: Color(0xFFFF9E68), shape: BoxShape.circle),
+              decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
               child: _sending
                   ? const SizedBox(
                       width: 20,
