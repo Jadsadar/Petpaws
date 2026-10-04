@@ -67,6 +67,17 @@ class AdminService {
     );
   }
 
+  /// อัตรา hit/miss ของ Redis cache ฝั่ง API (หน้า "สถิติ cache")
+  Future<CacheStats> cacheStats() async {
+    final res = await _api.get('/admin/cache-stats') as Map<String, dynamic>;
+    return CacheStats.fromJson(res);
+  }
+
+  /// เริ่มนับ hit/miss ใหม่ (ไม่ลบข้อมูลที่ cache ไว้)
+  Future<void> resetCacheStats() async {
+    await _api.post('/admin/cache-stats/reset');
+  }
+
   /// โปรไฟล์ + ประกาศทั้งหมดของผู้ใช้พร้อมรูป (ให้แอดมินตรวจสิ่งที่ถูกรายงาน)
   Future<AdminProfile> profile(String userId) async {
     final res = await _api.get('/admin/users/$userId') as Map<String, dynamic>;
@@ -123,6 +134,122 @@ class AdminSummary {
   final int reported;
   final int temporary;
   final int permanent;
+}
+
+int _int(Object? v) => (v as num?)?.toInt() ?? 0;
+
+/// hit/miss ของ cache กลุ่มหนึ่ง (หรือรวมทุกกลุ่ม) — [hitRatio] เป็น null เมื่อยังไม่มี request เลย
+class CacheCounter {
+  const CacheCounter({required this.hits, required this.misses, required this.hitRatio});
+
+  final int hits;
+  final int misses;
+  final double? hitRatio;
+
+  int get total => hits + misses;
+
+  factory CacheCounter.fromJson(Map<String, dynamic> j) => CacheCounter(
+        hits: _int(j['hits']),
+        misses: _int(j['misses']),
+        hitRatio: (j['hitRatio'] as num?)?.toDouble(),
+      );
+}
+
+class CacheNamespaceStats {
+  const CacheNamespaceStats({required this.name, required this.ttlSeconds, required this.counter});
+
+  /// ชื่อกลุ่มตาม backend (traits, pet, petsByOwner, userPublic, adminSummary)
+  final String name;
+  final int ttlSeconds;
+  final CacheCounter counter;
+
+  factory CacheNamespaceStats.fromJson(Map<String, dynamic> j) => CacheNamespaceStats(
+        name: j['name'] as String,
+        ttlSeconds: _int(j['ttlSeconds']),
+        counter: CacheCounter.fromJson(j),
+      );
+}
+
+/// ตัวเลขจากคำสั่ง INFO ของ Redis cache (ระดับ server นับทุกคำสั่ง ไม่แยกกลุ่ม)
+class RedisServerStats {
+  const RedisServerStats({
+    required this.keys,
+    required this.counter,
+    required this.evictedKeys,
+    required this.expiredKeys,
+    required this.usedMemoryBytes,
+    required this.maxMemoryBytes,
+    required this.maxMemoryPolicy,
+    required this.uptimeSeconds,
+  });
+
+  final int keys;
+  final CacheCounter counter;
+  final int evictedKeys;
+  final int expiredKeys;
+  final int usedMemoryBytes;
+
+  /// 0 = ไม่จำกัด
+  final int maxMemoryBytes;
+  final String? maxMemoryPolicy;
+  final int uptimeSeconds;
+
+  /// สัดส่วนหน่วยความจำที่ใช้ (null ถ้าไม่ได้ตั้ง maxmemory)
+  double? get memoryUsage => maxMemoryBytes > 0 ? usedMemoryBytes / maxMemoryBytes : null;
+
+  factory RedisServerStats.fromJson(Map<String, dynamic> j) => RedisServerStats(
+        keys: _int(j['keys']),
+        counter: CacheCounter(
+          hits: _int(j['keyspaceHits']),
+          misses: _int(j['keyspaceMisses']),
+          hitRatio: (j['hitRatio'] as num?)?.toDouble(),
+        ),
+        evictedKeys: _int(j['evictedKeys']),
+        expiredKeys: _int(j['expiredKeys']),
+        usedMemoryBytes: _int(j['usedMemoryBytes']),
+        maxMemoryBytes: _int(j['maxMemoryBytes']),
+        maxMemoryPolicy: j['maxMemoryPolicy'] as String?,
+        uptimeSeconds: _int(j['uptimeSeconds']),
+      );
+}
+
+class CacheStats {
+  const CacheStats({
+    required this.enabled,
+    required this.available,
+    required this.since,
+    required this.errors,
+    required this.overall,
+    required this.namespaces,
+    required this.redis,
+  });
+
+  /// false = server ไม่ได้ตั้ง REDIS_CACHE_URL (ปิด cache อ่าน DB ตรงทุกครั้ง)
+  final bool enabled;
+
+  /// false = ตั้งไว้แต่ต่อ Redis ไม่ได้ตอนนี้ (API ยังทำงานต่อโดยอ่าน DB ตรง)
+  final bool available;
+
+  /// จุดเริ่มนับ (ครั้งแรกที่ต่อ Redis หรือครั้งล่าสุดที่กดรีเซ็ต)
+  final DateTime? since;
+
+  /// จำนวนครั้งที่คำสั่ง cache ล้มเหลวใน API process ปัจจุบัน (นับใหม่เมื่อ API restart)
+  final int errors;
+  final CacheCounter overall;
+  final List<CacheNamespaceStats> namespaces;
+  final RedisServerStats? redis;
+
+  factory CacheStats.fromJson(Map<String, dynamic> j) => CacheStats(
+        enabled: (j['enabled'] as bool?) ?? false,
+        available: (j['available'] as bool?) ?? false,
+        since: _parseDate(j['since']),
+        errors: _int(j['errors']),
+        overall: CacheCounter.fromJson((j['overall'] as Map<String, dynamic>?) ?? const {}),
+        namespaces: ((j['namespaces'] as List<dynamic>?) ?? const [])
+            .map((e) => CacheNamespaceStats.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        redis: j['redis'] == null ? null : RedisServerStats.fromJson(j['redis'] as Map<String, dynamic>),
+      );
 }
 
 class ReportedUser {

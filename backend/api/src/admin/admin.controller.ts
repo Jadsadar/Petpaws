@@ -16,15 +16,32 @@ import { BanUserDto } from './dto/ban-user.dto.js';
 import { PaginationQueryDto, resolvePaging } from './dto/pagination.dto.js';
 import { DEFAULT_MIN_REPORTS, ReportedUsersQueryDto } from './dto/reported-users-query.dto.js';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator.js';
+import { CacheService } from '../cache/cache.service.js';
 
 @Controller('admin')
 @UseGuards(AdminGuard)
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly cache: CacheService,
+  ) {}
 
   @Get('summary')
   summary() {
     return this.adminService.summary();
+  }
+
+  /** อัตรา hit/miss ของ cache แยกตามชนิดข้อมูล + สถานะ Redis cache (หน้า "สถิติ cache" ในแอป) */
+  @Get('cache-stats')
+  cacheStats() {
+    return this.cache.stats();
+  }
+
+  /** เริ่มนับ hit/miss ใหม่ (ไม่ลบข้อมูลที่ cache ไว้) */
+  @HttpCode(HttpStatus.OK)
+  @Post('cache-stats/reset')
+  resetCacheStats() {
+    return this.cache.resetStats();
   }
 
   /** ?minReports=&page=&pageSize= → { items, total, page, pageSize } */

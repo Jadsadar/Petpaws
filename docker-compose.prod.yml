@@ -49,6 +49,28 @@ services:
       timeout: 3s
       retries: 10
 
+  # Redis ตัวที่สองสำหรับ cache ของ API เท่านั้น — แยกจากตัวบนโดยตั้งใจ:
+  # ตัวบน (คิว BullMQ) ต้อง noeviction + AOF เพราะ job ห้ามหาย ส่วน cache ต้องไล่ key เก่าทิ้งได้
+  # ถ้าใช้ตัวเดียวกัน cache ที่โตจนเต็ม maxmemory จะทำให้ add job ไม่ได้ทั้งระบบ
+  # - volatile-lru: ไล่เฉพาะ key ที่มี TTL (ข้อมูล cache ทุกตัวมี) ตัวนับ hit/miss ที่ไม่มี TTL จึงไม่โดนไล่
+  # - ไม่เปิด AOF/RDB: cache หายตอน restart ได้ ไม่ต้องเปลือง disk/IO บน t3.micro
+  # - maxmemory เล็กเพราะเครื่องมี RAM แค่ 1GB ดูค่า evicted_keys ที่หน้า "สถิติ cache" ถ้าขึ้นเรื่อย ๆ ค่อยขยาย
+  redis-cache:
+    image: redis:7-alpine
+    container_name: petpaws-redis-cache
+    restart: unless-stopped
+    command: >
+      redis-server
+      --save ""
+      --appendonly no
+      --maxmemory ${REDIS_CACHE_MAXMEMORY:-64mb}
+      --maxmemory-policy volatile-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   # object storage แบบ dev-grade ไว้ก่อน — สลับเป็น S3/R2 จริงทีหลังได้แค่เปลี่ยน
   # S3_ENDPOINT/S3_ACCESS_KEY_ID/S3_SECRET_ACCESS_KEY ใน .env แล้วลบ service นี้ทิ้ง
   #
@@ -88,11 +110,16 @@ services:
       # ไม่ใช่ใน secrets/production.env.enc ถ้ามีโดเมนแล้วตั้ง S3_PUBLIC_ENDPOINT ใน .env ทับได้
       # (S3_ENDPOINT=http://minio:9000 ยังเป็นที่อยู่ภายในที่ API ใช้เรียก MinIO เอง)
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://3.24.61.96}
+      # ที่อยู่ภายในเครือข่าย docker ไม่ใช่ความลับ — worker ไม่ใช้ cache จึงไม่ตั้งให้
+      REDIS_CACHE_URL: ${REDIS_CACHE_URL:-redis://redis-cache:6379}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      # ไม่รอ healthy — cache ล่ม API ยังทำงานต่อได้ (อ่าน DB ตรง) แค่ช้าลง
+      redis-cache:
+        condition: service_started
       minio:
         condition: service_healthy
     # ไม่ expose port ออก host ตรงๆ — เข้าถึงได้ผ่าน Caddy เท่านั้น

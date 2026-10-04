@@ -4,6 +4,7 @@ import { PG_POOL } from '../database/database.module.js';
 import { AppException } from '../common/app-exception.js';
 import type { BanUserDto } from './dto/ban-user.dto.js';
 import { toPage } from './dto/pagination.dto.js';
+import { CacheService } from '../cache/cache.service.js';
 
 /**
  * รายงานค้างทุกฉบับ พร้อม "ผู้ใช้ที่ถูกรายงานจริง" — รายงานประกาศนับเข้าเจ้าของประกาศ
@@ -101,7 +102,15 @@ const totalOf = (rows: { total_count: string }[]) => (rows.length > 0 ? Number(r
 
 @Injectable()
 export class AdminService {
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly cache: CacheService,
+  ) {}
+
+  /** แอปโหลดตัวเลขสรุปใหม่ทันทีหลังแอดมินตัดสิน — ต้องล้างก่อน ไม่งั้นเห็นเลขเก่า */
+  private invalidateSummary() {
+    return this.cache.invalidate({ ns: 'adminSummary', id: 'all' });
+  }
 
   private toUser(r: ReportedUserRow) {
     return {
@@ -234,7 +243,11 @@ export class AdminService {
   }
 
   /** ตัวเลขสรุปบนแดชบอร์ด (นับทั้งระบบ ไม่ขึ้นกับว่าแอดมินอยู่หน้าไหนของรายการ) */
-  async summary() {
+  summary() {
+    return this.cache.getOrSet({ ns: 'adminSummary', id: 'all' }, () => this.loadSummary());
+  }
+
+  private async loadSummary() {
     const res = await this.pool.query<{ reported: string; temporary: string; permanent: string }>(
       `WITH ${PENDING_TARGETS}
        SELECT
@@ -365,6 +378,7 @@ export class AdminService {
       );
 
       await client.query('COMMIT');
+      await this.invalidateSummary();
       return { success: true, suspendedUntil: updated.rows[0].suspended_until };
     } catch (err) {
       await client.query('ROLLBACK');
@@ -381,6 +395,7 @@ export class AdminService {
       [userId],
     );
     if (res.rowCount === 0) throw AppException.notFound('ไม่พบผู้ใช้นี้');
+    await this.invalidateSummary();
     return { success: true };
   }
 
@@ -392,6 +407,7 @@ export class AdminService {
        WHERE id IN (SELECT id FROM target WHERE user_id = $1)`,
       [userId, adminId],
     );
+    await this.invalidateSummary();
     return { success: true, dismissed: res.rowCount ?? 0 };
   }
 }

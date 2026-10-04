@@ -57,6 +57,25 @@ services:
       timeout: 3s
       retries: 10
 
+  # Redis แยกสำหรับ cache ของ API (ตัวบนเป็นของคิว BullMQ) เหตุผลดูที่ docker-compose.prod.yml
+  redis-cache:
+    image: redis:7-alpine
+    container_name: petpaws-redis-cache
+    restart: unless-stopped
+    command: >
+      redis-server
+      --save ""
+      --appendonly no
+      --maxmemory ${REDIS_CACHE_MAXMEMORY:-64mb}
+      --maxmemory-policy volatile-lru
+    ports:
+      - "${REDIS_CACHE_PORT:-6380}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   # เครื่องมือส่องฐานข้อมูลผ่านเบราว์เซอร์ ใช้เฉพาะตอน dev
   # เปิดด้วย: docker compose --profile tools up -d
   adminer:

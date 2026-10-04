@@ -69,6 +69,12 @@ class EnvVars {
   @IsNotEmpty()
   REDIS_URL!: string;
 
+  // Redis ตัวแยกสำหรับ cache (ไม่ใช่ตัวเดียวกับคิว) — ว่างได้: ปิด cache อ่าน DB ตรง
+  // worker ไม่ใช้ cache จึงไม่ต้องตั้ง (ดู cache/cache.module.ts)
+  @IsOptional()
+  @IsString()
+  REDIS_CACHE_URL?: string;
+
   // ว่างได้ตอน dev — worker จะข้ามการส่ง push ไปเฉย ๆ (ดู notifications/fcm.service.ts)
   @IsOptional()
   @IsString()

@@ -39,7 +39,7 @@ export class PetsController {
 
   @Get('mine')
   findMine(@CurrentUser() user: AuthUser) {
-    return this.petsService.findByOwner(user.id);
+    return this.petsService.findByOwner(user.id, { cached: false });
   }
 
   @Get('by-owner/:ownerId')
