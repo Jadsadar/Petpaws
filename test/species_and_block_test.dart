@@ -39,9 +39,9 @@ void main() {
       expect(petSpeciesLabel({}), 'สุนัข'); // ข้อมูลเก่าที่ไม่มี species ถือเป็นสุนัข
     });
 
-    test('อื่นๆ แสดงข้อความที่เจ้าของระบุ ถ้าไม่ระบุแสดง "อื่นๆ"', () {
+    test('อื่น ๆ แสดงข้อความที่เจ้าของระบุ ถ้าไม่ระบุแสดง "อื่น ๆ"', () {
       expect(petSpeciesLabel({'species': 'other', 'speciesOther': 'เต่า'}), 'เต่า');
-      expect(petSpeciesLabel({'species': 'other', 'speciesOther': '  '}), 'อื่นๆ');
+      expect(petSpeciesLabel({'species': 'other', 'speciesOther': '  '}), 'อื่น ๆ');
     });
 
     test('มีครบ 6 ชนิดตามที่ backend รับ', () {
@@ -49,7 +49,7 @@ void main() {
     });
   });
 
-  testWidgets('SpeciesField: เลือก "อื่นๆ" แล้วมีช่องระบุ ชนิดอื่นไม่มี', (tester) async {
+  testWidgets('SpeciesField: เลือก "อื่น ๆ" แล้วมีช่องระบุ ชนิดอื่นไม่มี', (tester) async {
     var species = 'dog';
     final other = TextEditingController();
     await tester.pumpWidget(MaterialApp(
@@ -67,7 +67,7 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('species-field')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('อื่นๆ').last);
+    await tester.tap(find.text('อื่น ๆ').last);
     await tester.pumpAndSettle();
     expect(species, 'other');
     expect(find.byKey(const ValueKey('species-other')), findsOneWidget);
@@ -94,12 +94,8 @@ void main() {
         onSpeciesFilterChanged: picked.add,
       ),
     ));
-    await tester.tap(find.byKey(const ValueKey('species-filter')));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byKey(const ValueKey('species-search')), 'ปล');
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('species-option-cat')), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('species-option-fish')));
+    // กรองผ่านแถบหมวดด้านบนการ์ด (แทนปุ่มกรองมุมขวาเดิม)
+    await tester.tap(find.byKey(const ValueKey('species-chip-fish')));
     await tester.pumpAndSettle();
     expect(picked, ['fish']);
   });

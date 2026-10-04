@@ -14,6 +14,7 @@ import '../detail/pet_detail_screen.dart';
 import 'edit_dog_screen.dart';
 import 'pet_post_preview_screen.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/field_error.dart';
 
 class UploadScreen extends StatefulWidget {
   final Function(Map<String, dynamic>) onAddDog;
@@ -39,7 +40,7 @@ class UploadScreen extends StatefulWidget {
   State<UploadScreen> createState() => _UploadScreenState();
 }
 
-class _UploadScreenState extends State<UploadScreen> {
+class _UploadScreenState extends State<UploadScreen> with FieldErrors {
   final TextEditingController nameController = TextEditingController();
   final TextEditingController breedController = TextEditingController();
   final TextEditingController ageYearController = TextEditingController();
@@ -118,30 +119,25 @@ class _UploadScreenState extends State<UploadScreen> {
   Future<void> submitForm() async {
     final age = _composeAge();
     if (nameController.text.trim().isEmpty || age.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(duration: AppTheme.snackDuration, content: Text('กรุณากรอกชื่อและอายุ')));
+      showFieldError(nameController.text.trim().isEmpty ? 'name' : 'age',
+          'กรุณากรอกชื่อและอายุ');
       return;
     }
     if ((int.tryParse(ageMonthController.text) ?? 0) > 11) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(duration: AppTheme.snackDuration, 
-          content:
-              Text('เดือนต้องไม่เกิน 11 ถ้าครบ 12 เดือนให้กรอกเป็นปีแทน')));
+      showFieldError('age', 'เดือนต้องไม่เกิน 11 ถ้าครบ 12 เดือนให้กรอกเป็นปีแทน');
       return;
     }
     if (selectedSpecies == 'other' &&
         speciesOtherController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(duration: AppTheme.snackDuration, content: Text('กรุณาระบุชนิดสัตว์เลี้ยง')));
+      showFieldError('species', 'กรุณาระบุชนิดสัตว์เลี้ยง');
       return;
     }
     if (selectedTags.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(duration: AppTheme.snackDuration, 
-          content: Text('กรุณาเลือกนิสัยเด่นๆ อย่างน้อย 1 แท็ก')));
+      showFieldError('tags', 'กรุณาเลือกนิสัยเด่น ๆ อย่างน้อย 1 แท็ก');
       return;
     }
     if (_pickedImageBytes == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(duration: AppTheme.snackDuration, content: Text('กรุณาเลือกรูปภาพสัตว์เลี้ยง 1 รูป')));
+      showFieldError('image', 'กรุณาเลือกรูปภาพสัตว์เลี้ยง 1 รูป');
       return;
     }
 
@@ -198,7 +194,7 @@ class _UploadScreenState extends State<UploadScreen> {
       widget.onAddDog(newDog);
       if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(duration: AppTheme.snackDuration, content: Text('ประกาศหาบ้านสำเร็จ!')));
+          .showSnackBar(const SnackBar(shape: AppTheme.snackSuccessShape, duration: AppTheme.snackDuration, content: Text('ประกาศหาบ้านสำเร็จ!', style: AppTheme.snackSuccessText)));
       nameController.clear();
       breedController.clear();
       ageYearController.clear();
@@ -209,11 +205,12 @@ class _UploadScreenState extends State<UploadScreen> {
       setState(() {
         _pickedImageBytes = null;
         _imagePickerResetKey++;
+        _provinceTouched = false;
       });
+      _loadOwnerProvince();
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(duration: AppTheme.snackDuration, 
-          content: Text('ลงประกาศไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+      showFieldError('submit', 'ลงประกาศไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -280,6 +277,7 @@ class _UploadScreenState extends State<UploadScreen> {
                   key: ValueKey(_imagePickerResetKey),
                   onChanged: (bytes) => setState(() => _pickedImageBytes = bytes),
                 ),
+                InlineError(fieldError('image')),
               ],
             ),
             const SizedBox(height: 16),
@@ -290,6 +288,7 @@ class _UploadScreenState extends State<UploadScreen> {
                   controller: nameController,
                   decoration: InputDecoration(
                       labelText: 'ชื่อสัตว์เลี้ยง *',
+                  error: fieldErrorWidget('name'),
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(AppRadius.card))),
                 ),
@@ -300,6 +299,7 @@ class _UploadScreenState extends State<UploadScreen> {
                   enabled: !_isSubmitting,
                   onChanged: (v) => setState(() => selectedSpecies = v),
                 ),
+                InlineError(fieldError('species')),
                 const SizedBox(height: 16),
                 TextField(
                   controller: breedController,
@@ -326,6 +326,7 @@ class _UploadScreenState extends State<UploadScreen> {
                   const SizedBox(width: 16),
                   Expanded(child: _ageField(ageMonthController, 'อายุ (เดือน)')),
                 ]),
+                InlineError(fieldError('age')),
                 const SizedBox(height: 16),
                 const SizedBox(height: 16),
                 Row(children: [
@@ -358,7 +359,7 @@ class _UploadScreenState extends State<UploadScreen> {
             ),
             const SizedBox(height: 16),
             SectionCard(
-              title: 'นิสัยเด่นๆ ของสัตว์เลี้ยง *',
+              title: 'นิสัยเด่น ๆ ของสัตว์เลี้ยง *',
               children: [
                 TagSelector(
                   selectedIds: selectedTags,
@@ -366,6 +367,7 @@ class _UploadScreenState extends State<UploadScreen> {
                   enabled: !_isSubmitting,
                   backgroundColor: AppColors.background,
                 ),
+                InlineError(fieldError('tags')),
                 const SizedBox(height: 16),
                 TextField(
                     controller: storyController,
@@ -399,6 +401,7 @@ class _UploadScreenState extends State<UploadScreen> {
                       style:
                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ),
+            InlineError(fieldError('submit')),
             const SizedBox(height: 32),
             const Divider(color: Colors.black12),
             const SizedBox(height: 16),
@@ -421,7 +424,7 @@ class _UploadScreenState extends State<UploadScreen> {
                           dog['status'] ?? 'ยังไม่ถูกรับเลี้ยง';
                       return Card(
                         elevation: 0,
-                        color: AppColors.background,
+                        color: AppColors.section,
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(AppRadius.card),
                             side: const BorderSide(
@@ -479,9 +482,11 @@ class _UploadScreenState extends State<UploadScreen> {
                                         onPressed: () {
                                           widget.onDeleteDog(dog);
                                           ScaffoldMessenger.of(context)
-                                              .showSnackBar(const SnackBar(duration: AppTheme.snackDuration, 
-                                                  content: Text(
-                                                      'ลบประกาศเรียบร้อยแล้ว')));
+                                              .showSnackBar(const SnackBar(
+                                                  shape: AppTheme.snackSuccessShape,
+                                                  duration: AppTheme.snackDuration,
+                                                  content: Text('ลบประกาศเรียบร้อยแล้ว',
+                                                      style: AppTheme.snackSuccessText)));
                                         },
                                       ),
                                     ],
@@ -499,8 +504,10 @@ class _UploadScreenState extends State<UploadScreen> {
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 12, vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: _getStatusColor(currentStatus)
-                                            .withOpacity(0.15),
+                                        color: Colors.white,
+                                        border: Border.all(
+                                            color: _getStatusColor(currentStatus),
+                                            width: 1.4),
                                         borderRadius: BorderRadius.circular(AppRadius.card),
                                       ),
                                       child: DropdownButton<String>(
@@ -514,6 +521,9 @@ class _UploadScreenState extends State<UploadScreen> {
                                             style: TextStyle(
                                                 color: _getStatusColor(currentStatus),
                                                 fontWeight: FontWeight.bold)),
+                                        focusColor: Colors.transparent,
+                                        dropdownColor: Colors.white,
+                                        borderRadius: BorderRadius.circular(16),
                                         underline: const SizedBox(),
                                         icon: Icon(Icons.arrow_drop_down,
                                             color:

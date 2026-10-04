@@ -9,6 +9,7 @@ import 'favorites/favorites_screen.dart';
 import 'profile/profile_screen.dart';
 import 'upload/upload_screen.dart';
 import '../theme/app_theme.dart';
+import '../widgets/pop_icon.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -291,11 +292,35 @@ class _MainScreenState extends State<MainScreen> {
           unselectedFontSize: 12,
           backgroundColor: Colors.white,
           items: [
-            const BottomNavigationBarItem(icon: Icon(Icons.search), label: 'ค้นหา'),
-            const BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'ถูกใจ'),
+            const BottomNavigationBarItem(
+                icon: Icon(Icons.search),
+                activeIcon: PopIcon(child: Icon(Icons.search)),
+                label: 'ค้นหา'),
+            const BottomNavigationBarItem(
+                icon: Icon(Icons.favorite_border),
+                activeIcon: PopIcon(child: Icon(Icons.favorite_border)),
+                label: 'ถูกใจ'),
             BottomNavigationBarItem(
               label: 'แชท',
-              icon: StreamBuilder<int>(
+              icon: _chatIcon(),
+              activeIcon: PopIcon(child: _chatIcon()),
+            ),
+            const BottomNavigationBarItem(
+                icon: Icon(Icons.post_add),
+                activeIcon: PopIcon(child: Icon(Icons.post_add)),
+                label: 'ลงประกาศ'),
+            const BottomNavigationBarItem(
+                icon: Icon(Icons.person),
+                activeIcon: PopIcon(child: Icon(Icons.person)),
+                label: 'โปรไฟล์'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// ไอคอนแชทพร้อมจุดจำนวนข้อความยังไม่อ่าน
+  Widget _chatIcon() => StreamBuilder<int>(
                 stream: ChatService.instance.unreadChatCountStream(),
                 builder: (context, snapshot) {
                   final unread = snapshot.data ?? 0;
@@ -326,15 +351,7 @@ class _MainScreenState extends State<MainScreen> {
                     ],
                   );
                 },
-              ),
-            ),
-            const BottomNavigationBarItem(icon: Icon(Icons.post_add), label: 'ลงประกาศ'),
-            const BottomNavigationBarItem(icon: Icon(Icons.person), label: 'โปรไฟล์'),
-          ],
-        ),
-      ),
-    );
-  }
+              );
 
   Widget _buildBody() {
     if (_isLoading) {

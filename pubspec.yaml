@@ -21,6 +21,7 @@ dependencies:
   video_compress: ^3.1.4
   cached_network_image: ^3.4.1
   web: ^1.1.1
+  font_awesome_flutter: ^11.0.0
 
 dev_dependencies:
   flutter_test:

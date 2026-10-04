@@ -187,7 +187,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   void _copyToClipboard(BuildContext context, String label, String value) {
     Clipboard.setData(ClipboardData(text: value));
     ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('คัดลอก $label แล้ว'), duration: const Duration(seconds: 1)));
+        SnackBar(shape: AppTheme.snackSuccessShape, content: Text('คัดลอก $label แล้ว', style: AppTheme.snackSuccessText), duration: const Duration(seconds: 1)));
   }
 
   /// ไม่โชว์เบอร์โทรในหน้าสาธารณะ — backend ก็ไม่ส่ง phone มาให้อยู่แล้ว

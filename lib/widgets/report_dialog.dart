@@ -39,8 +39,8 @@ Future<void> reportWithDialog(
   final messenger = ScaffoldMessenger.of(context);
   try {
     await send(choice.reason, choice.detail);
-    messenger.showSnackBar(const SnackBar(duration: AppTheme.snackDuration, 
-        content: Text('ส่งรายงานเรียบร้อยแล้ว ขอบคุณที่ช่วยดูแลชุมชนของเรา')));
+    messenger.showSnackBar(const SnackBar(shape: AppTheme.snackSuccessShape, duration: AppTheme.snackDuration, 
+        content: Text('ส่งรายงานเรียบร้อยแล้ว ขอบคุณที่ช่วยดูแลชุมชนของเรา', style: AppTheme.snackSuccessText)));
     if (blockUserId != null && context.mounted) {
       await _offerBlock(context, messenger, blockUserId, blockUserName, onBlocked);
     }
@@ -81,7 +81,7 @@ Future<void> _offerBlock(
   try {
     await ReportService.instance.blockUser(userId);
     onBlocked?.call();
-    messenger.showSnackBar(SnackBar(duration: AppTheme.snackDuration, content: Text('บล็อก $userName แล้ว')));
+    messenger.showSnackBar(SnackBar(shape: AppTheme.snackSuccessShape, duration: AppTheme.snackDuration, content: Text('บล็อก $userName แล้ว', style: AppTheme.snackSuccessText)));
   } catch (_) {
     messenger.showSnackBar(const SnackBar(duration: AppTheme.snackDuration, content: Text('บล็อกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
   }
