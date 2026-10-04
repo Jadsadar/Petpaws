@@ -12,10 +12,14 @@ class FavoritesScreen extends StatefulWidget {
   /// สลับถูกใจ/เลิกถูกใจของสัตว์ตัวนั้น (MainScreen ยิง API ให้และย้อนกลับเองถ้าล้มเหลว)
   final Function(Map<String, dynamic>) onToggleFavorite;
 
+  /// false = แท็บนี้ไม่ได้เปิดอยู่ (อยู่ใน IndexedStack) — ใช้ปิดโหมดเลือกเมื่อสลับไปแท็บอื่น
+  final bool active;
+
   const FavoritesScreen({
     super.key,
     required this.likedDogs,
     required this.onToggleFavorite,
+    this.active = true,
   });
 
   @override
@@ -30,6 +34,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   /// โหมดเลือก (ปุ่มมุมขวาบน) — เก็บ id ของสัตว์ที่ติ๊กไว้เพื่อเลิกถูกใจทีเดียวหลายตัว
   bool _selecting = false;
   final Set<String> _selected = {};
+
+  @override
+  void didUpdateWidget(FavoritesScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.active && !widget.active && _selecting) _exitSelecting();
+  }
 
   void _exitSelecting() => setState(() {
         _selecting = false;

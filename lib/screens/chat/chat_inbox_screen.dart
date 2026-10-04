@@ -13,7 +13,10 @@ class ChatInboxScreen extends StatefulWidget {
   /// ถ้าไม่ระบุ (null) = โหมดข้อความทั้งหมดของฉัน
   final String? dogName;
 
-  const ChatInboxScreen({super.key, this.dogName});
+  /// false = แท็บนี้ไม่ได้เปิดอยู่ (อยู่ใน IndexedStack) — ใช้ปิดโหมดเลือกเมื่อสลับไปแท็บอื่น
+  final bool active;
+
+  const ChatInboxScreen({super.key, this.dogName, this.active = true});
 
   @override
   State<ChatInboxScreen> createState() => _ChatInboxScreenState();
@@ -42,13 +45,44 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
         .any((k) => '${chat[k] ?? ''}'.toLowerCase().contains(q));
   }
 
-  /// ลบแชท = ซ่อนเฉพาะฝั่งเรา อีกฝ่ายยังเห็น (กดค้างที่แถวเพื่อลบ)
-  Future<void> _deleteChat(Map<String, dynamic> chat) async {
+  /// โหมดเลือก (ปุ่ม "เลือก" มุมขวาบน เหมือนหน้ารายการที่สนใจ) — ติ๊กหลายแชทแล้วลบทีเดียว
+  /// ลบแชท = ซ่อนเฉพาะฝั่งเรา อีกฝ่ายยังเห็น
+  bool _selecting = false;
+  final Set<String> _selected = {};
+  List<String> _visibleIds = [];
+
+  @override
+  void didUpdateWidget(ChatInboxScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.active && !widget.active && _selecting) _exitSelecting();
+  }
+
+  void _exitSelecting() => setState(() {
+        _selecting = false;
+        _selected.clear();
+      });
+
+  void _toggleAll() => setState(() {
+        if (_selected.length == _visibleIds.length) {
+          _selected.clear();
+        } else {
+          _selected
+            ..clear()
+            ..addAll(_visibleIds);
+        }
+      });
+
+  void _toggleSelected(String id) => setState(() {
+        if (!_selected.remove(id)) _selected.add(id);
+      });
+
+  Future<void> _deleteSelected() async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('ลบแชท'),
-        content: Text('แชทกับ ${chat['otherUserName'] ?? 'ผู้ใช้'} จะหายจากรายการของคุณ (อีกฝ่ายยังเห็นอยู่)'),
+        content: Text(
+            'แชท ${_selected.length} รายการที่เลือกจะหายจากรายการของคุณ (อีกฝ่ายยังเห็นอยู่)'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
           TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('ลบ')),
@@ -56,14 +90,20 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
       ),
     );
     if (ok != true) return;
-    try {
-      await ChatService.instance.hideChat(chat['id'] as String);
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(duration: AppTheme.snackDuration, content: Text('ลบแชทไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+    var failed = false;
+    for (final id in _selected.toList()) {
+      try {
+        await ChatService.instance.hideChat(id);
+      } catch (_) {
+        failed = true;
       }
     }
+    if (!mounted) return;
+    if (failed) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(duration: AppTheme.snackDuration, content: Text('ลบแชทบางรายการไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+    }
+    _exitSelecting();
   }
 
   @override
@@ -82,38 +122,65 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
     return DateFormat('d MMM').format(date);
   }
 
+  Widget _searchButton() => IconButton(
+        key: const ValueKey('inbox-search-toggle'),
+        tooltip: _search == null ? 'ค้นหาแชท' : 'ปิดการค้นหา',
+        icon: Icon(_search == null ? Icons.search : Icons.close),
+        onPressed: () => setState(() {
+          _search = _search == null ? '' : null;
+          _searchController.clear();
+        }),
+      );
+
   @override
   Widget build(BuildContext context) {
+    // เปิดแบบแท็บ (ไม่มีปุ่มย้อนกลับ) → ค้นหาอยู่ซ้าย ถ้าถูก push มาจะเหลือปุ่มย้อนกลับซ้าย ค้นหาไว้ขวา
+    final canPop = Navigator.canPop(context);
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: Column(
+        leading: _selecting
+            ? IconButton(
+                key: const ValueKey('inbox-cancel-select'),
+                icon: const Icon(Icons.close, color: AppColors.primary),
+                onPressed: _exitSelecting)
+            : (canPop ? null : _searchButton()),
+        title: _selecting
+            ? Text('เลือกแล้ว ${_selected.length} แชท',
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, color: AppColors.textDark, fontSize: 18))
+            : Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('กล่องข้อความ',
                 style: TextStyle(
                     fontWeight: FontWeight.bold, color: AppColors.textDark, fontSize: 18)),
-            Text(
-                widget.dogName == null
-                    ? 'ข้อความทั้งหมด'
-                    : 'สัตว์เลี้ยง: ${widget.dogName}',
-                style: const TextStyle(
-                    fontSize: 12, color: AppColors.textMuted, shadows: [])),
+            if (widget.dogName != null)
+              Text('สัตว์เลี้ยง: ${widget.dogName}',
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textMuted, shadows: [])),
           ],
         ),
         backgroundColor: AppColors.appBar,
         iconTheme: const IconThemeData(color: AppColors.primary),
         elevation: 1,
         actions: [
-          IconButton(
-            key: const ValueKey('inbox-search-toggle'),
-            tooltip: _search == null ? 'ค้นหาแชท' : 'ปิดการค้นหา',
-            icon: Icon(_search == null ? Icons.search : Icons.close),
-            onPressed: () => setState(() {
-              _search = _search == null ? '' : null;
-              _searchController.clear();
-            }),
+          if (_selecting)
+            TextButton(
+              key: const ValueKey('inbox-select-all'),
+              onPressed: _toggleAll,
+              child: Text(_selected.length == _visibleIds.length
+                  ? 'ไม่เลือกเลย'
+                  : 'เลือกทั้งหมด'),
+            )
+          else ...[
+          TextButton(
+            key: const ValueKey('inbox-select'),
+            onPressed: () => setState(() => _selecting = true),
+            child: const Text('เลือก'),
           ),
+          if (canPop) _searchButton(),
+          ],
         ],
         bottom: _search == null
             ? null
@@ -139,6 +206,22 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                 ),
               ),
       ),
+      bottomNavigationBar: _selecting
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: ElevatedButton.icon(
+                  key: const ValueKey('inbox-delete'),
+                  onPressed: _selected.isEmpty ? null : _deleteSelected,
+                  icon: const Icon(Icons.delete_outline),
+                  label: Text('ลบแชท (${_selected.length})'),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.danger,
+                      foregroundColor: Colors.white),
+                ),
+              ),
+            )
+          : null,
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: _chatsStream,
         builder: (context, snapshot) {
@@ -147,6 +230,7 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
           }
           final all = snapshot.data!;
           final chats = [for (final c in all) if (_matches(c, _search ?? '')) c];
+          _visibleIds = [for (final c in chats) c['id'] as String];
           if (all.isNotEmpty && chats.isEmpty) {
             return const Center(child: Text('ไม่พบแชทที่ค้นหา', style: TextStyle(color: Colors.grey)));
           }
@@ -187,7 +271,6 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                 shadowColor: Colors.black26,
                 child: ListTile(
                 key: ValueKey('chat-${chat['id']}'),
-                onLongPress: () => _deleteChat(chat),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 leading: Stack(
                   children: [
@@ -204,6 +287,14 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                       ),
                   ],
                 ),
+                trailing: _selecting
+                    ? Checkbox(
+                        key: ValueKey('inbox-check-${chat['id']}'),
+                        value: _selected.contains(chat['id']),
+                        activeColor: AppColors.primary,
+                        onChanged: (_) => _toggleSelected(chat['id'] as String),
+                      )
+                    : null,
                 title: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -232,6 +323,10 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                       fontWeight: isUnread ? FontWeight.w500 : FontWeight.normal),
                 ),
                 onTap: () {
+                  if (_selecting) {
+                    _toggleSelected(chat['id'] as String);
+                    return;
+                  }
                   Navigator.push(
                     context,
                     MaterialPageRoute(

@@ -57,6 +57,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> with FieldErr
   }
 
   Future<void> _saveProfile() async {
+    clearFieldErrors();
     final name = nameController.text.trim();
     if (name.isEmpty) {
       showFieldError('name', 'กรุณากรอกชื่อผู้ใช้ / ชื่อเล่น');

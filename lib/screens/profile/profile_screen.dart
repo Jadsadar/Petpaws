@@ -83,7 +83,7 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
         GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () => showFieldError(
-              key, 'กดปุ่ม "แก้ไขข้อมูล" ด้านล่างก่อน จึงจะเปลี่ยนข้อมูลได้'),
+              key, 'กดปุ่ม "แก้ไขข้อมูล" ด้านบนก่อน จึงจะเปลี่ยนข้อมูลได้'),
           child: AbsorbPointer(child: child),
         ),
         InlineError(fieldError(key)),
@@ -103,6 +103,7 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
   }
 
   Future<void> saveProfileData() async {
+    clearFieldErrors();
     setState(() => _isSaving = true);
     try {
       final updated = await UsersService.instance.updateMe({
@@ -130,6 +131,7 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
   }
 
   void startEditing() {
+    clearFieldErrors();
     setState(() {
       _isEditing = true;
     });
@@ -315,6 +317,35 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
               backgroundColor: AppColors.primarySoft,
               side: BorderSide.none,
             ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _isSaving
+                    ? null
+                    : (_isEditing ? saveProfileData : startEditing),
+                icon: _isSaving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2.5),
+                      )
+                    : Icon(_isEditing ? Icons.save : Icons.edit),
+                label: Text(_isEditing ? 'บันทึกข้อมูล' : 'แก้ไขข้อมูล',
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.onPrimary,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30)),
+                  elevation: 2,
+                ),
+              ),
+            ),
+            InlineError(fieldError('submit')),
 
             // ===== แบนเนอร์แชทรอการตอบกลับ =====
             StreamBuilder<int>(
@@ -430,19 +461,19 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
             SectionCard(
               title: 'ข้อมูลสถานที่',
               children: [
-              _lockedHint(ProvinceField(
+              ProvinceField(
                 value: currentProvince,
                 labelText: 'จังหวัดที่อยู่ปัจจุบัน',
                 enabled: _isEditing,
                 onChanged: (val) => setState(() => currentProvince = val),
-              ), 'province'),
+              ),
               ],
             ),
             const SizedBox(height: 16),
             SectionCard(
               title: 'ข้อมูลเสริมคัดกรองผู้เลี้ยง',
               children: [
-              _lockedHint(DropdownButtonFormField<String>(
+              DropdownButtonFormField<String>(
                 value: currentHomeType,
                 disabledHint: Text(currentHomeType),
                 decoration: InputDecoration(
@@ -455,38 +486,9 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
                 onChanged: _isEditing
                     ? (val) => setState(() => currentHomeType = val!)
                     : null,
-              ), 'homeType'),
+              ),
               ],
             ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _isSaving
-                    ? null
-                    : (_isEditing ? saveProfileData : startEditing),
-                icon: _isSaving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2.5),
-                      )
-                    : Icon(_isEditing ? Icons.save : Icons.edit),
-                label: Text(_isEditing ? 'บันทึกข้อมูล' : 'แก้ไขข้อมูล',
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.onPrimary,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30)),
-                  elevation: 2,
-                ),
-              ),
-            ),
-            InlineError(fieldError('submit')),
           ],
         ),
       ),

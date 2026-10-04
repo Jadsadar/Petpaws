@@ -25,6 +25,7 @@ class _RegisterScreenState extends State<RegisterScreen> with FieldErrors {
   bool _obscureConfirmPassword = true;
 
   Future<void> handleRegister() async {
+    clearFieldErrors();
     final username = usernameController.text.trim();
     if (username.isEmpty ||
         emailController.text.isEmpty ||
