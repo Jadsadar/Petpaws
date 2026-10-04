@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
@@ -33,12 +31,11 @@ class InlineError extends StatelessWidget {
   }
 }
 
-/// เก็บข้อความเตือนรายช่องของหน้า แสดงค้าง [AppTheme.snackDuration] แล้วหายเอง
+/// เก็บข้อความเตือนรายช่องของหน้า แสดงค้างจนกว่าจะแก้ไขแล้วกดส่งใหม่ (ไม่หายเอง)
 /// ใช้: showFieldError('name', 'กรุณา...') แล้ววาง InlineError(fieldError('name')) ใต้ช่อง
 /// หรือ InputDecoration(error: fieldErrorWidget('name')) ในช่องกรอก (ขอบช่องเป็นสีแดงด้วย)
 mixin FieldErrors<T extends StatefulWidget> on State<T> {
   final Map<String, String> _fieldErrors = {};
-  Timer? _fieldErrorTimer;
 
   String? fieldError(String key) => _fieldErrors[key];
 
@@ -49,24 +46,16 @@ mixin FieldErrors<T extends StatefulWidget> on State<T> {
   }
 
   void showFieldError(String key, String message) {
-    _fieldErrorTimer?.cancel();
     setState(() {
       _fieldErrors
         ..clear()
         ..[key] = message;
     });
-    _fieldErrorTimer = Timer(AppTheme.snackDuration, clearFieldErrors);
   }
 
   void clearFieldErrors() {
-    _fieldErrorTimer?.cancel();
     if (!mounted || _fieldErrors.isEmpty) return;
     setState(_fieldErrors.clear);
   }
 
-  @override
-  void dispose() {
-    _fieldErrorTimer?.cancel();
-    super.dispose();
-  }
 }

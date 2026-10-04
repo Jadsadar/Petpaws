@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../../services/auth_service.dart';
@@ -19,22 +17,18 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
 
-  // ข้อผิดพลาดแสดงใต้ช่องกรอก (แทนแจ้งเตือนเด้ง) ค้าง 1.5 วินาที หรือจนกว่าจะพิมพ์ใหม่
+  // ข้อผิดพลาดแสดงใต้ช่องกรอก (แทนแจ้งเตือนเด้ง) ค้างจนกว่าจะพิมพ์ใหม่หรือกดเข้าสู่ระบบอีกครั้ง
   String? _identifierError;
   String? _passwordError;
-  Timer? _errorTimer;
 
   void _showFieldError({String? identifier, String? password}) {
-    _errorTimer?.cancel();
     setState(() {
       _identifierError = identifier;
       _passwordError = password;
     });
-    _errorTimer = Timer(AppTheme.snackDuration, _clearFieldErrors);
   }
 
   void _clearFieldErrors() {
-    _errorTimer?.cancel();
     if (!mounted || (_identifierError == null && _passwordError == null)) return;
     setState(() {
       _identifierError = null;
@@ -96,7 +90,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _errorTimer?.cancel();
     identifierController.dispose();
     passwordController.dispose();
     super.dispose();

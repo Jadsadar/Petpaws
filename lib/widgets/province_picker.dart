@@ -167,11 +167,13 @@ class ProvinceField extends StatelessWidget {
       borderRadius: BorderRadius.circular(AppRadius.card),
       child: InputDecorator(
         decoration: InputDecoration(
+          enabled: enabled,
           labelText: labelText,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
           suffixIcon: const Icon(Icons.arrow_drop_down),
         ),
-        child: Text(value),
+        child: Text(value,
+            style: enabled ? null : TextStyle(color: Theme.of(context).disabledColor)),
       ),
     );
   }

@@ -117,6 +117,7 @@ class _UploadScreenState extends State<UploadScreen> with FieldErrors {
       });
 
   Future<void> submitForm() async {
+    clearFieldErrors();
     final age = _composeAge();
     if (nameController.text.trim().isEmpty || age.isEmpty) {
       showFieldError(nameController.text.trim().isEmpty ? 'name' : 'age',
@@ -412,8 +413,16 @@ class _UploadScreenState extends State<UploadScreen> with FieldErrors {
                     color: AppColors.textDark))),
             const SizedBox(height: 12),
             widget.myPostedDogs.isEmpty
-                ? const TextPanel(pill: false, child: Text('คุณยังไม่ได้ลงประกาศสัตว์เลี้ยง',
-                    style: TextStyle(color: Colors.grey)))
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: Text('คุณยังไม่ได้ลงประกาศสัตว์เลี้ยง',
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textDark)),
+                    ),
+                  )
                 : ListView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -479,7 +488,28 @@ class _UploadScreenState extends State<UploadScreen> with FieldErrors {
                                       IconButton(
                                         icon: const Icon(Icons.delete_outline,
                                             color: AppColors.danger),
-                                        onPressed: () {
+                                        onPressed: () async {
+                                          final ok = await showDialog<bool>(
+                                            context: context,
+                                            builder: (ctx) => AlertDialog(
+                                              title: const Text('ลบประกาศ'),
+                                              content: Text(
+                                                  'ต้องการลบประกาศ "${dog['name']}" ใช่หรือไม่?\n\nลบแล้วกู้คืนไม่ได้'),
+                                              actions: [
+                                                TextButton(
+                                                    onPressed: () =>
+                                                        Navigator.pop(ctx, false),
+                                                    child: const Text('ยกเลิก')),
+                                                TextButton(
+                                                    onPressed: () =>
+                                                        Navigator.pop(ctx, true),
+                                                    child: const Text('ลบ',
+                                                        style: TextStyle(
+                                                            color: AppColors.danger))),
+                                              ],
+                                            ),
+                                          );
+                                          if (ok != true || !context.mounted) return;
                                           widget.onDeleteDog(dog);
                                           ScaffoldMessenger.of(context)
                                               .showSnackBar(const SnackBar(

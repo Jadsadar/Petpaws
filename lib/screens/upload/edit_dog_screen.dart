@@ -68,6 +68,7 @@ class _EditDogScreenState extends State<EditDogScreen> with FieldErrors {
       });
 
   Future<void> saveChanges() async {
+    clearFieldErrors();
     if (nameController.text.isEmpty || ageController.text.isEmpty) {
       showFieldError(nameController.text.isEmpty ? 'name' : 'age', 'กรุณากรอกชื่อและอายุ');
       return;

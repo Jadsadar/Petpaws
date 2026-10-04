@@ -29,6 +29,7 @@ class ApiClient {
   /// คำขอที่เซิร์ฟเวอร์ไม่ตอบเกินเวลานี้ถือว่าล้มเหลว (TimeoutException) — ไม่งั้น http ค้างรอไม่รู้จบ
   /// แล้วหน้าจอหมุนโหลดตลอดไปโดยผู้ใช้ไม่รู้ว่าเกิดอะไรขึ้น
   static const Duration requestTimeout = Duration(seconds: 20);
+  static const Duration uploadTimeout = Duration(seconds: 60);
 
   /// เรียกตอน logout หรือ refresh ล้มเหลว ให้ AuthService ไปแจ้ง UI ต่อ
   void Function()? onSessionExpired;
@@ -112,8 +113,9 @@ class ApiClient {
             filename: filename,
             contentType: _parseContentType(contentType),
           ));
-        final streamed = await request.send();
-        final res = await http.Response.fromStream(streamed);
+        // รูปมีขนาดใหญ่กว่าคำขอทั่วไป จึงให้เวลานานกว่า แต่ต้องมีเพดาน ไม่งั้นหมุนค้างไม่รู้จบ
+        final streamed = await request.send().timeout(uploadTimeout);
+        final res = await http.Response.fromStream(streamed).timeout(uploadTimeout);
         return _decode(res);
       }, true);
 

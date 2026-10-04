@@ -65,8 +65,9 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
         ..['email'] = profile['email'];
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(duration: AppTheme.snackDuration, content: Text('โหลดโปรไฟล์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          duration: AppTheme.snackDuration,
+          content: Text('โหลดโปรไฟล์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -83,7 +84,7 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
         GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () => showFieldError(
-              key, 'กดปุ่ม "แก้ไขข้อมูล" ด้านล่างก่อน จึงจะเปลี่ยนข้อมูลได้'),
+              key, 'กดปุ่ม "แก้ไขข้อมูล" ด้านบนก่อน จึงจะเปลี่ยนข้อมูลได้'),
           child: AbsorbPointer(child: child),
         ),
         InlineError(fieldError(key)),
@@ -103,6 +104,7 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
   }
 
   Future<void> saveProfileData() async {
+    clearFieldErrors();
     setState(() => _isSaving = true);
     try {
       final updated = await UsersService.instance.updateMe({
@@ -118,8 +120,10 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
         _profile = updated;
         _isEditing = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(shape: AppTheme.snackSuccessShape, 
-          content: Text('บันทึกข้อมูลโปรไฟล์เรียบร้อยแล้ว!', style: AppTheme.snackSuccessText),
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          shape: AppTheme.snackSuccessShape,
+          content: Text('บันทึกข้อมูลโปรไฟล์เรียบร้อยแล้ว!',
+              style: AppTheme.snackSuccessText),
           duration: Duration(seconds: 2)));
     } catch (_) {
       if (!mounted) return;
@@ -130,6 +134,7 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
   }
 
   void startEditing() {
+    clearFieldErrors();
     setState(() {
       _isEditing = true;
     });
@@ -144,16 +149,20 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
     if (file == null) return;
     final bytes = await file.readAsBytes();
     try {
-      final url = await AuthService.instance
-          .uploadProfileImage(bytes, contentType: file.mimeType ?? 'image/jpeg');
+      final url = await AuthService.instance.uploadProfileImage(bytes,
+          contentType: file.mimeType ?? 'image/jpeg');
       if (!mounted) return;
       setState(() => _profile['profileImageUrl'] = url);
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(shape: AppTheme.snackSuccessShape, duration: AppTheme.snackDuration, content: Text('อัปเดตรูปโปรไฟล์แล้ว', style: AppTheme.snackSuccessText)));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          shape: AppTheme.snackSuccessShape,
+          duration: AppTheme.snackDuration,
+          content:
+              Text('อัปเดตรูปโปรไฟล์แล้ว', style: AppTheme.snackSuccessText)));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(duration: AppTheme.snackDuration, content: Text('อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          duration: AppTheme.snackDuration,
+          content: Text('อัปโหลดรูปไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
     }
   }
 
@@ -315,6 +324,35 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
               backgroundColor: AppColors.primarySoft,
               side: BorderSide.none,
             ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _isSaving
+                    ? null
+                    : (_isEditing ? saveProfileData : startEditing),
+                icon: _isSaving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2.5),
+                      )
+                    : Icon(_isEditing ? Icons.save : Icons.edit),
+                label: Text(_isEditing ? 'บันทึกข้อมูล' : 'แก้ไขข้อมูล',
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.onPrimary,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30)),
+                  elevation: 2,
+                ),
+              ),
+            ),
+            InlineError(fieldError('submit')),
 
             // ===== แบนเนอร์แชทรอการตอบกลับ =====
             StreamBuilder<int>(
@@ -382,111 +420,88 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
             SectionCard(
               title: 'ไลฟ์สไตล์ / นิสัยของคุณ',
               children: [
-              _lockedHint(TagSelector(
-                selectedIds: selectedTraitIds,
-                onToggle: toggleTrait,
-                enabled: _isEditing,
-                backgroundColor: AppColors.background,
-              ), 'traits'),
+                _lockedHint(
+                    TagSelector(
+                      selectedIds: selectedTraitIds,
+                      onToggle: toggleTrait,
+                      enabled: _isEditing,
+                      backgroundColor: AppColors.background,
+                    ),
+                    'traits'),
               ],
             ),
             const SizedBox(height: 16),
             SectionCard(
               title: 'ข้อมูลการติดต่อ',
               children: [
-              TextField(
-                controller: phoneController,
-                enabled: _isEditing,
-                keyboardType: TextInputType.phone,
-                decoration: InputDecoration(
-                    labelText: 'เบอร์โทรศัพท์',
-                    prefixIcon: const Icon(Icons.phone),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.card))),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: lineController,
-                enabled: _isEditing,
-                decoration: InputDecoration(
-                    labelText: 'LINE ID',
-                    prefixIcon: const Icon(Icons.chat_bubble_outline),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.card))),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: fbController,
-                enabled: _isEditing,
-                decoration: InputDecoration(
-                    labelText: 'ชื่อ Facebook',
-                    prefixIcon: const Icon(Icons.facebook),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.card))),
-              ),
+                TextField(
+                  controller: phoneController,
+                  enabled: _isEditing,
+                  keyboardType: TextInputType.phone,
+                  decoration: InputDecoration(
+                      labelText: 'เบอร์โทรศัพท์',
+                      prefixIcon: const Icon(Icons.phone),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.card))),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: lineController,
+                  enabled: _isEditing,
+                  decoration: InputDecoration(
+                      labelText: 'LINE ID',
+                      prefixIcon: const Icon(Icons.chat_bubble_outline),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.card))),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: fbController,
+                  enabled: _isEditing,
+                  decoration: InputDecoration(
+                      labelText: 'ชื่อ Facebook',
+                      prefixIcon: const Icon(Icons.facebook),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.card))),
+                ),
               ],
             ),
             const SizedBox(height: 16),
             SectionCard(
               title: 'ข้อมูลสถานที่',
               children: [
-              _lockedHint(ProvinceField(
-                value: currentProvince,
-                labelText: 'จังหวัดที่อยู่ปัจจุบัน',
-                enabled: _isEditing,
-                onChanged: (val) => setState(() => currentProvince = val),
-              ), 'province'),
+                ProvinceField(
+                  value: currentProvince,
+                  labelText: 'จังหวัดที่อยู่ปัจจุบัน',
+                  enabled: _isEditing,
+                  onChanged: (val) => setState(() => currentProvince = val),
+                ),
               ],
             ),
             const SizedBox(height: 16),
             SectionCard(
               title: 'ข้อมูลเสริมคัดกรองผู้เลี้ยง',
               children: [
-              _lockedHint(DropdownButtonFormField<String>(
-                value: currentHomeType,
-                disabledHint: Text(currentHomeType),
-                decoration: InputDecoration(
-                    labelText: 'ประเภทที่พักอาศัย',
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.card))),
-                items: homeTypes
-                    .map((h) => DropdownMenuItem(value: h, child: Text(h)))
-                    .toList(),
-                onChanged: _isEditing
-                    ? (val) => setState(() => currentHomeType = val!)
-                    : null,
-              ), 'homeType'),
+                IgnorePointer(
+                    ignoring: !_isEditing,
+                    child: DropdownButtonFormField<String>(
+                      value: currentHomeType,
+                      disabledHint: Text(currentHomeType),
+                      decoration: InputDecoration(
+                          labelText: 'ประเภทที่พักอาศัย',
+                          border: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.card))),
+                      items: homeTypes
+                          .map(
+                              (h) => DropdownMenuItem(value: h, child: Text(h)))
+                          .toList(),
+                      onChanged: _isEditing
+                          ? (val) => setState(() => currentHomeType = val!)
+                          : null,
+                    )),
               ],
             ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _isSaving
-                    ? null
-                    : (_isEditing ? saveProfileData : startEditing),
-                icon: _isSaving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2.5),
-                      )
-                    : Icon(_isEditing ? Icons.save : Icons.edit),
-                label: Text(_isEditing ? 'บันทึกข้อมูล' : 'แก้ไขข้อมูล',
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.onPrimary,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30)),
-                  elevation: 2,
-                ),
-              ),
-            ),
-            InlineError(fieldError('submit')),
           ],
         ),
       ),
