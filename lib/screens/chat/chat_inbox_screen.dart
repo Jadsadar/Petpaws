@@ -148,13 +148,13 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
         title: _selecting
             ? Text('เลือกแล้ว ${_selected.length} แชท',
                 style: const TextStyle(
-                    fontWeight: FontWeight.bold, color: AppColors.textDark, fontSize: 18))
+                    fontWeight: FontWeight.bold, color: AppColors.textDark, fontSize: 22))
             : Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('กล่องข้อความ',
                 style: TextStyle(
-                    fontWeight: FontWeight.bold, color: AppColors.textDark, fontSize: 18)),
+                    fontWeight: FontWeight.bold, color: AppColors.textDark, fontSize: 22)),
             if (widget.dogName != null)
               Text('สัตว์เลี้ยง: ${widget.dogName}',
                   style: const TextStyle(
