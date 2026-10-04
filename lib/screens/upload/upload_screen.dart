@@ -216,6 +216,37 @@ class _UploadScreenState extends State<UploadScreen> with FieldErrors {
     }
   }
 
+  /// สถานะที่เลือกเองได้ — ยกเลิกประกาศทำที่ปุ่มถังขยะ (ลบประกาศ) ไม่ใช่ที่นี่
+  static const List<String> _statusOptions = ['ยังไม่ถูกรับเลี้ยง', 'ถูกรับเลี้ยงแล้ว'];
+
+  Future<void> _changeStatus(Map<String, dynamic> dog, String newStatus) async {
+    if (newStatus == (dog['status'] ?? 'ยังไม่ถูกรับเลี้ยง')) return;
+    if (newStatus == 'ถูกรับเลี้ยงแล้ว') {
+      // เปลี่ยนแล้วห้องแชทของประกาศนี้ถูกปิดทุกห้องและส่งข้อความแจ้งผู้สนใจ — ย้อนกลับไม่ได้
+      // จึงถามยืนยันก่อน กันกดพลาด
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('ยืนยันการเปลี่ยนสถานะ'),
+          content: Text('เปลี่ยน "${dog['name']}" เป็น "ถูกรับเลี้ยงแล้ว" ใช่หรือไม่?\n\n'
+              'ห้องแชทของประกาศนี้จะถูกปิดและแจ้งผู้สนใจทุกคน และเปิดกลับไม่ได้'),
+          actions: [
+            TextButton(
+                key: const ValueKey('status-cancel'),
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('ยกเลิก')),
+            TextButton(
+                key: const ValueKey('status-confirm'),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('ยืนยัน')),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
+    }
+    widget.onChangeStatus(dog, newStatus);
+  }
+
   Color _getStatusColor(String status) {
     if (status == 'ถูกรับเลี้ยงแล้ว') return AppColors.success;
     if (status == 'ยกเลิกประกาศ') return AppColors.danger;
@@ -480,7 +511,16 @@ class _UploadScreenState extends State<UploadScreen> with FieldErrors {
                                         borderRadius: BorderRadius.circular(AppRadius.card),
                                       ),
                                       child: DropdownButton<String>(
-                                        value: currentStatus,
+                                        key: ValueKey('status-${dog['id']}'),
+                                        // ประกาศเก่าที่เคยตั้ง "ยกเลิกประกาศ" ไม่อยู่ในตัวเลือกแล้ว
+                                        // value ต้องเป็น null เพื่อไม่ให้ dropdown assert (โชว์ hint แทน)
+                                        value: _statusOptions.contains(currentStatus)
+                                            ? currentStatus
+                                            : null,
+                                        hint: Text(currentStatus,
+                                            style: TextStyle(
+                                                color: _getStatusColor(currentStatus),
+                                                fontWeight: FontWeight.bold)),
                                         focusColor: Colors.transparent,
                                         dropdownColor: Colors.white,
                                         borderRadius: BorderRadius.circular(16),
@@ -493,11 +533,7 @@ class _UploadScreenState extends State<UploadScreen> with FieldErrors {
                                           fontWeight: FontWeight.bold,
                                           fontFamily: 'Sarabun',
                                         ),
-                                        items: [
-                                          'ยังไม่ถูกรับเลี้ยง',
-                                          'ถูกรับเลี้ยงแล้ว',
-                                          'ยกเลิกประกาศ'
-                                        ]
+                                        items: _statusOptions
                                             .map((statusText) =>
                                                 DropdownMenuItem(
                                                     value: statusText,
@@ -505,8 +541,7 @@ class _UploadScreenState extends State<UploadScreen> with FieldErrors {
                                             .toList(),
                                         onChanged: (newValue) {
                                           if (newValue != null) {
-                                            widget.onChangeStatus(
-                                                dog, newValue);
+                                            _changeStatus(dog, newValue);
                                           }
                                         },
                                       ),
