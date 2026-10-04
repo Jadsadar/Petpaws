@@ -35,8 +35,7 @@ class PetPawsApp extends StatelessWidget {
             textScaler: TextScaler.linear(
                 mq.textScaler.scale(1) * AppTheme.textScale),
           ),
-          // แจ้งเตือน (SnackBar) เด้งกลางจอ ไม่ใช่ขอบล่าง: ดันขึ้นด้วย insetPadding
-          // ตามความสูงจอ และจำกัดความกว้างไม่เกิน 480 บนจอกว้าง
+          // แจ้งเตือน (SnackBar) อยู่ด้านล่าง ความกว้างไม่เกิน 480 บนจอกว้าง
           child: Builder(builder: (context) {
             final size = MediaQuery.sizeOf(context);
             final side = size.width > 528 ? (size.width - 480) / 2 : 24.0;
@@ -45,7 +44,7 @@ class PetPawsApp extends StatelessWidget {
               data: theme.copyWith(
                 snackBarTheme: theme.snackBarTheme.copyWith(
                   insetPadding:
-                      EdgeInsets.fromLTRB(side, 0, side, size.height * 0.4),
+                      EdgeInsets.fromLTRB(side, 0, side, 16),
                 ),
               ),
               child: AppBackground(child: child!),

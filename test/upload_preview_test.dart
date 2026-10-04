@@ -42,7 +42,7 @@ Future<bool?> _open(WidgetTester tester, String tapKey) async {
   await tester.tap(find.text('เปิด'));
   await tester.pumpAndSettle();
   expect(find.text('มะม่วง'), findsOneWidget);
-  expect(find.text('เต่า'), findsOneWidget, reason: 'ชนิด "อื่นๆ" แสดงข้อความที่ระบุ');
+  expect(find.text('เต่า'), findsOneWidget, reason: 'ชนิด "อื่น ๆ" แสดงข้อความที่ระบุ');
   expect(find.text('สายชิล'), findsOneWidget);
   expect(find.text('รอบ้านใหม่'), findsOneWidget);
   await tester.tap(find.byKey(ValueKey(tapKey)));

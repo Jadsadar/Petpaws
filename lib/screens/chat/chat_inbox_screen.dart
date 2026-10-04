@@ -155,13 +155,16 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.chat_bubble_outline, size: 64, color: Colors.black12),
+                  Icon(Icons.chat_bubble_outline, size: 64, color: AppColors.mocha),
                   SizedBox(height: 16),
-                  TextPanel(center: true, child: Text('ยังไม่มีคนทักมาเลย',
-                      style: TextStyle(fontSize: 16, color: Colors.grey))),
+                  Text('ยังไม่มีคนทักมาเลย',
+                      style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textDark)),
                   SizedBox(height: 8),
-                  TextPanel(center: true, child: Text('แชร์โพสต์เพื่อให้คนรู้จักสัตว์เลี้ยงของคุณมากขึ้น',
-                      style: TextStyle(fontSize: 13, color: Colors.black38))),
+                  Text('แชร์โพสต์เพื่อให้คนรู้จักสัตว์เลี้ยงของคุณมากขึ้น',
+                      style: TextStyle(fontSize: 14, color: AppColors.brown)),
                 ],
               ),
             );

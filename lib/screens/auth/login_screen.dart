@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../services/auth_service.dart';
@@ -17,6 +19,45 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
 
+  // ข้อผิดพลาดแสดงใต้ช่องกรอก (แทนแจ้งเตือนเด้ง) ค้าง 1.5 วินาที หรือจนกว่าจะพิมพ์ใหม่
+  String? _identifierError;
+  String? _passwordError;
+  Timer? _errorTimer;
+
+  void _showFieldError({String? identifier, String? password}) {
+    _errorTimer?.cancel();
+    setState(() {
+      _identifierError = identifier;
+      _passwordError = password;
+    });
+    _errorTimer = Timer(AppTheme.snackDuration, _clearFieldErrors);
+  }
+
+  void _clearFieldErrors() {
+    _errorTimer?.cancel();
+    if (!mounted || (_identifierError == null && _passwordError == null)) return;
+    setState(() {
+      _identifierError = null;
+      _passwordError = null;
+    });
+  }
+
+  /// ข้อความ error ใต้ช่อง: ไอคอน ! + ตัวอักษรสีแดงอิฐ ไม่มีกรอบ
+  Widget? _fieldError(String? message) {
+    if (message == null) return null;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.error_outline, size: 18, color: AppColors.danger),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(message,
+              style: const TextStyle(fontSize: 14, color: AppColors.danger)),
+        ),
+      ],
+    );
+  }
+
   Future<void> _goToRegister() async {
     final registered = await Navigator.push<bool>(
       context,
@@ -24,7 +65,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
     if (registered == true && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(duration: AppTheme.snackDuration, content: Text('สมัครสมาชิกสำเร็จ กรุณาเข้าสู่ระบบ')));
+          const SnackBar(shape: AppTheme.snackSuccessShape, duration: AppTheme.snackDuration, content: Text('สมัครสมาชิกสำเร็จ กรุณาเข้าสู่ระบบ', style: AppTheme.snackSuccessText)));
     }
   }
 
@@ -32,8 +73,11 @@ class _LoginScreenState extends State<LoginScreen> {
     final identifier = identifierController.text.trim();
     final password = passwordController.text;
     if (identifier.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(duration: AppTheme.snackDuration, content: Text('กรุณากรอกอีเมล/ชื่อผู้ใช้ และรหัสผ่าน')));
+      const msg = 'กรุณากรอกอีเมล/ชื่อผู้ใช้ และรหัสผ่าน';
+      _showFieldError(
+        identifier: identifier.isEmpty ? msg : null,
+        password: identifier.isEmpty ? null : msg,
+      );
       return;
     }
 
@@ -44,8 +88,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // AuthGate จะสลับหน้าไปยัง MainScreen ให้อัตโนมัติเมื่อสถานะล็อกอินเปลี่ยน
     } on AuthFailure catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(duration: AppTheme.snackDuration, content: Text(e.message)));
+      _showFieldError(password: e.message);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -53,6 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    _errorTimer?.cancel();
     identifierController.dispose();
     passwordController.dispose();
     super.dispose();
@@ -60,7 +104,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    // หน้าเข้าสู่ระบบใช้พื้นหลังลายสัตว์ หน้าอื่นใช้ภาพมือจับอุ้งเท้า
+    return AppBackground(
+      bg: AppBg.login,
+      child: Scaffold(
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(32.0),
@@ -75,6 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const Text(
                 'PetPaws',
                 style: TextStyle(
+                    fontFamily: AppTheme.logoFont,
                     fontSize: 40,
                     fontWeight: FontWeight.bold,
                     color: AppColors.primary,
@@ -90,9 +138,11 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 48),
               TextField(
                 controller: identifierController,
+                onChanged: (_) => _clearFieldErrors(),
                 enabled: !_isLoading,
                 textInputAction: TextInputAction.next,
                 decoration: InputDecoration(
+                  error: _fieldError(_identifierError),
                   labelText: 'อีเมล หรือ ชื่อผู้ใช้',
                   prefixIcon:
                       const Icon(Icons.person, color: AppColors.primarySoft),
@@ -106,6 +156,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 16),
               TextField(
                 controller: passwordController,
+                onChanged: (_) => _clearFieldErrors(),
                 obscureText: _obscurePassword,
                 enabled: !_isLoading,
                 textInputAction: TextInputAction.done,
@@ -113,6 +164,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   if (!_isLoading) login();
                 },
                 decoration: InputDecoration(
+                  error: _fieldError(_passwordError),
                   labelText: 'รหัสผ่าน',
                   prefixIcon:
                       const Icon(Icons.lock, color: AppColors.primarySoft),
@@ -186,6 +238,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 }

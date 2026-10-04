@@ -5,6 +5,7 @@ import '../../services/auth_service.dart';
 import '../../utils/password_policy.dart';
 import '../../widgets/password_checklist.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/field_error.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -13,7 +14,7 @@ class RegisterScreen extends StatefulWidget {
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends State<RegisterScreen> with FieldErrors {
   final TextEditingController usernameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
@@ -28,13 +29,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (username.isEmpty ||
         emailController.text.isEmpty ||
         passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(duration: AppTheme.snackDuration, content: Text('กรุณากรอกข้อมูลให้ครบถ้วน')));
+      showFieldError(
+          username.isEmpty
+              ? 'username'
+              : (emailController.text.isEmpty ? 'email' : 'password'),
+          'กรุณากรอกข้อมูลให้ครบถ้วน');
       return;
     }
     if (username.contains('@') || username.contains(' ')) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(duration: AppTheme.snackDuration, 
-          content: Text('ชื่อผู้ใช้ห้ามมีเว้นวรรคหรือเครื่องหมาย @')));
+      showFieldError('username', 'ชื่อผู้ใช้ห้ามมีเว้นวรรคหรือเครื่องหมาย @');
       return;
     }
     final passwordError = PasswordPolicy.firstError(
@@ -43,13 +46,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
       email: emailController.text,
     );
     if (passwordError != null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(duration: AppTheme.snackDuration, content: Text(passwordError)));
+      showFieldError('password', passwordError);
       return;
     }
     if (passwordController.text != confirmPasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(duration: AppTheme.snackDuration, content: Text('รหัสผ่านไม่ตรงกัน')));
+      showFieldError('confirm', 'รหัสผ่านไม่ตรงกัน');
       return;
     }
 
@@ -66,8 +67,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       Navigator.pop(context, true);
     } on AuthFailure catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(duration: AppTheme.snackDuration, content: Text(e.message)));
+      showFieldError('submit', e.message);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -107,6 +107,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     enabled: !_isLoading,
                     decoration: InputDecoration(
                         labelText: 'Username (สำหรับใช้ล็อกอิน) *',
+                        error: fieldErrorWidget('username'),
                         helper: const Text('ห้ามเว้นวรรค ใช้ล็อกอินแทนอีเมลได้',
                             style: TextStyle(
                                 fontSize: 13, color: AppColors.textDark)),
@@ -119,6 +120,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
                         labelText: 'อีเมล *',
+                        error: fieldErrorWidget('email'),
                         border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(AppRadius.card)))),
                 const SizedBox(height: 16),
@@ -129,6 +131,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     onChanged: (_) => setState(() {}),
                     decoration: InputDecoration(
                         labelText: 'รหัสผ่าน *',
+                        error: fieldErrorWidget('password'),
                         suffixIcon: IconButton(
                           icon: Icon(_obscurePassword
                               ? Icons.visibility_off
@@ -154,6 +157,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     },
                     decoration: InputDecoration(
                         labelText: 'ยืนยันรหัสผ่าน *',
+                        error: fieldErrorWidget('confirm'),
                         suffixIcon: IconButton(
                           icon: Icon(_obscureConfirmPassword
                               ? Icons.visibility_off
@@ -187,6 +191,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       style: TextStyle(
                           fontSize: 18, fontWeight: FontWeight.bold)),
             ),
+            InlineError(fieldError('submit')),
           ],
         ),
       ),

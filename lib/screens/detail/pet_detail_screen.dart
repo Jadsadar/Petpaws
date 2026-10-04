@@ -9,6 +9,7 @@ import '../profile/user_profile_screen.dart';
 import '../chat/chat_inbox_screen.dart';
 import '../chat/chat_screen.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/animated_heart_button.dart';
 
 class PetDetailScreen extends StatefulWidget {
   final Map<String, dynamic> dog;
@@ -68,17 +69,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     setState(() {
       _isFavorited = !_isFavorited;
     });
+    // ไม่มีแจ้งเตือนแล้ว ปุ่มหัวใจมีแอนิเมชันบอกผลแทน
     widget.onToggleFavorite?.call();
-
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(_isFavorited
-            ? 'บันทึกเป็นสัตว์เลี้ยงที่ถูกใจแล้ว'
-            : 'เลิกถูกใจสัตว์เลี้ยงแล้ว'),
-        duration: const Duration(seconds: 1),
-      ),
-    );
   }
 
   @override
@@ -220,27 +212,9 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                     Row(
                       children: [
                         // ปุ่ม สนใจ (Favorite)
-                        Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                                color: AppColors.primary, width: 2),
-                            shape: BoxShape.circle,
-                            color: _isFavorited
-                                ? AppColors.primary.withOpacity(0.1)
-                                : Colors.white,
-                          ),
-                          child: IconButton(
-                            iconSize: 32,
-                            icon: Icon(
-                              _isFavorited
-                                  ? Icons.favorite
-                                  : Icons.favorite_border,
-                              color: _isFavorited
-                                  ? AppColors.danger
-                                  : AppColors.primary,
-                            ),
-                            onPressed: _handleToggleFavorite,
-                          ),
+                        AnimatedHeartButton(
+                          isFavorited: _isFavorited,
+                          onPressed: _handleToggleFavorite,
                         ),
                         const SizedBox(width: 16),
                         // ปุ่ม ทักแชท

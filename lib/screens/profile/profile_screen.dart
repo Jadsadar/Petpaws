@@ -10,6 +10,7 @@ import '../../widgets/province_picker.dart';
 import '../../widgets/tag_selector.dart';
 import '../chat/chat_inbox_screen.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/field_error.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -18,7 +19,7 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
   bool _isEditing = false;
   bool _isLoading = true;
   bool _isSaving = false;
@@ -73,17 +74,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   /// ตอนยังไม่กดแก้ไข ช่องพวกนี้จะกดไม่ได้ ถ้าผู้ใช้แตะจะนึกว่าแอปค้าง
   /// เลยดักการแตะไว้แล้วบอกให้กดปุ่มแก้ไขก่อน
-  Widget _lockedHint(Widget child) {
+  Widget _lockedHint(Widget child, String key) {
     if (_isEditing) return child;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('กดปุ่ม "แก้ไขข้อมูล" ด้านล่างก่อน จึงจะเปลี่ยนข้อมูลได้'),
-          duration: Duration(seconds: 2),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => showFieldError(
+              key, 'กดปุ่ม "แก้ไขข้อมูล" ด้านล่างก่อน จึงจะเปลี่ยนข้อมูลได้'),
+          child: AbsorbPointer(child: child),
         ),
-      ),
-      child: AbsorbPointer(child: child),
+        InlineError(fieldError(key)),
+      ],
     );
   }
 
@@ -114,13 +118,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _profile = updated;
         _isEditing = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('บันทึกข้อมูลโปรไฟล์เรียบร้อยแล้ว!'),
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(shape: AppTheme.snackSuccessShape, 
+          content: Text('บันทึกข้อมูลโปรไฟล์เรียบร้อยแล้ว!', style: AppTheme.snackSuccessText),
           duration: Duration(seconds: 2)));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(duration: AppTheme.snackDuration, 
-          content: Text('บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+      showFieldError('submit', 'บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -146,7 +149,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) return;
       setState(() => _profile['profileImageUrl'] = url);
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(duration: AppTheme.snackDuration, content: Text('อัปเดตรูปโปรไฟล์แล้ว')));
+          const SnackBar(shape: AppTheme.snackSuccessShape, duration: AppTheme.snackDuration, content: Text('อัปเดตรูปโปรไฟล์แล้ว', style: AppTheme.snackSuccessText)));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -384,7 +387,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onToggle: toggleTrait,
                 enabled: _isEditing,
                 backgroundColor: AppColors.background,
-              )),
+              ), 'traits'),
               ],
             ),
             const SizedBox(height: 16),
@@ -432,7 +435,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 labelText: 'จังหวัดที่อยู่ปัจจุบัน',
                 enabled: _isEditing,
                 onChanged: (val) => setState(() => currentProvince = val),
-              )),
+              ), 'province'),
               ],
             ),
             const SizedBox(height: 16),
@@ -452,7 +455,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onChanged: _isEditing
                     ? (val) => setState(() => currentHomeType = val!)
                     : null,
-              )),
+              ), 'homeType'),
               ],
             ),
             const SizedBox(height: 32),
@@ -483,6 +486,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
+            InlineError(fieldError('submit')),
           ],
         ),
       ),
