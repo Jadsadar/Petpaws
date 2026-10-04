@@ -73,9 +73,10 @@ class AppRadius {
 class AppTheme {
   AppTheme._();
 
-  /// อังกฤษ/ตัวเลขใช้ Titan One ภาษาไทยไม่มีใน Titan One จึงตกไปใช้ Sarabun
-  static const font = 'TitanOne';
-  static const fontFallback = ['Sarabun'];
+  /// ทั้งแอปใช้ Sarabun (ไทย/อังกฤษ/ตัวเลข) — Titan One ใช้เฉพาะโลโก้ PetPaws หน้าเข้าสู่ระบบ
+  static const font = 'Sarabun';
+  static const fontFallback = <String>[];
+  static const logoFont = 'TitanOne';
 
   /// ขอบดำรอบตัวอักษรสีชมพู ใส่ใน TextStyle(shadows: AppTheme.outline)
   static const outline = <Shadow>[
@@ -117,8 +118,19 @@ class AppTheme {
     Shadow(color: AppColors.outline, offset: Offset(0.92, -0.92)),
   ];
 
-  /// แจ้งเตือน (SnackBar) แสดงค้างไว้ 2 วินาที
-  static const snackDuration = Duration(seconds: 2);
+  /// แจ้งเตือน (SnackBar) แสดงค้างไว้ 1.5 วินาที
+  static const snackDuration = Duration(milliseconds: 1500);
+
+  /// ขอบแจ้งเตือน: แดงอิฐ = ผิดพลาด/เตือน (ค่าเริ่มต้น), เขียว = สำเร็จ
+  static const snackErrorShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.all(Radius.circular(14)),
+    side: BorderSide(color: AppColors.danger, width: 1.5),
+  );
+  static const snackSuccessShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.all(Radius.circular(14)),
+    side: BorderSide(color: AppColors.success, width: 1.5),
+  );
+  static const snackSuccessText = TextStyle(color: AppColors.success);
 
   /// ขยายตัวอักษรทั้งแอป (คูณกับขนาดที่ผู้ใช้ตั้งในเครื่องอีกที)
   static const textScale = 1.12;
@@ -159,6 +171,11 @@ class AppTheme {
     );
 
     return base.copyWith(
+      // สีตอนชี้/กด/โฟกัส เป็นชมพูจาง ไม่ให้เป็นแถบเทามืดค้าง (เช่น การ์ดประกาศ, ช่องเลือกสถานะ)
+      hoverColor: AppColors.primaryTint.withValues(alpha: 0.35),
+      focusColor: AppColors.primaryTint.withValues(alpha: 0.45),
+      highlightColor: AppColors.primaryTint.withValues(alpha: 0.4),
+      splashColor: AppColors.primaryTint.withValues(alpha: 0.5),
       textTheme: () {
         final t = base.textTheme.apply(
           fontFamily: font,
@@ -247,6 +264,12 @@ class AppTheme {
         prefixIconColor: AppColors.primary,
         border: pillBorder,
         enabledBorder: pillBorder,
+        errorBorder: pillBorder.copyWith(
+          borderSide: const BorderSide(color: AppColors.danger, width: 1.6),
+        ),
+        focusedErrorBorder: pillBorder.copyWith(
+          borderSide: const BorderSide(color: AppColors.danger, width: 2.2),
+        ),
         focusedBorder: pillBorder.copyWith(
           borderSide: const BorderSide(color: AppColors.brown, width: 2.2),
         ),
@@ -288,15 +311,15 @@ class AppTheme {
               BorderRadius.vertical(top: Radius.circular(AppRadius.card)),
         ),
       ),
-      snackBarTheme: SnackBarThemeData(
+      snackBarTheme: const SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: AppColors.textDark,
-        // แจ้งเตือนใช้ Sarabun ทั้งข้อความ (ตัวเลข/อังกฤษไม่เป็น Titan) อ่านง่าย
-        contentTextStyle: const TextStyle(
-            fontFamily: 'Sarabun', fontSize: 16, color: Colors.white),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.card / 1.5),
-        ),
+        // แจ้งเตือนแบบกล่องขาวขอบแดงอิฐ เหมือนข้อความ error ใต้ช่องกรอก
+        // (ข้อความสำเร็จใช้ snackSuccessShape + สีเขียวแทน) ฟอนต์ Sarabun ทั้งข้อความ
+        backgroundColor: Colors.white,
+        elevation: 3,
+        contentTextStyle: TextStyle(
+            fontFamily: 'Sarabun', fontSize: 15, color: AppColors.danger),
+        shape: snackErrorShape,
       ),
       tooltipTheme: TooltipThemeData(
         textStyle: const TextStyle(
@@ -321,13 +344,17 @@ class AppTheme {
   }
 }
 
-/// พื้นหลังลายอุ้งเท้าใต้ทุกหน้า เลือกภาพตามสัดส่วนจอ:
+/// ชุดภาพพื้นหลัง: login = หน้าเข้าสู่ระบบ (แมว/หมา), other = หน้าอื่นทั้งหมด (มือจับอุ้งเท้า)
+enum AppBg { login, other }
+
+/// พื้นหลังใต้หน้าจอ เลือกภาพตามสัดส่วนจอ ([bg] = ชุดภาพ ค่าเริ่มต้น other):
 /// จอสูงกว่ากว้าง (มือถือ) ใช้ bg_mobile, จอกว้าง (คอม/เว็บ) ใช้ bg_web
 /// ขยายเต็มจอแบบ cover — ภาพทำมาตามสัดส่วนจอแต่ละแบบแล้ว จึงโดนตัดขอบน้อย
 class AppBackground extends StatelessWidget {
-  const AppBackground({super.key, required this.child});
+  const AppBackground({super.key, required this.child, this.bg = AppBg.other});
 
   final Widget child;
+  final AppBg bg;
 
   @override
   Widget build(BuildContext context) {
@@ -338,9 +365,8 @@ class AppBackground extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.background,
             image: DecorationImage(
-              image: AssetImage(portrait
-                  ? 'assets/images/bg_mobile.jpg'
-                  : 'assets/images/bg_web.jpg'),
+              image: AssetImage(
+                  'assets/images/bg_${bg == AppBg.other ? '' : '${bg.name}_'}${portrait ? 'mobile' : 'web'}.jpg'),
               fit: BoxFit.cover,
             ),
           ),

@@ -7,6 +7,7 @@ import '../../services/auth_service.dart';
 import '../../widgets/province_picker.dart';
 import '../../widgets/tag_selector.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/field_error.dart';
 
 /// บังคับให้กรอกโปรไฟล์หลังล็อกอินครั้งแรก (บัญชีที่ยังไม่มี displayName)
 /// ไม่มีปุ่มย้อนกลับ เพราะเป็นขั้นตอนบังคับก่อนเข้าใช้งานแอป
@@ -17,7 +18,7 @@ class CreateProfileScreen extends StatefulWidget {
   State<CreateProfileScreen> createState() => _CreateProfileScreenState();
 }
 
-class _CreateProfileScreenState extends State<CreateProfileScreen> {
+class _CreateProfileScreenState extends State<CreateProfileScreen> with FieldErrors {
   final TextEditingController nameController = TextEditingController();
   final TextEditingController phoneController = TextEditingController();
   final TextEditingController lineController = TextEditingController();
@@ -58,20 +59,17 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
   Future<void> _saveProfile() async {
     final name = nameController.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(duration: AppTheme.snackDuration, content: Text('กรุณากรอกชื่อผู้ใช้ / ชื่อเล่น')));
+      showFieldError('name', 'กรุณากรอกชื่อผู้ใช้ / ชื่อเล่น');
       return;
     }
-    // ช่องกรอกจำกัดไว้ 10 หลักและรับเฉพาะตัวเลขอยู่แล้ว เหลือกรณีเดียวคือกรอกไม่ครบ
+    // เบอร์ไม่บังคับ แต่ถ้ากรอกต้องครบ 10 หลัก (ช่องรับเฉพาะตัวเลข สูงสุด 10 หลักอยู่แล้ว)
     final phone = phoneController.text.trim();
-    if (phone.length != 10) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(duration: AppTheme.snackDuration, content: Text('กรุณากรอกเบอร์โทรศัพท์ให้ครบ 10 หลัก')));
+    if (phone.isNotEmpty && phone.length != 10) {
+      showFieldError('phone', 'กรุณากรอกเบอร์โทรศัพท์ให้ครบ 10 หลัก');
       return;
     }
     if (selectedTraitIds.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(duration: AppTheme.snackDuration, 
-          content: Text('กรุณาเลือกไลฟ์สไตล์ / นิสัยของคุณอย่างน้อย 1 อย่าง')));
+      showFieldError('traits', 'กรุณาเลือกไลฟ์สไตล์ / นิสัยของคุณอย่างน้อย 1 อย่าง');
       return;
     }
 
@@ -113,8 +111,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
       // พากลับไปหน้า login ไม่ได้อีกเลย
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(duration: AppTheme.snackDuration, content: Text('บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+      showFieldError('submit', 'บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -218,6 +215,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                   autofocus: true,
                   decoration: InputDecoration(
                     labelText: 'ชื่อผู้ใช้ / ชื่อเล่น *',
+                    error: fieldErrorWidget('name'),
                     prefixIcon:
                         const Icon(Icons.badge, color: AppColors.primarySoft),
                     filled: true,
@@ -254,7 +252,8 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                     LengthLimitingTextInputFormatter(10),
                   ],
                   decoration: InputDecoration(
-                    labelText: 'เบอร์โทรศัพท์ * (10 หลัก)',
+                    labelText: 'เบอร์โทรศัพท์ (10 หลัก)',
+                    error: fieldErrorWidget('phone'),
                     prefixIcon: const Icon(Icons.phone),
                     filled: true,
                     fillColor: Colors.white,
@@ -325,6 +324,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                   onToggle: _toggleTrait,
                   enabled: !_isSaving,
                 ),
+                InlineError(fieldError('traits')),
                 ],
               ),
               const SizedBox(height: 32),
@@ -349,6 +349,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> {
                         style: TextStyle(
                             fontSize: 18, fontWeight: FontWeight.bold)),
               ),
+              InlineError(fieldError('submit')),
               const SizedBox(height: 16),
             ],
           ),

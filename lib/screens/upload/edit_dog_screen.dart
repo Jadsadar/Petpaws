@@ -11,6 +11,7 @@ import '../../widgets/species_field.dart';
 import '../../utils/pet_species.dart';
 import '../../widgets/tag_selector.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/field_error.dart';
 
 class EditDogScreen extends StatefulWidget {
   final Map<String, dynamic> dog;
@@ -22,7 +23,7 @@ class EditDogScreen extends StatefulWidget {
   State<EditDogScreen> createState() => _EditDogScreenState();
 }
 
-class _EditDogScreenState extends State<EditDogScreen> {
+class _EditDogScreenState extends State<EditDogScreen> with FieldErrors {
   late TextEditingController nameController;
   late TextEditingController breedController;
   late TextEditingController ageController;
@@ -67,11 +68,13 @@ class _EditDogScreenState extends State<EditDogScreen> {
       });
 
   Future<void> saveChanges() async {
-    if (nameController.text.isEmpty || ageController.text.isEmpty) return;
+    if (nameController.text.isEmpty || ageController.text.isEmpty) {
+      showFieldError(nameController.text.isEmpty ? 'name' : 'age', 'กรุณากรอกชื่อและอายุ');
+      return;
+    }
     if (selectedSpecies == 'other' &&
         speciesOtherController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(duration: AppTheme.snackDuration, content: Text('กรุณาระบุชนิดสัตว์เลี้ยง')));
+      showFieldError('species', 'กรุณาระบุชนิดสัตว์เลี้ยง');
       return;
     }
 
@@ -107,11 +110,10 @@ class _EditDogScreenState extends State<EditDogScreen> {
       if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(duration: AppTheme.snackDuration, content: Text('อัปเดตข้อมูลสำเร็จ!')));
+          .showSnackBar(const SnackBar(shape: AppTheme.snackSuccessShape, duration: AppTheme.snackDuration, content: Text('อัปเดตข้อมูลสำเร็จ!', style: AppTheme.snackSuccessText)));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(duration: AppTheme.snackDuration, 
-          content: Text('บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+      showFieldError('submit', 'บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -142,6 +144,7 @@ class _EditDogScreenState extends State<EditDogScreen> {
                     controller: nameController,
                     decoration: InputDecoration(
                         labelText: 'ชื่อสัตว์เลี้ยง *',
+                        error: fieldErrorWidget('name'),
                         border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(AppRadius.card)))),
                 const SizedBox(height: 16),
@@ -151,6 +154,7 @@ class _EditDogScreenState extends State<EditDogScreen> {
                   enabled: !_isSaving,
                   onChanged: (v) => setState(() => selectedSpecies = v),
                 ),
+                InlineError(fieldError('species')),
                 const SizedBox(height: 16),
                 TextField(
                     controller: breedController,
@@ -183,6 +187,7 @@ class _EditDogScreenState extends State<EditDogScreen> {
                           ],
                           decoration: InputDecoration(
                               labelText: 'อายุ *',
+                              error: fieldErrorWidget('age'),
                               border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(AppRadius.card))))),
                 ]),
@@ -213,7 +218,7 @@ class _EditDogScreenState extends State<EditDogScreen> {
             ),
             const SizedBox(height: 16),
             SectionCard(
-              title: 'นิสัยเด่นๆ ของสัตว์เลี้ยง',
+              title: 'นิสัยเด่น ๆ ของสัตว์เลี้ยง',
               children: [
                 TagSelector(
                   selectedIds: selectedTags,
@@ -262,6 +267,7 @@ class _EditDogScreenState extends State<EditDogScreen> {
                       style:
                           TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ),
+            InlineError(fieldError('submit')),
           ],
         ),
       ),
