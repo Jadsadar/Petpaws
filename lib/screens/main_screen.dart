@@ -282,8 +282,13 @@ class _MainScreenState extends State<MainScreen> {
           currentIndex: _selectedIndex,
           onTap: (index) => setState(() => _selectedIndex = index),
           type: BottomNavigationBarType.fixed,
+          // แท็บที่เลือก: ชมพู + ไอคอน/ตัวอักษรใหญ่ขึ้น  แท็บอื่น: เทา ขนาดปกติ
           selectedItemColor: AppColors.primary,
-          unselectedItemColor: AppColors.textMuted,
+          unselectedItemColor: Colors.grey.shade500,
+          selectedIconTheme: const IconThemeData(size: 32),
+          unselectedIconTheme: const IconThemeData(size: 24),
+          selectedFontSize: 14,
+          unselectedFontSize: 12,
           backgroundColor: Colors.white,
           items: [
             const BottomNavigationBarItem(icon: Icon(Icons.search), label: 'ค้นหา'),

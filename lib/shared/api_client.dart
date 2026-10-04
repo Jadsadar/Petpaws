@@ -26,6 +26,10 @@ class ApiClient {
 
   final _tokenStorage = TokenStorage.instance;
 
+  /// คำขอที่เซิร์ฟเวอร์ไม่ตอบเกินเวลานี้ถือว่าล้มเหลว (TimeoutException) — ไม่งั้น http ค้างรอไม่รู้จบ
+  /// แล้วหน้าจอหมุนโหลดตลอดไปโดยผู้ใช้ไม่รู้ว่าเกิดอะไรขึ้น
+  static const Duration requestTimeout = Duration(seconds: 20);
+
   /// เรียกตอน logout หรือ refresh ล้มเหลว ให้ AuthService ไปแจ้ง UI ต่อ
   void Function()? onSessionExpired;
 
@@ -56,30 +60,38 @@ class ApiClient {
 
   Future<dynamic> get(String path, {Map<String, String>? query, bool auth = true}) =>
       _withRefresh(() async {
-        final res = await http.get(_uri(path, query), headers: await _headers(auth: auth));
+        final res = await http
+            .get(_uri(path, query), headers: await _headers(auth: auth))
+            .timeout(requestTimeout);
         return _decode(res);
       }, auth);
 
   Future<dynamic> post(String path, {Object? body, bool auth = true}) => _withRefresh(() async {
-        final res = await http.post(
-          _uri(path),
-          headers: await _headers(auth: auth),
-          body: body == null ? null : jsonEncode(body),
-        );
+        final res = await http
+            .post(
+              _uri(path),
+              headers: await _headers(auth: auth),
+              body: body == null ? null : jsonEncode(body),
+            )
+            .timeout(requestTimeout);
         return _decode(res);
       }, auth);
 
   Future<dynamic> patch(String path, {Object? body, bool auth = true}) => _withRefresh(() async {
-        final res = await http.patch(
-          _uri(path),
-          headers: await _headers(auth: auth),
-          body: body == null ? null : jsonEncode(body),
-        );
+        final res = await http
+            .patch(
+              _uri(path),
+              headers: await _headers(auth: auth),
+              body: body == null ? null : jsonEncode(body),
+            )
+            .timeout(requestTimeout);
         return _decode(res);
       }, auth);
 
   Future<dynamic> delete(String path, {bool auth = true}) => _withRefresh(() async {
-        final res = await http.delete(_uri(path), headers: await _headers(auth: auth));
+        final res = await http
+            .delete(_uri(path), headers: await _headers(auth: auth))
+            .timeout(requestTimeout);
         return _decode(res);
       }, auth);
 

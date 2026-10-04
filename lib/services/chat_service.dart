@@ -250,10 +250,15 @@ class MessageFeed {
         _byId[m['id'] as String] = m;
       }
       _publish();
-    } catch (_) {
-      // เน็ตหลุด — รอบต่อใหม่ของ socket จะดึงให้อีกครั้ง
+    } catch (e) {
+      // ถ้ามีข้อความโชว์อยู่แล้ว เก็บของเดิมไว้ — รอบต่อใหม่ของ socket จะดึงให้อีกครั้ง
+      // แต่ถ้ายังไม่เคยได้ข้อมูลเลย ต้องบอกหน้าจอ ไม่งั้นหมุนโหลดค้างตลอดไป
+      if (_byId.isEmpty && !_ctrl.isClosed) _ctrl.addError(e);
     }
   }
+
+  /// ลองดึงหน้าล่าสุดใหม่ (ปุ่ม "ลองใหม่" ตอนโหลดครั้งแรกไม่สำเร็จ)
+  Future<void> reload() => _loadLatest();
 
   void _start() {
     _socket.join(chatId);
