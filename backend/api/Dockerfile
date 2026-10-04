@@ -16,6 +16,12 @@ FROM node:22-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production
 
+# ลงแพตช์ความปลอดภัยของ Debian ที่ออกหลัง base image ถูกสร้าง (image node:22 อัปเดตช้ากว่า)
+# เช่น CVE-2026-103111 ใน libpcre2-8-0 ที่ Trivy ใน CI บล็อกไว้ — ไม่ต้องรอ node ออก image ใหม่
+RUN apt-get update \
+ && apt-get upgrade -y --no-install-recommends \
+ && rm -rf /var/lib/apt/lists/*
+
 COPY package.json package-lock.json ./
 # ตอนรันจริงใช้แค่ `node` (api, worker, HEALTHCHECK) ไม่ได้ใช้ npm/npx/corepack/yarn
 # เลยลบทิ้งหลังลง dependency เสร็จ — Trivy เจอช่องโหว่ HIGH 10 ตัวใน dependency ของ
