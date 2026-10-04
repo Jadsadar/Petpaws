@@ -3,11 +3,15 @@ import type { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../database/database.module.js';
 import { AppException } from '../common/app-exception.js';
 import { homeTypeEnumToLabel, homeTypeLabelToEnum } from '../common/home-type.js';
+import { CacheService, type CacheRef } from '../cache/cache.service.js';
 import type { UpdateProfileDto } from './dto/update-profile.dto.js';
 
 @Injectable()
 export class UsersService {
-  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(PG_POOL) private readonly pool: Pool,
+    private readonly cache: CacheService,
+  ) {}
 
   /**
    * โปรไฟล์เต็ม (self) — คีย์ตรงกับ currentUserProfile ฝั่ง Flutter เป๊ะ ๆ
@@ -57,7 +61,11 @@ export class UsersService {
    * displayName, province, profileImageUrl, traits, lineId, fbLink
    * **ไม่มี phone** เพราะหน้านั้นตั้งใจไม่โชว์เบอร์โทรในโปรไฟล์สาธารณะ (ดูคอมเมนต์ในไฟล์นั้น)
    */
-  async getPublic(userId: string) {
+  getPublic(userId: string) {
+    return this.cache.getOrSet({ ns: 'userPublic', id: userId }, () => this.loadPublic(userId));
+  }
+
+  private async loadPublic(userId: string) {
     const [userRes, contactRes, traitsRes] = await Promise.all([
       this.pool.query(
         `SELECT display_name, location, avatar_url FROM users
@@ -158,7 +166,21 @@ export class UsersService {
       client.release();
     }
 
+    await this.invalidateProfile(userId, dto);
     return this.getMe(userId);
+  }
+
+  /** ชื่อ/รูปของเจ้าของถูกฝังอยู่ใน JSON ของทุกประกาศ (ownerName/ownerAvatar) ต้องล้างตามด้วย */
+  private async invalidateProfile(userId: string, dto: UpdateProfileDto) {
+    const refs: CacheRef[] = [{ ns: 'userPublic', id: userId }];
+    if (this.cache.enabled && (dto.name !== undefined || dto.profileImageUrl !== undefined)) {
+      const pets = await this.pool.query<{ id: string }>(
+        `SELECT id FROM pets WHERE owner_id = $1 AND deleted_at IS NULL`,
+        [userId],
+      );
+      refs.push({ ns: 'petsByOwner', id: userId }, ...pets.rows.map((p) => ({ ns: 'pet' as const, id: p.id })));
+    }
+    await this.cache.invalidate(...refs);
   }
 
   private async replaceTraits(client: PoolClient, userId: string, slugs: string[]) {

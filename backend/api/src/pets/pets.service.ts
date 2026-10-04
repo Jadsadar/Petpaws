@@ -3,6 +3,7 @@ import type { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../database/database.module.js';
 import { ChatService } from '../chat/chat.service.js';
 import { AppException } from '../common/app-exception.js';
+import { CacheService } from '../cache/cache.service.js';
 import {
   genderDbToLabel,
   genderLabelToDb,
@@ -57,6 +58,7 @@ export class PetsService {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly chatService: ChatService,
+    private readonly cache: CacheService,
   ) {}
 
   /** นาฬิกา DB ก่อนเปลี่ยนสถานะ ใช้หาข้อความระบบที่ trigger เพิ่งใส่ให้ (ดู ChatService.broadcastSystemMessages) */
@@ -89,6 +91,7 @@ export class PetsService {
 
   async create(ownerId: string, dto: CreatePetDto) {
     const client = await this.pool.connect();
+    let petId: string;
     try {
       await client.query('BEGIN');
 
@@ -109,7 +112,7 @@ export class PetsService {
           dto.story?.trim() || null,
         ],
       );
-      const petId = petRes.rows[0].id;
+      petId = petRes.rows[0].id;
 
       if (dto.imageUrl) {
         await this.insertMedia(client, petId, dto.imageUrl);
@@ -119,32 +122,40 @@ export class PetsService {
       }
 
       await client.query('COMMIT');
-      return this.findOne(petId);
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
     } finally {
       client.release();
     }
+    await this.cache.invalidate({ ns: 'petsByOwner', id: ownerId });
+    return this.findOne(petId);
   }
 
-  async findOne(id: string) {
-    const res = await this.pool.query<PetRow>(
-      `${PET_SELECT} WHERE p.id = $1 AND p.deleted_at IS NULL`,
-      [id],
-    );
-    if (res.rows.length === 0) throw AppException.notFound('ไม่พบประกาศนี้');
-    return this.toDog(res.rows[0]);
+  // ผลไม่ขึ้นกับผู้ดู (ไม่มี likedByMe ฯลฯ) จึง cache ร่วมกันทุกคนได้
+  findOne(id: string) {
+    return this.cache.getOrSet({ ns: 'pet', id }, async () => {
+      const res = await this.pool.query<PetRow>(
+        `${PET_SELECT} WHERE p.id = $1 AND p.deleted_at IS NULL`,
+        [id],
+      );
+      if (res.rows.length === 0) throw AppException.notFound('ไม่พบประกาศนี้');
+      return this.toDog(res.rows[0]);
+    });
   }
 
   // ใช้ทั้งหน้า "ประกาศของฉัน" และหน้าโปรไฟล์สาธารณะของผู้ใช้คนอื่น —
   // ประกาศหาบ้านเป็นข้อมูลสาธารณะอยู่แล้ว จึงไม่ต้องกรองต่างกันตามผู้ดู
-  async findByOwner(ownerId: string) {
-    const res = await this.pool.query<PetRow>(
-      `${PET_SELECT} WHERE p.owner_id = $1 AND p.deleted_at IS NULL ORDER BY p.created_at DESC`,
-      [ownerId],
-    );
-    return res.rows.map((r) => this.toDog(r));
+  // [cached] = false สำหรับหน้า "ประกาศของฉัน" ให้เจ้าของเห็น like_count ล่าสุดเสมอ
+  findByOwner(ownerId: string, { cached = true } = {}) {
+    const load = async () => {
+      const res = await this.pool.query<PetRow>(
+        `${PET_SELECT} WHERE p.owner_id = $1 AND p.deleted_at IS NULL ORDER BY p.created_at DESC`,
+        [ownerId],
+      );
+      return res.rows.map((r) => this.toDog(r));
+    };
+    return cached ? this.cache.getOrSet({ ns: 'petsByOwner', id: ownerId }, load) : load();
   }
 
   private async assertOwner(id: string, ownerId: string) {
@@ -220,6 +231,7 @@ export class PetsService {
       client.release();
     }
 
+    await this.cache.invalidate({ ns: 'pet', id }, { ns: 'petsByOwner', id: ownerId });
     if (dto.status !== undefined) await this.chatService.broadcastSystemMessages(id, since);
     return this.findOne(id);
   }
@@ -233,12 +245,15 @@ export class PetsService {
       `UPDATE pets SET deleted_at = now(), status = 'cancelled', adopted_at = NULL WHERE id = $1`,
       [id],
     );
+    await this.cache.invalidate({ ns: 'pet', id }, { ns: 'petsByOwner', id: ownerId });
     await this.chatService.broadcastSystemMessages(id, since);
     return { success: true };
   }
 
+  // like_count เปลี่ยนผ่าน trigger — ล้างแค่ตัวประกาศ รายการ by-owner ปล่อยให้หมดอายุตาม TTL
   async like(petId: string, userId: string) {
     await this.recordSwipe('likes', petId, userId);
+    await this.cache.invalidate({ ns: 'pet', id: petId });
     return { success: true };
   }
 
@@ -247,6 +262,7 @@ export class PetsService {
       userId,
       petId,
     ]);
+    await this.cache.invalidate({ ns: 'pet', id: petId });
     return { success: true };
   }
 

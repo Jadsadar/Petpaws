@@ -14,12 +14,14 @@ import { DevicesModule } from './devices/devices.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { JwtAuthGuard } from './common/jwt-auth.guard.js';
 import { AppConfigModule } from './config/app-config.module.js';
+import { CacheModule } from './cache/cache.module.js';
 
 @Module({
   imports: [
     AppConfigModule,
     JwtModule.register({}),
     DatabaseModule,
+    CacheModule,
     AuthModule,
     UsersModule,
     TraitsModule,

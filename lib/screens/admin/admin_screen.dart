@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../services/admin_service.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/pet_avatar.dart';
+import 'admin_cache_stats_screen.dart';
 import 'admin_paged_list.dart';
 import 'admin_user_reports_screen.dart';
 import 'admin_widgets.dart';
@@ -64,6 +65,14 @@ class _AdminScreenState extends State<AdminScreen> {
           centerTitle: true,
           iconTheme: const IconThemeData(color: adminOrange),
           actions: [
+            IconButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(builder: (_) => const AdminCacheStatsScreen()),
+              ),
+              icon: const Icon(Icons.speed, color: adminOrange),
+              tooltip: 'สถิติ cache',
+            ),
             IconButton(
               onPressed: _logout,
               icon: const Icon(Icons.logout, color: adminOrange),

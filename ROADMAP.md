@@ -11,7 +11,7 @@
 | ส่วน | สถานะ |
 |---|---|
 | ฐานข้อมูล PostgreSQL (16 ตาราง + 2 ฟังก์ชัน) | ✅ เสร็จ ทดสอบแล้ว รันอยู่ใน Docker |
-| Redis | ✅ ใช้เป็นคิวงาน BullMQ แล้ว (ยังไม่ได้ทำ cache) |
+| Redis | ✅ คิวงาน BullMQ + cache ของ API (redis-cache แยก instance, ดูสถิติ hit/miss ที่หน้าแอดมิน) — deck ยังไม่ cache (5.2) |
 | คิวงาน BullMQ | ✅ worker แยก process (`npm run start:worker`) — push แชท + ลบไฟล์ค้างทุกคืน |
 | Object storage (S3/MinIO) | ✅ อยู่ใน docker-compose แล้ว |
 | **NestJS backend** | ✅ มีครบเกือบทุก phase ดูรายละเอียดในแต่ละ phase ด้านล่าง |
