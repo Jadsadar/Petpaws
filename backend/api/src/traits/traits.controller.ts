@@ -1,12 +1,13 @@
-import { Controller, Get, Inject } from '@nestjs/common';
-import type { Pool } from 'pg';
-import { PG_POOL } from '../database/database.module.js';
+import { Controller, Get } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import type { Repository } from 'typeorm';
 import { CacheService } from '../cache/cache.service.js';
+import { Trait } from '../database/entities/index.js';
 
 @Controller('traits')
 export class TraitsController {
   constructor(
-    @Inject(PG_POOL) private readonly pool: Pool,
+    @InjectRepository(Trait) private readonly traits: Repository<Trait>,
     private readonly cache: CacheService,
   ) {}
 
@@ -16,14 +17,12 @@ export class TraitsController {
   @Get()
   list() {
     return this.cache.getOrSet({ ns: 'traits', id: 'active' }, async () => {
-      const result = await this.pool.query<{
-        id: string;
-        slug: string;
-        label_th: string;
-      }>(
-        `SELECT id, slug, label_th FROM traits WHERE is_active ORDER BY sort_order`,
-      );
-      return result.rows.map((r) => ({ id: r.id, slug: r.slug, label: r.label_th }));
+      const rows = await this.traits.find({
+        select: { id: true, slug: true, labelTh: true },
+        where: { isActive: true },
+        order: { sortOrder: 'ASC' },
+      });
+      return rows.map((r) => ({ id: r.id, slug: r.slug, label: r.labelTh }));
     });
   }
 }
