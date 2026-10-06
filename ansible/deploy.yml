@@ -14,6 +14,14 @@
 
   vars:
     deploy_dir: /opt/petpaws
+    # ข้อมูลที่ส่งให้ scripts/notify_discord.py (ค่า deploy_* มาจาก cd.yml ผ่าน --extra-vars ถ้ารันมือจะเป็น "-")
+    notify_env:
+      DEPLOY_DIR: "{{ deploy_dir }}"
+      NOTIFY_COMMIT: "{{ deploy_commit | default('-') }}"
+      NOTIFY_MESSAGE: "{{ deploy_message | default('-') }}"
+      NOTIFY_ACTOR: "{{ deploy_actor | default('-') }}"
+      NOTIFY_URL: "{{ deploy_run_url | default('') }}"
+      NOTIFY_START: "{{ ansible_facts['date_time']['epoch'] }}"
 
   tasks:
     - name: เช็คว่าใส่ env_file_src มาหรือยัง
@@ -118,11 +126,14 @@
         state: directory
         mode: "0755"
 
-    - name: Copy สคริปต์รายงานประจำวันเข้า Discord (daily_report.py)
+    - name: Copy สคริปต์แจ้ง Discord (รายงานประจำวัน + สถานะ deploy)
       ansible.builtin.copy:
-        src: ../scripts/daily_report.py
-        dest: "{{ deploy_dir }}/scripts/daily_report.py"
+        src: "../scripts/{{ item }}"
+        dest: "{{ deploy_dir }}/scripts/{{ item }}"
         mode: "0755"
+      loop:
+        - daily_report.py
+        - notify_discord.py
 
     - name: Copy .env production (ค่าจริง ไม่ใช่ example)
       ansible.builtin.copy:
@@ -134,6 +145,14 @@
     # 15 นาทีโดยไม่รู้ว่าค้างตรงไหน (Ansible เก็บ output ไว้จนคำสั่งจบ) ตอนนี้ทุกขั้น
     # (1) มี timeout ของตัวเอง (2) ใช้ async/poll กัน SSH ค้างเงียบ (3) เขียน log ไว้ที่
     # {{ deploy_dir }}/deploy.log และถ้าล้มเหลว rescue จะดึง log + สถานะเครื่องมาแสดงให้ดูใน CI
+    # แจ้ง Discord ว่าเริ่ม/สำเร็จ/ล้มเหลว — ล้มเหลวในการแจ้ง (ไม่มี Webhook ฯลฯ) ต้องไม่ทำให้ deploy ล้ม
+    - name: แจ้ง Discord ว่าเริ่ม deploy
+      ansible.builtin.command:
+        cmd: /usr/bin/python3 {{ deploy_dir }}/scripts/notify_discord.py
+      environment: "{{ notify_env | combine({'NOTIFY_STATUS': 'start'}) }}"
+      changed_when: false
+      failed_when: false
+
     - name: Deploy containers (pull → build → up → รอ healthy)
       block:
         - name: Docker compose pull (image สำเร็จรูป เช่น postgres, redis, caddy)
@@ -241,6 +260,13 @@
           ansible.builtin.debug:
             msg: "{{ deploy_diag.stdout_lines }}"
 
+        - name: แจ้ง Discord ว่า deploy ล้มเหลว
+          ansible.builtin.command:
+            cmd: /usr/bin/python3 {{ deploy_dir }}/scripts/notify_discord.py
+          environment: "{{ notify_env | combine({'NOTIFY_STATUS': 'fail', 'NOTIFY_FAILED_TASK': ansible_failed_task.name | default('-')}) }}"
+          changed_when: false
+          failed_when: false
+
         - name: ทำให้ playbook ล้มเหลวอย่างชัดเจน
           ansible.builtin.fail:
             msg: "Deploy ล้มเหลว — ดู log วินิจฉัยด้านบน"
@@ -271,3 +297,10 @@
           DEPLOY_DIR={{ deploy_dir }}
           /usr/bin/python3 {{ deploy_dir }}/scripts/daily_report.py
           >> {{ deploy_dir }}/backups/daily-report.log 2>&1
+
+    - name: แจ้ง Discord ว่า deploy สำเร็จ
+      ansible.builtin.command:
+        cmd: /usr/bin/python3 {{ deploy_dir }}/scripts/notify_discord.py
+      environment: "{{ notify_env | combine({'NOTIFY_STATUS': 'ok'}) }}"
+      changed_when: false
+      failed_when: false
