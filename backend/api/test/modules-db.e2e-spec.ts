@@ -356,6 +356,21 @@ describe('modules ที่ใช้ TypeORM กับ DB จริง (e2e)', (
       await expect(admin.unban(randomUUID())).rejects.toMatchObject({ code: 'NOT_FOUND' });
     });
 
+    it('แบนแล้ว access token เดิมใช้ต่อไม่ได้ทันที (ไม่ต้องรอ token หมดอายุ) / ปลดแบนแล้วใช้ได้อีก', async () => {
+      const admin = app.get(AdminService);
+      const [adminId, user] = [await newUser(), await newUser()];
+      const token = bearer(user);
+      await request(app.getHttpServer()).get('/users/me').set('Authorization', token).expect(200);
+
+      await admin.ban(adminId, user, {});
+      const denied = await request(app.getHttpServer()).get('/users/me').set('Authorization', token).expect(401);
+      // e2e ไม่ได้ใส่ AllExceptionsFilter ของ main.ts — ข้อความอยู่ใน body.message แทน body.error.message
+      expect(JSON.stringify(denied.body)).toContain('บัญชีนี้ถูกระงับการใช้งาน');
+
+      await admin.unban(user);
+      await request(app.getHttpServer()).get('/users/me').set('Authorization', token).expect(200);
+    });
+
     it('แบนแอดมินด้วยกันไม่ได้ / แบนถาวร / ปัดตกรายงานคืนจำนวนที่ปัด', async () => {
       const admin = app.get(AdminService);
       const [adminId, otherAdmin, target, reporter] = [await newUser(), await newUser(), await newUser(), await newUser()];

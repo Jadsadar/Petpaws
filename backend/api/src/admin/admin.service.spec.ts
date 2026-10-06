@@ -3,9 +3,11 @@ import type { DataSource } from 'typeorm';
 import { AdminService } from './admin.service.js';
 import { resolvePaging } from './dto/pagination.dto.js';
 import { CacheService } from '../cache/cache.service.js';
+import type { AccountStatusService } from '../common/account-status.js';
 
 // ไม่ต่อ Redis = อ่าน DB ตรงทุกครั้ง (พฤติกรรม cache ทดสอบแยกใน cache.service.spec.ts)
 const noCache = new CacheService(null);
+const accounts = { forget: vi.fn() } as unknown as AccountStatusService;
 
 // DataSource ปลอมที่คืน rows ตามลำดับคำสั่ง query ที่ถูกเรียก (ไม่ต่อ DB จริง)
 // ตัว SQL ของรายงานทดสอบกับ DB จริงใน test/modules-db.e2e-spec.ts
@@ -44,7 +46,7 @@ describe('AdminService.reportedUsers', () => {
   it('แปลงแถวเป็นผู้ใช้ และ total มาจากจำนวนก่อนแบ่งหน้า (ไม่ใช่ขนาดหน้านี้)', async () => {
     const { pool, query } = poolWith({ rows: [row('a', '7', '45'), row('b', '4', '45')] });
 
-    const res = await new AdminService(pool, noCache).reportedUsers(3, paging(2, 2));
+    const res = await new AdminService(pool, noCache, accounts).reportedUsers(3, paging(2, 2));
 
     expect(res.total).toBe(45);
     expect(res.page).toBe(2);
@@ -57,7 +59,7 @@ describe('AdminService.reportedUsers', () => {
 
   it('ไม่มีใครถึงเกณฑ์ ได้รายการว่างและ total = 0', async () => {
     const { pool } = poolWith({ rows: [] });
-    const res = await new AdminService(pool, noCache).reportedUsers(10, paging(1, 20));
+    const res = await new AdminService(pool, noCache, accounts).reportedUsers(10, paging(1, 20));
     expect(res).toEqual({ items: [], total: 0, page: 1, pageSize: 20 });
   });
 });
@@ -105,7 +107,7 @@ describe('AdminService.userReports', () => {
       ],
     });
 
-    const res = await new AdminService(pool, noCache).userReports('u1', paging(1, 20));
+    const res = await new AdminService(pool, noCache, accounts).userReports('u1', paging(1, 20));
     const r = res.items[0];
 
     expect(r.targetType).toBe('pet');
@@ -120,7 +122,7 @@ describe('AdminService.userReports', () => {
       rows: [{ ...base, id: 'm1', reported_message_id: 'msg1', message_body: 'โอนเงินมาก่อนนะ', message_created_at: sentAt }],
     });
 
-    const res = await new AdminService(pool, noCache).userReports('u1', paging(1, 20));
+    const res = await new AdminService(pool, noCache, accounts).userReports('u1', paging(1, 20));
     const r = res.items[0];
 
     expect(r.targetType).toBe('message');
@@ -133,7 +135,7 @@ describe('AdminService.userReports', () => {
 
   it('รายงานตัวผู้ใช้ตรง ๆ และ detail ว่างเป็นสตริงว่าง ไม่ใช่ null', async () => {
     const { pool } = poolWith({ rows: [{ ...base, id: 'u1', reported_user_id: 'x' }] });
-    const res = await new AdminService(pool, noCache).userReports('x', paging(1, 20));
+    const res = await new AdminService(pool, noCache, accounts).userReports('x', paging(1, 20));
     expect(res.items[0].targetType).toBe('user');
     expect(res.items[0].detail).toBe('');
     expect(res.total).toBe(3);
@@ -149,7 +151,7 @@ describe('AdminService.bannedUsers', () => {
       ],
     });
 
-    const res = await new AdminService(pool, noCache).bannedUsers(paging(1, 20));
+    const res = await new AdminService(pool, noCache, accounts).bannedUsers(paging(1, 20));
 
     expect(res.total).toBe(2);
     expect(res.items.map((u) => u.permanent)).toEqual([true, false]);
@@ -176,7 +178,7 @@ describe('AdminService.userProfile', () => {
 
   it('ไม่พบผู้ใช้ → 404', async () => {
     const { pool } = poolWith({ rows: [] });
-    await expect(new AdminService(pool, noCache).userProfile('nope')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(new AdminService(pool, noCache, accounts).userProfile('nope')).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
   it('รวมโปรไฟล์ ประกาศพร้อมรูป (รวมที่ถูกลบ) และจำนวนรายงานค้าง', async () => {
@@ -191,7 +193,7 @@ describe('AdminService.userProfile', () => {
       { rows: [{ n: '6' }] },
     );
 
-    const p = await new AdminService(pool, noCache).userProfile('u1');
+    const p = await new AdminService(pool, noCache, accounts).userProfile('u1');
 
     expect(p).toMatchObject({ id: 'u1', email: 's@x.dev', province: 'เชียงใหม่', bio: '', avatarUrl: '', pendingReportCount: 6 });
     expect(p.pets).toHaveLength(2);
@@ -206,13 +208,13 @@ describe('AdminService.userProfile', () => {
 describe('AdminService.summary', () => {
   it('แปลงตัวเลขจาก SQL เป็น number ทั้ง 3 ช่อง', async () => {
     const { pool } = poolWith({ rows: [{ reported: '12', temporary: '3', permanent: '1' }] });
-    await expect(new AdminService(pool, noCache).summary()).resolves.toEqual({ reported: 12, temporary: 3, permanent: 1 });
+    await expect(new AdminService(pool, noCache, accounts).summary()).resolves.toEqual({ reported: 12, temporary: 3, permanent: 1 });
   });
 });
 
 describe('AdminService.ban', () => {
   it('แบนตัวเองไม่ได้', async () => {
     const { pool } = poolWith();
-    await expect(new AdminService(pool, noCache).ban('me', 'me', {})).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(new AdminService(pool, noCache, accounts).ban('me', 'me', {})).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 });
