@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import '../shared/api_client.dart';
+import '../shared/api_exception.dart';
 import 'chat_socket.dart';
 
 /// แชท: ส่ง/อ่าน/ดึงประวัติผ่าน REST ส่วนของที่เปลี่ยน "สด" มาทาง WebSocket
@@ -57,6 +58,17 @@ class ChatService {
     required String petId,
     required String otherUserId,
   }) async {
+    try {
+      // query เดียวบน unique index ฝั่ง server — ไม่ต้องโหลดกล่องข้อความทั้งก้อนมาวนหา
+      final res = await _api.get('/chats/lookup', query: {
+        'petId': petId,
+        'otherUserId': otherUserId,
+      }) as Map<String, dynamic>;
+      return res['chatId'] as String?;
+    } on ApiException catch (e) {
+      // backend รุ่นก่อนยังไม่มี /chats/lookup (ไปตกที่ GET /chats/:id) — ถอยไปวิธีเดิม
+      if (e.statusCode == 401) rethrow;
+    }
     for (final chat in await myChats()) {
       if (chat['petId'] == petId && chat['otherUserId'] == otherUserId) {
         return chat['id'] as String?;
@@ -76,6 +88,22 @@ class ChatService {
       if (before != null) 'before': before,
     }) as List;
     return res.cast<Map<String, dynamic>>();
+  }
+
+  /// หน้าล่าสุด + สถานะห้องในคำขอเดียว (ตอนเปิดห้อง) — room = null ถ้า backend รุ่นก่อน
+  /// ไม่รู้จัก include=room แล้วตอบ array มาแบบเดิม หน้าจอต้องถาม [detail] เอง
+  Future<({List<Map<String, dynamic>> messages, Map<String, dynamic>? room})> latestPage(
+      String chatId) async {
+    final res = await _api.get('/chats/$chatId/messages', query: {
+      'limit': '$pageSize',
+      'include': 'room',
+    });
+    if (res is List) return (messages: res.cast<Map<String, dynamic>>(), room: null);
+    final body = res as Map<String, dynamic>;
+    return (
+      messages: (body['messages'] as List).cast<Map<String, dynamic>>(),
+      room: body['room'] as Map<String, dynamic>?,
+    );
   }
 
   /// สถานะห้อง: status ('active'|'closed'), closedReason, blockedByMe — ใช้เลือกว่าจะโชว์ช่องพิมพ์ไหม
@@ -114,9 +142,21 @@ class ChatService {
   MessageFeed openMessages(String chatId, {required String myUid}) =>
       MessageFeed._(this, _socket, chatId, myUid);
 
-  /// รายการห้อง — ดึงใหม่เมื่อมี 'notification' (ข้อความใหม่/อ่านแล้ว) หรือต่อใหม่
-  Stream<List<Map<String, dynamic>>> watchChats({String? petName}) =>
-      _refetchOnChange(() => myChats(petName: petName));
+  /// รายการห้อง — ดึงครั้งแรกและตอนต่อใหม่ ระหว่างนั้นแก้ตาม 'notification' ในเครื่องเอง
+  /// (server แนบสถานะห้องมาให้แล้ว ดู [applyInboxNotification]) ดึงใหม่เฉพาะตอนแก้เองไม่ได้
+  Stream<List<Map<String, dynamic>>> watchChats({String? petName}) {
+    List<Map<String, dynamic>>? chats;
+    return _refetchOnChange(
+      () async => chats = await myChats(petName: petName),
+      onNotification: (payload) {
+        final current = chats;
+        if (current == null) return null;
+        final next = applyInboxNotification(current, payload, petName: petName);
+        if (next != null) chats = next;
+        return next;
+      },
+    );
+  }
 
   int _lastUnreadCount = 0;
   Stream<int>? _sharedUnreadStream;
@@ -131,9 +171,14 @@ class ChatService {
   /// (ไม่งั้นพอมีคนฟังใหม่ stream จะตายไปแล้วใช้ต่อไม่ได้)
   Stream<int> unreadChatCountStream() async* {
     yield _lastUnreadCount; // ค่าล่าสุดทันที ไม่ต้องรอ event ถัดไป
-    yield* _sharedUnreadStream ??= _refetchOnChange(() async {
-      return _lastUnreadCount = await _fetchUnreadCount();
-    }).asBroadcastStream(onCancel: (_) {});
+    yield* _sharedUnreadStream ??= _refetchOnChange(
+      () async => _lastUnreadCount = await _fetchUnreadCount(),
+      // server แนบยอดรวมมากับ 'notification' แล้ว ไม่ต้องยิง GET /chats/unread-count
+      onNotification: (payload) {
+        final total = payload['unreadTotal'];
+        return total is int ? _lastUnreadCount = total : null;
+      },
+    ).asBroadcastStream(onCancel: (_) {});
   }
 
   /// อีกฝ่ายกำลังพิมพ์ไหม (หน้าจอต้องตั้งเวลาดับเองเผื่อ event "หยุดพิมพ์" หาย)
@@ -144,9 +189,13 @@ class ChatService {
 
   void setTyping(String chatId, bool isTyping) => _socket.typing(chatId, isTyping);
 
-  /// ดึง REST ครั้งแรกตอนมีคนฟัง แล้วดึงซ้ำเมื่อ server แจ้งว่ามีอะไรเปลี่ยน
-  /// หรือ socket ต่อใหม่ — แทน polling loop เดิม
-  Stream<T> _refetchOnChange<T>(Future<T> Function() fetch) {
+  /// ดึง REST ครั้งแรกตอนมีคนฟัง และทุกครั้งที่ socket ต่อใหม่ (event ระหว่างหลุดหายไปแล้ว)
+  /// ส่วน 'notification' ระหว่างต่ออยู่: ให้ [onNotification] คำนวณค่าใหม่จาก payload เอง
+  /// ถ้าคืน null (ข้อมูลไม่พอ เช่น ห้องใหม่ที่ยังไม่อยู่ในรายการ) ค่อยดึง REST ใหม่
+  Stream<T> _refetchOnChange<T>(
+    Future<T> Function() fetch, {
+    T? Function(Map<String, dynamic> payload)? onNotification,
+  }) {
     final subs = <StreamSubscription>[];
     late final StreamController<T> ctrl;
 
@@ -161,7 +210,14 @@ class ChatService {
       onListen: () {
         _socket.connect();
         subs
-          ..add(_socket.events.where((e) => e.name == 'notification').listen((_) => load()))
+          ..add(_socket.events.where((e) => e.name == 'notification').listen((e) {
+            final next = onNotification?.call(e.data);
+            if (next == null) {
+              load();
+            } else if (!ctrl.isClosed) {
+              ctrl.add(next);
+            }
+          }))
           ..add(_socket.onConnect.listen((_) => load()));
         load();
       },
@@ -202,6 +258,10 @@ class MessageFeed {
   bool _hasMore = false;
   bool _loadingOlder = false;
 
+  /// สถานะห้องที่มากับหน้าล่าสุด (ทุกครั้งที่โหลด รวมตอนต่อใหม่) — null = backend รุ่นก่อน
+  /// ไม่ได้ส่งมา หน้าจอต้องถาม ChatService.detail เอง
+  void Function(Map<String, dynamic>? room)? onRoomStatus;
+
   Stream<List<Map<String, dynamic>>> get stream => _ctrl.stream;
 
   /// ยังมีข้อความเก่ากว่าที่โหลดอยู่ให้ดึงเพิ่ม
@@ -240,7 +300,9 @@ class MessageFeed {
   /// ดึงหน้าล่าสุด (ครั้งแรก และทุกครั้งที่ socket ต่อใหม่)
   Future<void> _loadLatest() async {
     try {
-      final page = await _chat.messages(chatId);
+      final latest = await _chat.latestPage(chatId);
+      final page = latest.messages;
+      onRoomStatus?.call(latest.room);
       // หลุดไปนานจนหน้าล่าสุดไม่ต่อกับของที่มีอยู่เลย = มีช่องโหว่ตรงกลาง
       // ทิ้งของเก่าแล้วเริ่มจากหน้าล่าสุดใหม่ ให้ loadOlder ไล่ย้อนต่อได้ถูก
       final connected = page.isEmpty || _byId.isEmpty || page.any((m) => _byId.containsKey(m['id']));
@@ -295,4 +357,40 @@ class MessageFeed {
     }
     _socket.leave(chatId);
   }
+}
+
+/// แก้รายการห้องในกล่องข้อความตาม 'notification' จาก server โดยไม่ต้องดึง GET /chats ใหม่
+/// คืนรายการใหม่ (เรียงข้อความล่าสุดก่อน) หรือ null = แก้เองไม่ได้ ต้องดึงจาก server:
+/// - server รุ่นก่อนไม่ได้แนบ room มา
+/// - ห้องที่ยังไม่อยู่ในรายการ (ห้องใหม่ / ห้องที่ลบไปแล้วมีข้อความใหม่) — ไม่มีชื่อ/รูปคู่สนทนาให้วาด
+///
+/// [petName] = กล่องข้อความที่กรองเฉพาะประกาศเดียว ห้องของสัตว์ตัวอื่นไม่เกี่ยว คืนรายการเดิม
+List<Map<String, dynamic>>? applyInboxNotification(
+  List<Map<String, dynamic>> chats,
+  Map<String, dynamic> payload, {
+  String? petName,
+}) {
+  final id = payload['conversationId'];
+  if (payload['type'] == 'hidden') {
+    return [for (final c in chats) if (c['id'] != id) c];
+  }
+  final room = payload['room'];
+  if (room is! Map) return null;
+  if (petName != null && room['petName'] != petName) return chats;
+
+  final i = chats.indexWhere((c) => c['id'] == id);
+  if (i < 0) return null;
+  final next = [...chats];
+  next[i] = {
+    ...chats[i],
+    'lastMessage': room['lastMessage'],
+    'lastMessageAt': room['lastMessageAt'],
+    'unreadCount': room['unreadCount'],
+    'status': room['status'],
+    'closedReason': room['closedReason'],
+  };
+  DateTime at(Map<String, dynamic> c) =>
+      DateTime.tryParse('${c['lastMessageAt']}') ?? DateTime.fromMillisecondsSinceEpoch(0);
+  next.sort((a, b) => at(b).compareTo(at(a)));
+  return next;
 }

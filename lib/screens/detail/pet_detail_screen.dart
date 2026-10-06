@@ -59,6 +59,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
           petId: widget.dog['id'] as String,
           dogName: widget.dog['name'] as String,
           otherUserName: widget.dog['ownerName'] as String? ?? 'เจ้าของ',
+          otherUserAvatar: widget.dog['ownerAvatar'] as String?,
           otherUserId: ownerId,
         ),
       ),

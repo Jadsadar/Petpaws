@@ -115,6 +115,7 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
         'homeType': currentHomeType,
         'traits': selectedTraitIds,
       });
+      AuthService.instance.rememberProfile(updated);
       if (!mounted) return;
       setState(() {
         _profile = updated;

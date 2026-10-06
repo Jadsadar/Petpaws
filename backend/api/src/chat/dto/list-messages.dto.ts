@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 
 /**
  * แบ่งหน้าแบบ cursor: ไม่ส่ง before = หน้าล่าสุด, ส่ง id ข้อความเก่าสุดที่มีอยู่
@@ -16,4 +16,12 @@ export class ListMessagesQueryDto {
   @Min(1)
   @Max(100)
   limit?: number;
+
+  /**
+   * 'room' = แนบสถานะห้อง (เหมือน GET /chats/:id) มาด้วย หน้าแชทจะได้ไม่ต้องยิงแยก
+   * ตอบเป็น { messages, room } แทน array — ต้องขอเองเท่านั้น แอปรุ่นเก่าที่ไม่ส่งยังได้ array เหมือนเดิม
+   */
+  @IsOptional()
+  @IsIn(['room'])
+  include?: 'room';
 }

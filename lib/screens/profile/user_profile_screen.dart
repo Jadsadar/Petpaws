@@ -47,8 +47,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       _hasError = false;
     });
     try {
-      final profile = await UsersService.instance.getPublicProfile(widget.uid);
-      final pets = await PetService.instance.byOwner(widget.uid);
+      // สองคำขอไม่ขึ้นต่อกัน ยิงพร้อมกันรอรอบเดียว
+      final (profile, pets) = await (
+        UsersService.instance.getPublicProfile(widget.uid),
+        PetService.instance.byOwner(widget.uid),
+      ).wait;
       if (!mounted) return;
       setState(() {
         _profile = profile;

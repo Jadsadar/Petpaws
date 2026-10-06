@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../data/mock_data.dart';
 import '../../services/pet_service.dart';
+import '../../services/auth_service.dart';
 import '../../services/users_service.dart';
 import '../../services/storage_service.dart';
 import '../../widgets/pet_avatar.dart';
@@ -67,7 +68,9 @@ class _UploadScreenState extends State<UploadScreen> with FieldErrors {
   /// จังหวัดเริ่มต้นของประกาศ = จังหวัดในโปรไฟล์ของเจ้าของ (แก้เองได้)
   Future<void> _loadOwnerProvince() async {
     try {
-      final province = (await UsersService.instance.getMe())['province'] as String?;
+      // จำไว้ตั้งแต่ล็อกอิน/เปิดแอปแล้ว — ถามเซิร์ฟเวอร์เฉพาะตอนยังไม่รู้ (backend รุ่นเก่า)
+      final province = AuthService.instance.currentUser?.province ??
+          (await UsersService.instance.getMe())['province'] as String?;
       if (!mounted || _provinceTouched) return;
       if (province != null && thaiProvinces.contains(province)) {
         setState(() => selectedProvince = province);

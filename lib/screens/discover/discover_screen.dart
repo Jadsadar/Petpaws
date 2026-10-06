@@ -63,6 +63,7 @@ class DiscoverScreen extends StatelessWidget {
           petId: dog['id'] as String,
           dogName: dog['name'] as String,
           otherUserName: ownerName,
+          otherUserAvatar: dog['ownerAvatar'] as String?,
           otherUserId: ownerId,
         ),
       ),

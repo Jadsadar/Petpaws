@@ -40,7 +40,9 @@ class ChatScreen extends StatefulWidget {
 
   final String dogName;
   final String otherUserName;
-  final String otherUserAvatar;
+  /// รูปคู่สนทนา — null = ผู้เปิดไม่รู้ (หน้าจอจะดึงจากโปรไฟล์สาธารณะเอง)
+  /// '' = รู้แล้วว่าไม่มีรูป (โชว์ไอคอนคน ไม่ต้องยิง API เพิ่ม)
+  final String? otherUserAvatar;
   final String otherUserId;
 
   const ChatScreen({
@@ -49,7 +51,7 @@ class ChatScreen extends StatefulWidget {
     required this.petId,
     required this.dogName,
     required this.otherUserName,
-    this.otherUserAvatar = '',
+    this.otherUserAvatar,
     this.otherUserId = '',
   });
 
@@ -69,14 +71,16 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _closed = false;
   String? _closedReason;
   bool _blockedByMe = false;
-  int _systemCount = 0;
+  /// จำนวนข้อความระบบที่เห็นล่าสุด (-1 = ยังไม่ได้ข้อมูลรอบแรก) เพิ่มขึ้นระหว่างเปิดห้อง
+  /// = ห้องเพิ่งถูกปิด ต้องถามสถานะใหม่ — รอบแรกไม่ต้อง เพราะสถานะมากับหน้าแรกแล้ว
+  int _systemCount = -1;
 
   /// ค้นหาข้อความในห้องนี้ (null = ปิดแถบค้นหา)
   String? _search;
   final TextEditingController _searchController = TextEditingController();
 
-  /// รูปคู่สนทนาที่จะโชว์บน AppBar — เริ่มจากค่าที่ส่งมา (มีเฉพาะตอนเข้าจากกล่องข้อความ
-  /// ซึ่ง GET /chats ส่ง otherUserAvatarUrl มาให้) ถ้าไม่มีจะไปดึงเองใน _loadOtherAvatar()
+  /// รูปคู่สนทนาที่จะโชว์บน AppBar — เริ่มจากค่าที่ผู้เปิดส่งมา ถ้าผู้เปิดไม่รู้
+  /// (otherUserAvatar = null) จะไปดึงเองใน _loadOtherAvatar()
   String _otherAvatar = '';
 
   /// กำลังหาว่าเคยมีห้องแชทของประกาศนี้อยู่แล้วหรือไม่ ระหว่างนี้ยังไม่รู้ว่าจะมี
@@ -115,21 +119,21 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _chatId = widget.chatId;
-    _otherAvatar = widget.otherUserAvatar;
+    _otherAvatar = widget.otherUserAvatar ?? '';
     if (_chatId != null) {
       _openRoom(_chatId!);
     } else if (widget.otherUserId.isNotEmpty) {
       _resolvingChat = true;
       _resolveExistingChat();
     }
-    if (_otherAvatar.isEmpty && widget.otherUserId.isNotEmpty) {
+    if (widget.otherUserAvatar == null && widget.otherUserId.isNotEmpty) {
       _loadOtherAvatar();
     }
   }
 
-  /// เข้าจากปุ่ม "ทักแชท" (หน้าปัด/ถูกใจ/รายละเอียดประกาศ) จะไม่มีรูปคู่สนทนาติดมา
-  /// เพราะข้อมูลประกาศไม่มี avatar ของเจ้าของอยู่ในนั้น — ดึงจากโปรไฟล์สาธารณะเอง
-  /// เพื่อให้ทุกทางเข้าเห็นรูปเหมือนกัน ไม่ใช่เห็นเฉพาะตอนเข้าจากกล่องข้อความ
+  /// ทางเข้าปกติส่งรูปมาให้แล้ว (กล่องข้อความใช้ otherUserAvatarUrl, ปุ่ม "ทักแชท"
+  /// ใช้ ownerAvatar ที่มากับข้อมูลประกาศ) — ดึงจากโปรไฟล์สาธารณะเฉพาะตอนผู้เปิดไม่รู้
+  /// (เช่น ข้อมูลประกาศจาก backend รุ่นเก่าที่ยังไม่มี ownerAvatar)
   Future<void> _loadOtherAvatar() async {
     try {
       final profile = await UsersService.instance.getPublicProfile(widget.otherUserId);
@@ -164,7 +168,9 @@ class _ChatScreenState extends State<ChatScreen> {
   void _openRoom(String chatId) {
     final chat = ChatService.instance;
     _chatId = chatId;
-    _feed = chat.openMessages(chatId, myUid: _myUid);
+    _feed = chat.openMessages(chatId, myUid: _myUid)
+      // สถานะห้องมากับหน้าแรกของข้อความแล้ว — ถามแยกเฉพาะตอน backend รุ่นก่อนไม่ได้ส่งมา
+      ..onRoomStatus = (room) => room == null ? _loadDetail() : _applyRoomStatus(room);
     _messagesStream = _feed!.stream;
     _roomSubs.add(chat.otherTyping(chatId, myUid: _myUid).listen((typing) {
       _otherTypingExpiry?.cancel();
@@ -176,23 +182,25 @@ class _ChatScreenState extends State<ChatScreen> {
       if (mounted) setState(() => _otherTyping = typing);
     }));
     chat.markRead(chatId).catchError((_) {});
-    _loadDetail();
   }
 
   Future<void> _loadDetail() async {
     final id = _chatId;
     if (id == null) return;
     try {
-      final d = await ChatService.instance.detail(id);
-      if (!mounted) return;
-      setState(() {
-        _closed = d['status'] == 'closed';
-        _closedReason = d['closedReason'] as String?;
-        _blockedByMe = d['blockedByMe'] == true;
-      });
+      _applyRoomStatus(await ChatService.instance.detail(id));
     } catch (_) {
       // ดึงสถานะไม่ได้ก็ปล่อยให้พิมพ์ตามเดิม ถ้าห้องปิดจริง server จะตอบ 403 ตอนส่งอยู่แล้ว
     }
+  }
+
+  void _applyRoomStatus(Map<String, dynamic> d) {
+    if (!mounted) return;
+    setState(() {
+      _closed = d['status'] == 'closed';
+      _closedReason = d['closedReason'] as String?;
+      _blockedByMe = d['blockedByMe'] == true;
+    });
   }
 
   /// ส่ง "กำลังพิมพ์" ครั้งเดียวตอนเริ่ม แล้วส่ง "หยุด" เมื่อเว้นไป 2 วิ
@@ -724,8 +732,9 @@ class _ChatScreenState extends State<ChatScreen> {
         // มีข้อความระบบใหม่ (สัตว์ได้บ้าน/ประกาศถูกยกเลิก) = ห้องเพิ่งถูกปิด ดึงสถานะใหม่
         final systemCount = serverMessages.where((m) => m['kind'] == 'system').length;
         if (systemCount != _systemCount) {
+          final changedWhileOpen = _systemCount >= 0;
           _systemCount = systemCount;
-          WidgetsBinding.instance.addPostFrameCallback((_) => _loadDetail());
+          if (changedWhileOpen) WidgetsBinding.instance.addPostFrameCallback((_) => _loadDetail());
         }
 
         // ค้นหาข้อความในห้อง (เมนู ⋮ > ค้นหาข้อความ) กรองเฉพาะข้อความที่มีตัวอักษรตรงกัน
