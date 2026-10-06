@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConfigService } from '@nestjs/config';
-import type { Pool, PoolClient } from 'pg';
+import type { EntityManager, Repository } from 'typeorm';
+import type { MediaUpload } from '../database/entities/index.js';
 import type { MediaService } from '../media/media.service.js';
 import { ChatMediaService } from './chat-media.service.js';
 import type { MessageMediaDto } from './dto/message-media.dto.js';
@@ -14,15 +15,19 @@ function setup({
   uploads = [] as { storage_key: string; content_type: string }[],
   sizes = {} as Record<string, number | null>,
 } = {}) {
-  const pool = { query: vi.fn().mockResolvedValue({ rows: uploads }) };
+  // repository ปลอม: find คืนแถวในรูปของ entity
+  const repo = {
+    insert: vi.fn().mockResolvedValue({}),
+    find: vi.fn().mockResolvedValue(uploads.map((u) => ({ storageKey: u.storage_key, contentType: u.content_type }))),
+  };
   const media = {
     presignPost: vi.fn((key: string) => Promise.resolve({ url: 'http://s3/bucket', fields: { key } })),
     objectSize: vi.fn((key: string) => Promise.resolve(key in sizes ? sizes[key] : 100)),
     urlForKey: vi.fn((key: string) => `http://s3/bucket/${key}`),
   };
   const config = { get: () => undefined } as unknown as ConfigService;
-  const service = new ChatMediaService(pool as unknown as Pool, media as unknown as MediaService, config);
-  return { service, pool, media };
+  const service = new ChatMediaService(repo as unknown as Repository<MediaUpload>, media as unknown as MediaService, config);
+  return { service, repo, media };
 }
 
 const imageDto = (over: Partial<MessageMediaDto> = {}): MessageMediaDto => ({
@@ -43,26 +48,28 @@ describe('ChatMediaService.createUpload', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('ออกใบอนุญาต 2 ใบ (ตัวจริง + thumbnail) และบันทึกทั้งคู่ลง media_uploads', async () => {
-    const { service, pool, media } = setup();
+    const { service, repo, media } = setup();
 
     const out = await service.createUpload(USER, { type: 'video', contentType: 'video/mp4' });
 
     expect(out.key).toMatch(/^chat\/[0-9a-f-]{36}\.mp4$/);
     expect(out.thumbnailKey).toBe(out.key.replace('.mp4', '_thumb.jpg'));
-    const params = pool.query.mock.calls[0][1];
-    expect(params).toEqual([USER, out.key, 'video/mp4', out.thumbnailKey, expect.any(Date)]);
+    expect(repo.insert).toHaveBeenCalledWith([
+      { userId: USER, storageKey: out.key, contentType: 'video/mp4', expiresAt: expect.any(Date) },
+      { userId: USER, storageKey: out.thumbnailKey, contentType: 'image/jpeg', expiresAt: expect.any(Date) },
+    ]);
     // วิดีโอได้เพดาน 50MB thumbnail ได้ 1MB และต้องเป็น jpeg เสมอ
     expect(media.presignPost).toHaveBeenCalledWith(out.key, 'video/mp4', 50 * 1024 * 1024, 900);
     expect(media.presignPost).toHaveBeenCalledWith(out.thumbnailKey, 'image/jpeg', 1024 * 1024, 900);
   });
 
   it('ชนิดไฟล์ไม่ตรงกับประเภท (ขอ video แต่ส่ง image/jpeg) ถูกปฏิเสธ ไม่บันทึกอะไร', async () => {
-    const { service, pool } = setup();
+    const { service, repo } = setup();
 
     await expect(service.createUpload(USER, { type: 'video', contentType: 'image/jpeg' })).rejects.toMatchObject({
       code: 'INVALID_FILE_TYPE',
     });
-    expect(pool.query).not.toHaveBeenCalled();
+    expect(repo.insert).not.toHaveBeenCalled();
   });
 });
 
@@ -86,14 +93,14 @@ describe('ChatMediaService.resolve', () => {
   });
 
   it('ค้นเฉพาะไฟล์ของผู้ส่งที่ยังไม่ถูกใช้ (กันเอา key ของคนอื่น/ของเก่ามาส่งซ้ำ)', async () => {
-    const { service, pool } = setup({ uploads: ownedImage });
+    const { service, repo } = setup({ uploads: ownedImage });
 
     await service.resolve(USER, imageDto());
 
-    const [sql, params] = pool.query.mock.calls[0];
-    expect(sql).toContain('user_id = $1');
-    expect(sql).toContain('claimed_at IS NULL');
-    expect(params).toEqual([USER, [KEY, THUMB]]);
+    const { where } = repo.find.mock.calls[0][0];
+    expect(where.userId).toBe(USER);
+    expect(where.storageKey.value).toEqual([KEY, THUMB]); // In([...])
+    expect(where.claimedAt.type).toBe('isNull');
   });
 
   it.each([
@@ -133,16 +140,16 @@ describe('ChatMediaService.resolve', () => {
 describe('ChatMediaService.claim', () => {
   it('claim ได้ครบ 2 ไฟล์ ผ่าน', async () => {
     const { service } = setup();
-    const client = { query: vi.fn().mockResolvedValue({ rowCount: 2 }) };
+    const em = { update: vi.fn().mockResolvedValue({ affected: 2 }) };
 
-    await expect(service.claim(client as unknown as PoolClient, USER, [KEY, THUMB])).resolves.toBeUndefined();
+    await expect(service.claim(em as unknown as EntityManager, USER, [KEY, THUMB])).resolves.toBeUndefined();
   });
 
   it('อีก request claim ตัดหน้าไปแล้ว (ได้ไม่ครบ) โยน error ให้ transaction rollback', async () => {
     const { service } = setup();
-    const client = { query: vi.fn().mockResolvedValue({ rowCount: 1 }) };
+    const em = { update: vi.fn().mockResolvedValue({ affected: 1 }) };
 
-    await expect(service.claim(client as unknown as PoolClient, USER, [KEY, THUMB])).rejects.toMatchObject({
+    await expect(service.claim(em as unknown as EntityManager, USER, [KEY, THUMB])).rejects.toMatchObject({
       code: 'INVALID_MEDIA',
     });
   });

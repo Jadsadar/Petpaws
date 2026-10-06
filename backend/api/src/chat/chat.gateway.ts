@@ -7,12 +7,13 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { Inject, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import type { Namespace, Socket } from 'socket.io';
-import type { Pool } from 'pg';
-import { PG_POOL } from '../database/database.module.js';
+import { InjectRepository } from '@nestjs/typeorm';
+import type { Repository } from 'typeorm';
+import { Conversation } from '../database/entities/index.js';
 
 interface AuthedSocket extends Socket {
   data: { userId?: string };
@@ -60,7 +61,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
   constructor(
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
-    @Inject(PG_POOL) private readonly pool: Pool,
+    @InjectRepository(Conversation) private readonly conversations: Repository<Conversation>,
   ) {}
 
   /**
@@ -106,12 +107,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection {
     const conversationId = data?.conversationId;
     if (!userId || !conversationId) return { ok: false };
 
-    const res = await this.pool.query<{ initiator_id: string; owner_id: string }>(
-      `SELECT initiator_id, owner_id FROM conversations WHERE id = $1`,
-      [conversationId],
-    ).catch(() => ({ rows: [] })); // id ไม่ใช่ uuid -> ถือว่าไม่พบ ไม่ใช่ error ของ server
-    const row = res.rows[0];
-    if (!row || (row.initiator_id !== userId && row.owner_id !== userId)) {
+    const row = await this.conversations
+      .findOne({ select: { initiatorId: true, ownerId: true }, where: { id: conversationId } })
+      .catch(() => null); // id ไม่ใช่ uuid -> ถือว่าไม่พบ ไม่ใช่ error ของ server
+    if (!row || (row.initiatorId !== userId && row.ownerId !== userId)) {
       this.logger.warn(`user ${userId} tried to join conversation ${conversationId} ที่ไม่ใช่ของตัวเอง`);
       return { ok: false };
     }

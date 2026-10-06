@@ -1,9 +1,10 @@
-import { CanActivate, ExecutionContext, Inject, Injectable } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Reflector } from '@nestjs/core';
-import type { Pool } from 'pg';
-import { PG_POOL } from '../database/database.module.js';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { IsNull, type DataSource } from 'typeorm';
+import { User } from '../database/entities/index.js';
 import { AppException } from './app-exception.js';
 import { IS_PUBLIC_KEY } from './public.decorator.js';
 
@@ -18,7 +19,7 @@ export class JwtAuthGuard implements CanActivate {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly reflector: Reflector,
-    @Inject(PG_POOL) private readonly pool: Pool,
+    @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -56,11 +57,8 @@ export class JwtAuthGuard implements CanActivate {
     // ยังถือ token ที่ verify ผ่านได้จนหมดอายุ แล้วทุกการเขียนจะพังด้วย FK error
     // ตอบ 401 แทน แอปจะลอง refresh (ซึ่งล้มเพราะ refresh token ถูกลบตามบัญชี) แล้วพากลับหน้าล็อกอิน
     // ค้นด้วย primary key อย่างเดียว เร็วพอจะทำทุก request
-    const res = await this.pool.query(
-      `SELECT 1 FROM users WHERE id = $1 AND deleted_at IS NULL`,
-      [userId],
-    );
-    if (res.rowCount === 0) {
+    const exists = await this.dataSource.getRepository(User).exists({ where: { id: userId, deletedAt: IsNull() } });
+    if (!exists) {
       throw AppException.unauthorized('บัญชีนี้ไม่มีอยู่แล้ว กรุณาเข้าสู่ระบบใหม่');
     }
 
