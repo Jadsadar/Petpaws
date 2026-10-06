@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:petpaws/services/chat_media_service.dart';
+import 'package:petpaws/shared/api_client.dart';
 
 void main() {
   group('prepareChatImage', () {

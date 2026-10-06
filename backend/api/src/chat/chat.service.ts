@@ -4,7 +4,12 @@ import type { Queue } from 'bullmq';
 import type { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../database/database.module.js';
 import { AppException } from '../common/app-exception.js';
-import { PUSH_QUEUE, SEND_MESSAGE_PUSH_JOB, type MessagePushJobData } from '../queue/queue.constants.js';
+import {
+  PUSH_COALESCE_MS,
+  PUSH_QUEUE,
+  SEND_MESSAGE_PUSH_JOB,
+  type MessagePushJobData,
+} from '../queue/queue.constants.js';
 import { ChatGateway } from './chat.gateway.js';
 import { ChatMediaService, type ResolvedMedia } from './chat-media.service.js';
 import type { CreateChatDto } from './dto/create-chat.dto.js';
@@ -96,8 +101,9 @@ export class ChatService {
       message: { ...message },
     });
     // jobId = messageId กันยิง push ซ้ำถ้ามีการ enqueue ข้อความเดิมสองรอบ
+    // delay = รอดูก่อนว่าจะมีข้อความตามมาติด ๆ ไหม (ส่งหลายรูป) จะได้เด้งครั้งเดียว
     this.pushQueue
-      .add(SEND_MESSAGE_PUSH_JOB, { messageId: message.id }, { jobId: message.id })
+      .add(SEND_MESSAGE_PUSH_JOB, { messageId: message.id }, { jobId: message.id, delay: PUSH_COALESCE_MS })
       .catch((err: Error) => this.logger.error(`enqueue push ไม่สำเร็จ message=${message.id}`, err.stack));
   }
 

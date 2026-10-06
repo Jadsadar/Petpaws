@@ -1,12 +1,18 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module.js';
 import { AllExceptionsFilter } from './common/http-exception.filter.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const config = app.get(ConfigService);
+
+  // production เข้าผ่าน Caddy (container ในเครือข่าย docker = IP ภายใน) ถ้าไม่เชื่อ
+  // X-Forwarded-For ที่ Caddy ใส่ให้ req.ip จะเป็น IP ของ Caddy ทุก request แล้ว rate limit
+  // จะนับทุกคนรวมเป็นคนเดียว — เชื่อเฉพาะ proxy ใน loopback/เครือข่ายภายในเท่านั้น
+  app.set('trust proxy', 'loopback, uniquelocal');
 
   // whitelist: true = field ที่ไม่ได้ประกาศใน DTO ถูกตัดทิ้งก่อนถึง SQL เลย
   // ตาม SKILL.md: "validate input ทุกตัวที่ขอบ API"

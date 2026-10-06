@@ -77,6 +77,33 @@ class ChatMediaService {
     return compute(prepareChatImage, await file.readAsBytes());
   }
 
+  /// เลือกจากคลังได้ทีละหลายรูป — แต่ละรูปจะถูกส่งเป็นข้อความแยกกันตามลำดับที่เลือก
+  static const int maxImagesPerPick = 10;
+
+  /// รูปที่เตรียมเสร็จแล้วตามลำดับที่เลือก + จำนวนที่ข้ามไป (อ่านไฟล์ไม่ได้ หรือเลือกเกิน
+  /// [maxImagesPerPick] บนเครื่องที่ตัวเลือกรูปไม่รองรับการจำกัดจำนวน)
+  Future<({List<PreparedMedia> images, int skipped})> pickImages() async {
+    final files = await _picker.pickMultiImage(
+      maxWidth: maxImageSide.toDouble(),
+      maxHeight: maxImageSide.toDouble(),
+      imageQuality: 80,
+      limit: maxImagesPerPick,
+    );
+    final images = <PreparedMedia>[];
+    // ทำทีละรูป ไม่ใช่พร้อมกันทั้งหมด — decode รูป 10 รูปพร้อมกันกินหน่วยความจำเครื่องเก่าจนแอปหลุดได้
+    for (final file in files.take(maxImagesPerPick)) {
+      try {
+        images.add(await compute(prepareChatImage, await file.readAsBytes()));
+      } catch (_) {
+        // รูปเสียรูปเดียวไม่ควรทำให้รูปอื่นที่เลือกมาส่งไม่ได้ทั้งชุด
+      }
+    }
+    if (files.isNotEmpty && images.isEmpty) {
+      throw ApiException(0, 'INVALID_IMAGE', 'อ่านไฟล์รูปที่เลือกไม่ได้');
+    }
+    return (images: images, skipped: files.length - images.length);
+  }
+
   Future<PreparedMedia?> pickVideo(ImageSource source) async {
     final file = await _picker.pickVideo(source: source, maxDuration: maxVideoDuration);
     if (file == null) return null;
