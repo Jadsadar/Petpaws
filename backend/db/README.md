@@ -588,17 +588,22 @@ docker compose --profile tools up -d
 
 เหมาะกับ dev แต่ **ใช้บน production ไม่ได้** เพราะต้องล้างข้อมูลทิ้งทุกครั้ง production ต้องใช้ migration runner จริง (`node-pg-migrate`, Prisma Migrate หรือ TypeORM migrations) ที่จำได้ว่ารันอะไรไปแล้วบ้าง
 
-### ORM ยังไม่ได้เลือก
+### ORM: TypeORM (schema ยังมาจากไฟล์ SQL)
 
-ไฟล์ SQL ในโฟลเดอร์นี้เป็นแหล่งความจริงเดียว (single source of truth) ตั้งใจเขียนเป็น SQL ดิบเพราะ schema นี้ใช้ความสามารถที่ ORM ส่วนใหญ่ประกาศไม่ได้:
+API ใช้ TypeORM แล้ว (`backend/api/src/database/`) แต่ไฟล์ SQL ในโฟลเดอร์นี้ยังเป็นแหล่งความจริงเดียว (single source of truth) ของ schema เพราะ schema ใช้ความสามารถที่ ORM ประกาศไม่ได้:
 
 - partial index (`WHERE deleted_at IS NULL`)
 - composite foreign key `(pet_id, owner_id)`
 - `CONSTRAINT TRIGGER ... DEFERRABLE`
 - CHECK constraint ที่ซับซ้อน
-- ฟังก์ชัน plpgsql
+- ฟังก์ชัน plpgsql (`deck_feed`, `mark_conversation_read`, `message_preview` ฯลฯ)
 
-เมื่อเลือก ORM แล้ว ให้ประกาศ entity ให้ตรงกับ schema นี้ แล้วใช้โหมด "ตรวจว่าตรงกันหรือไม่" ไม่ใช่โหมด "ให้ ORM สร้างตารางเอง" (`synchronize: false` ใน TypeORM)
+กติกา:
+
+- `synchronize: false` เสมอ ห้ามให้ TypeORM สร้าง/แก้ตารางเอง — เปลี่ยน schema ด้วย migration SQL ไฟล์ใหม่เท่านั้น
+- entity (`src/database/entities/`) แค่อธิบายตารางที่มีอยู่ เพิ่ม/แก้คอลัมน์ใน migration แล้วต้องแก้ entity ให้ตรงกัน — `test/entities.e2e-spec.ts` จะล้มถ้าตารางจริงมีคอลัมน์ที่ entity ไม่มี
+- คอลัมน์ที่ trigger/DB ดูแล (`like_count`, `*_unread_count`, `last_message_*`, `created_at`, `updated_at`) ประกาศ `insert: false, update: false` กัน `save()` เขียนค่าเก่าทับ
+- query ที่ใช้ความสามารถเฉพาะของ Postgres (เรียก `deck_feed()`, CTE ของหน้ารายงานแอดมิน, `unnest`) เขียนเป็น SQL ผ่าน `dataSource.query` ได้ — เป็น connection pool เดียวกับของ TypeORM
 
 ---
 
