@@ -119,3 +119,10 @@ UPDATE users SET is_admin = true WHERE username = '...';
 | [`SKILL.md`](SKILL.md) | กติกาและขอบเขตของโปรเจกต์ |
 | [`ROADMAP.md`](ROADMAP.md) | แผนงานทีละเฟส |
 | [`backend/db/README.md`](backend/db/README.md) | โครงฐานข้อมูล กฎที่ DB บังคับเอง และ seed ทั้ง 3 ชุด |
+
+## สำรองข้อมูล (production บน EC2)
+
+- **อัตโนมัติ:** cron บน EC2 รัน `backend/db/backup.sh` ทุกวัน 03:00 UTC (10:00 น. เวลาไทย) และทุกครั้งก่อนรัน migration ตอน deploy ไฟล์อยู่ที่ `/opt/petpaws/backups/` (`db-*.sql.gz` = ฐานข้อมูล, `media-*.tar.gz` = รูปใน MinIO) เก็บ 14 วัน log อยู่ที่ `backups/backup.log`
+- **สำรองมือ:** `ssh ubuntu@<IP>` แล้ว `sudo ENV_FILE=/opt/petpaws/.env BACKUP_DIR=/opt/petpaws/backups bash /opt/petpaws/backend/db/backup.sh`
+- **กู้คืน** (ล้างข้อมูลปัจจุบันทั้งหมด — หยุด api/worker ก่อน): `docker stop petpaws-api petpaws-worker` → `docker exec -i petpaws-postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"'` → `gunzip -c db-<เวลา>.sql.gz | docker exec -i petpaws-postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'` → `docker start petpaws-api petpaws-worker`
+- ไฟล์สำรองอยู่ดิสก์เดียวกับระบบ กันได้เฉพาะข้อมูลถูกลบ/แก้ผิดพลาด **ดิสก์พังต้องมี EBS snapshot** (AWS Console > EC2 > Lifecycle Manager ตั้งรายวัน เก็บ 7 รอบ)
