@@ -82,6 +82,11 @@ flutter pub get
 flutter run -d chrome
 ```
 
+> **ทุกเครื่องในทีมต้องใช้ Flutter 3.44.3** (รุ่นเดียวกับ CI — ดู `.fvmrc`, `.github/workflows/ci.yml`)
+> รุ่นอื่นจะเขียน `pubspec.lock` ไม่ตรงกับที่ CI ต้องการ (`flutter pub get --enforce-lockfile`) ทำให้ job Mobile (Flutter) แดง
+> ติดตั้ง: `git clone --depth 1 --branch 3.44.3 https://github.com/flutter/flutter.git flutter-3.44.3` แล้วใช้ `flutter-3.44.3/bin` ใน PATH
+> ถ้า `pubspec.lock` ถูกแก้โดยไม่ตั้งใจ ให้ `git restore pubspec.lock` ก่อน commit
+
 ## หมายเหตุ
 
 - **แอปชี้เซิร์ฟเวอร์จริงบน EC2 เป็นค่าเริ่มต้น** (`ApiClient.baseUrl`) — `git pull` แล้ว `flutter run -d chrome` ก็ใช้งานได้เลย ไม่ต้องรัน backend/DB เอง ถ้าพัฒนา backend ในเครื่อง ให้ชี้กลับด้วย `flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:3000` (Android emulator ใช้ `http://10.0.2.2:3000`)
