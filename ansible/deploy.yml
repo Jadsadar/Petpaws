@@ -99,6 +99,19 @@
         dest: "{{ deploy_dir }}/backend/db/migrate.sh"
         mode: "0755"
 
+    - name: Copy สคริปต์สำรองฐานข้อมูล (backup.sh)
+      ansible.builtin.copy:
+        src: ../backend/db/backup.sh
+        dest: "{{ deploy_dir }}/backend/db/backup.sh"
+        mode: "0755"
+
+    - name: สร้างโฟลเดอร์เก็บไฟล์สำรอง (เฉพาะ root อ่านได้)
+      ansible.builtin.file:
+        path: "{{ deploy_dir }}/backups"
+        state: directory
+        owner: root
+        mode: "0700"
+
     - name: Copy .env production (ค่าจริง ไม่ใช่ example)
       ansible.builtin.copy:
         src: "{{ env_file_src }}"
@@ -152,6 +165,18 @@
           retries: 24
           delay: 5
           changed_when: false
+
+        # สำรองก่อนแตะ schema ทุกครั้ง — ถ้า migration ใหม่ทำข้อมูลเสีย จะมีจุดย้อนกลับ
+        # (ล้มแล้วหยุด deploy ทันที ดีกว่า migrate โดยไม่มีสำรอง)
+        - name: สำรองฐานข้อมูลก่อนรัน migration
+          ansible.builtin.command:
+            cmd: /bin/bash backend/db/backup.sh
+            chdir: "{{ deploy_dir }}"
+          environment:
+            ENV_FILE: "{{ deploy_dir }}/.env"
+            BACKUP_DIR: "{{ deploy_dir }}/backups"
+          register: backup_out
+          changed_when: "'สำรองฐานข้อมูล:' in backup_out.stdout"
 
         - name: รัน migration ที่ยังไม่เคยรัน
           ansible.builtin.shell: |
@@ -207,3 +232,16 @@
         - name: ทำให้ playbook ล้มเหลวอย่างชัดเจน
           ansible.builtin.fail:
             msg: "Deploy ล้มเหลว — ดู log วินิจฉัยด้านบน"
+
+    # สำรองอัตโนมัติทุกวัน 03:00 UTC (10:00 น. เวลาไทย) เก็บ 14 วัน — ดู backend/db/backup.sh
+    # ไฟล์อยู่ดิสก์เดียวกับระบบ กันได้เฉพาะข้อมูลถูกลบ/แก้พลาด ดิสก์พังต้องใช้ EBS snapshot ควบคู่
+    - name: ตั้ง cron สำรองฐานข้อมูลรายวัน
+      ansible.builtin.cron:
+        name: petpaws daily backup
+        user: root
+        minute: "0"
+        hour: "3"
+        job: >-
+          ENV_FILE={{ deploy_dir }}/.env BACKUP_DIR={{ deploy_dir }}/backups
+          /bin/bash {{ deploy_dir }}/backend/db/backup.sh
+          >> {{ deploy_dir }}/backups/backup.log 2>&1
