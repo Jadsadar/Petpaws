@@ -178,7 +178,8 @@ services:
     container_name: petpaws-uptime-kuma
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      # ผูกกับตัวเครื่องเท่านั้น (ไม่เปิดสู่อินเทอร์เน็ตแม้ security group จะเผลอเปิด) เข้าผ่าน SSH tunnel
+      - "127.0.0.1:3001:3001"
     volumes:
       - uptime_kuma_data:/app/data
 
