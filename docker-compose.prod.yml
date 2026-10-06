@@ -109,7 +109,7 @@ services:
       # ที่อยู่ที่แอปเข้าถึงรูป/ไฟล์ได้จริง (ผ่าน Caddy path /petpaws-media/) — ไม่ใช่ความลับ จึงตั้งที่นี่
       # ไม่ใช่ใน secrets/production.env.enc ถ้ามีโดเมนแล้วตั้ง S3_PUBLIC_ENDPOINT ใน .env ทับได้
       # (S3_ENDPOINT=http://minio:9000 ยังเป็นที่อยู่ภายในที่ API ใช้เรียก MinIO เอง)
-      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://3.24.61.96}
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://43.211.6.248}
       # ที่อยู่ภายในเครือข่าย docker ไม่ใช่ความลับ — worker ไม่ใช้ cache จึงไม่ตั้งให้
       REDIS_CACHE_URL: ${REDIS_CACHE_URL:-redis://redis-cache:6379}
     depends_on:
@@ -138,7 +138,7 @@ services:
       # ที่อยู่ที่แอปเข้าถึงรูป/ไฟล์ได้จริง (ผ่าน Caddy path /petpaws-media/) — ไม่ใช่ความลับ จึงตั้งที่นี่
       # ไม่ใช่ใน secrets/production.env.enc ถ้ามีโดเมนแล้วตั้ง S3_PUBLIC_ENDPOINT ใน .env ทับได้
       # (S3_ENDPOINT=http://minio:9000 ยังเป็นที่อยู่ภายในที่ API ใช้เรียก MinIO เอง)
-      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://3.24.61.96}
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://43.211.6.248}
     # HEALTHCHECK ใน Dockerfile ยิง :3000/health ของ api — worker ไม่มี HTTP จะขึ้น unhealthy ตลอด
     healthcheck:
       disable: true

@@ -117,12 +117,16 @@ void main() {
       }, () => MockClient((req) async => _json(chats)));
     });
 
-    testWidgets('กดค้างที่แชท → ยืนยัน → เรียก DELETE /chats/:id', (tester) async {
+    testWidgets('โหมดเลือก: ติ๊กแชท → ลบแชท → ยืนยัน → เรียก DELETE /chats/:id', (tester) async {
       final calls = <String>[];
       await http.runWithClient(() async {
         await tester.pumpWidget(const MaterialApp(home: ChatInboxScreen()));
         await tester.pumpAndSettle();
-        await tester.longPress(find.byKey(const ValueKey('chat-c1')));
+        await tester.tap(find.byKey(const ValueKey('inbox-select')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('inbox-check-c1')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('inbox-delete')));
         await tester.pumpAndSettle();
         await tester.tap(find.widgetWithText(TextButton, 'ลบ'));
         await tester.pumpAndSettle();

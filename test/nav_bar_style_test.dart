@@ -24,14 +24,14 @@ void main() {
       expect(bar().selectedItemColor, isNot(bar().unselectedItemColor));
       expect(bar().unselectedItemColor, Colors.grey.shade500);
 
-      // ขนาดไอคอนจริงบนจอ: แท็บที่เลือก (ค้นหา) ใหญ่กว่าแท็บอื่น (ถูกใจ)
+      // ขนาดไอคอนจริงบนจอ: แท็บที่เลือก (ค้นหา) ใหญ่กว่าแท็บอื่น (ถูกใจ — ไอคอนหัวใจเส้นขอบ)
       double sizeOf(IconData icon) => tester.getSize(find.descendant(
           of: find.byType(BottomNavigationBar), matching: find.byIcon(icon))).width;
-      expect(sizeOf(Icons.search), greaterThan(sizeOf(Icons.favorite)));
+      expect(sizeOf(Icons.search), greaterThan(sizeOf(Icons.favorite_border)));
 
       await tester.tap(find.text('ถูกใจ'));
       await tester.pumpAndSettle();
-      expect(sizeOf(Icons.favorite), greaterThan(sizeOf(Icons.search)));
+      expect(sizeOf(Icons.favorite_border), greaterThan(sizeOf(Icons.search)));
 
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(milliseconds: 300));
