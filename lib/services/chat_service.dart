@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import '../shared/api_client.dart';
 import '../shared/api_exception.dart';
@@ -22,15 +23,20 @@ class ChatService {
   /// จะแนบข้อความนี้ต่อท้ายห้องเดิมให้เลย คืนค่า chatId เสมอ
   ///
   /// ข้อความแรกเป็นรูป/วิดีโอได้ — [media] คือค่าที่ได้จาก ChatMediaService.upload
+  ///
+  /// [clientId] = id ของข้อความนี้ที่แอปสร้างเอง ([newMessageClientId]) ส่งค่าเดิมทุกครั้งที่ลองใหม่
+  /// — ถ้าคำขอก่อนหน้าบันทึกไปแล้วแต่คำตอบหาย server จะไม่บันทึกซ้ำ
   Future<String> createOrSend({
     required String petId,
     String message = '',
     Map<String, dynamic>? media,
+    String? clientId,
   }) async {
     final res = await _api.post('/chats', body: {
       'petId': petId,
       if (message.isNotEmpty) 'message': message,
       if (media != null) 'media': media,
+      if (clientId != null) 'clientId': clientId,
     }) as Map<String, dynamic>;
     return res['chatId'] as String;
   }
@@ -115,14 +121,17 @@ class ChatService {
 
   /// คืนข้อความที่บันทึกแล้วจาก server (มี id/createdAt/media URL จริง) ให้หน้าจอ
   /// ใส่ลง feed ได้ทันที ไม่ต้องรอ event จาก socket
+  /// [clientId] ดู [createOrSend]
   Future<Map<String, dynamic>> sendMessage(
     String chatId, {
     String text = '',
     Map<String, dynamic>? media,
+    String? clientId,
   }) async {
     final res = await _api.post('/chats/$chatId/messages', body: {
       if (text.isNotEmpty) 'text': text,
       if (media != null) 'media': media,
+      if (clientId != null) 'clientId': clientId,
     }) as Map<String, dynamic>;
     return res['message'] as Map<String, dynamic>;
   }
@@ -393,4 +402,17 @@ List<Map<String, dynamic>>? applyInboxNotification(
       DateTime.tryParse('${c['lastMessageAt']}') ?? DateTime.fromMillisecondsSinceEpoch(0);
   next.sort((a, b) => at(b).compareTo(at(a)));
   return next;
+}
+
+final _random = Random.secure();
+
+/// id ของข้อความที่แอปสร้างเองตอนกดส่ง (UUID v4) — ใช้ค่าเดิมทุกครั้งที่ส่งซ้ำ server จะได้รู้ว่า
+/// เป็นข้อความเดิม (ไม่บันทึกซ้ำ) และใช้จับคู่ bubble "กำลังส่ง" กับข้อความจริงที่ server ตอบมา
+String newMessageClientId() {
+  final b = List<int>.generate(16, (_) => _random.nextInt(256));
+  b[6] = (b[6] & 0x0f) | 0x40; // version 4
+  b[8] = (b[8] & 0x3f) | 0x80; // variant RFC 4122
+  final hex = b.map((x) => x.toRadixString(16).padLeft(2, '0')).join();
+  return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-'
+      '${hex.substring(16, 20)}-${hex.substring(20)}';
 }
