@@ -33,6 +33,7 @@ class TagSelector extends StatelessWidget {
             final isSelected = selectedIds.contains(tag.id);
             final canTap = enabled && (isSelected || !reachedMax);
             return ChoiceChip(
+              key: ValueKey('tag-${tag.id}'),
               label: Text(tag.label,
                   style: TextStyle(
                       color: isSelected

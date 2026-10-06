@@ -104,6 +104,7 @@ class _RegisterScreenState extends State<RegisterScreen> with FieldErrors {
               title: 'ข้อมูลพื้นฐานบัญชีผู้ใช้',
               children: [
                 TextField(
+                    key: const ValueKey('register-username'),
                     controller: usernameController,
                     enabled: !_isLoading,
                     decoration: InputDecoration(
@@ -116,6 +117,7 @@ class _RegisterScreenState extends State<RegisterScreen> with FieldErrors {
                             borderRadius: BorderRadius.circular(AppRadius.card)))),
                 const SizedBox(height: 16),
                 TextField(
+                    key: const ValueKey('register-email'),
                     controller: emailController,
                     enabled: !_isLoading,
                     keyboardType: TextInputType.emailAddress,
@@ -126,6 +128,7 @@ class _RegisterScreenState extends State<RegisterScreen> with FieldErrors {
                             borderRadius: BorderRadius.circular(AppRadius.card)))),
                 const SizedBox(height: 16),
                 TextField(
+                    key: const ValueKey('register-password'),
                     controller: passwordController,
                     obscureText: _obscurePassword,
                     enabled: !_isLoading,
@@ -149,6 +152,7 @@ class _RegisterScreenState extends State<RegisterScreen> with FieldErrors {
                 ),
                 const SizedBox(height: 16),
                 TextField(
+                    key: const ValueKey('register-confirm'),
                     controller: confirmPasswordController,
                     obscureText: _obscureConfirmPassword,
                     enabled: !_isLoading,
@@ -172,6 +176,7 @@ class _RegisterScreenState extends State<RegisterScreen> with FieldErrors {
             ),
             const SizedBox(height: 32),
             ElevatedButton(
+              key: const ValueKey('register-submit'),
               onPressed: _isLoading ? null : handleRegister,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
