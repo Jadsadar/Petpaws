@@ -49,6 +49,7 @@ const COMMAND_TIMEOUT_MS = 300;
     },
     CacheService,
   ],
-  exports: [CacheService],
+  // CACHE_REDIS ให้ตัวนับ rate limit (RedisThrottlerStorage) ใช้ Redis ตัวเดียวกัน
+  exports: [CacheService, CACHE_REDIS],
 })
 export class CacheModule {}
