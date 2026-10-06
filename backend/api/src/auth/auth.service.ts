@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
@@ -7,6 +7,8 @@ import type { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module.js';
 import { AppException } from '../common/app-exception.js';
 import { firstPasswordError } from './password-policy.js';
+import { MailService } from '../mail/mail.service.js';
+import { verificationEmail, type VerifyOutcome } from './email-templates.js';
 import type { RegisterDto } from './dto/register.dto.js';
 import type { LoginDto } from './dto/login.dto.js';
 
@@ -28,13 +30,21 @@ export interface TokenPair {
 const REFRESH_TOKEN_BYTES = 32;
 const RESET_TOKEN_BYTES = 32;
 const RESET_TOKEN_TTL_SECONDS = 30 * 60;
+const VERIFY_TOKEN_BYTES = 32;
+const VERIFY_TOKEN_TTL_HOURS = 24;
+/** ส่งลิงก์ยืนยันซ้ำถี่กว่านี้ไม่ได้ (ต่อบัญชี) — กันใช้ระบบเป็นเครื่องยิงอีเมลใส่กล่องคนอื่น */
+const VERIFY_RESEND_COOLDOWN_SECONDS = 60;
+const VERIFY_RESEND_MESSAGE = 'ถ้าบัญชีนี้ยังไม่ได้ยืนยัน ระบบส่งลิงก์ยืนยันไปที่อีเมลแล้ว';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger('AuthService');
+
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly mail: MailService,
   ) {}
 
   private sha256(input: string): string {
@@ -129,16 +139,124 @@ export class AuthService {
       [username, dto.email.trim(), passwordHash, username],
     );
 
-    return { id: result.rows[0].id };
+    // ส่งลิงก์ยืนยันแบบไม่รอ (ผู้ใช้ไม่ต้องรอ API ของผู้ให้บริการอีเมล) — ส่งไม่สำเร็จก็ไม่ทำให้สมัครล้ม
+    // ผู้ใช้กด "ส่งลิงก์อีกครั้ง" ได้เอง
+    if (this.mail.enabled) {
+      void this.issueVerification(result.rows[0].id, dto.email.trim(), username).catch((err: Error) =>
+        this.logger.error(`ส่งอีเมลยืนยันไม่สำเร็จ user=${result.rows[0].id}: ${err.message}`),
+      );
+    }
+
+    // แอปใช้ค่านี้เลือกว่าจะขึ้นหน้า "ตรวจอีเมลของคุณ" หรือกลับไปหน้าล็อกอินตามเดิม
+    return { id: result.rows[0].id, verificationRequired: this.mail.enabled };
+  }
+
+  /** สร้างลิงก์ยืนยันใหม่ (ลิงก์เก่าที่ยังไม่ถูกใช้ใช้ไม่ได้อีก) แล้วส่งอีเมล */
+  private async issueVerification(userId: string, email: string, username: string): Promise<void> {
+    const token = randomBytes(VERIFY_TOKEN_BYTES).toString('base64url');
+    await this.pool.query(
+      `UPDATE email_verification_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL`,
+      [userId],
+    );
+    await this.pool.query(
+      `INSERT INTO email_verification_tokens (user_id, token_hash, expires_at)
+       VALUES ($1, $2, now() + ($3 || ' hours')::interval)`,
+      [userId, this.sha256(token), VERIFY_TOKEN_TTL_HOURS],
+    );
+
+    const base = (this.config.get<string>('APP_PUBLIC_URL') || `http://localhost:${this.config.get<string>('API_PORT') ?? '3000'}`)
+      .replace(/\/+$/, '');
+    const link = `${base}/auth/verify-email?token=${token}`;
+    const mail = verificationEmail({ username, link, ttlHours: VERIFY_TOKEN_TTL_HOURS });
+    await this.mail.send({ to: email, ...mail });
+  }
+
+  /** กดลิงก์ในอีเมล — คืนผลให้ controller วาดหน้าเว็บ (ใช้ซ้ำหลังยืนยันแล้วถือว่าสำเร็จ กันโปรแกรมสแกนลิงก์กดซ้ำ) */
+  async verifyEmail(token: string): Promise<VerifyOutcome> {
+    const res = await this.pool.query<{
+      id: string;
+      user_id: string;
+      used_at: Date | null;
+      expires_at: Date;
+      email_verified_at: Date | null;
+    }>(
+      `SELECT t.id, t.user_id, t.used_at, t.expires_at, u.email_verified_at
+       FROM email_verification_tokens t
+       JOIN users u ON u.id = t.user_id AND u.deleted_at IS NULL
+       WHERE t.token_hash = $1`,
+      [this.sha256(token)],
+    );
+    if (res.rows.length === 0) return 'invalid';
+    const row = res.rows[0];
+
+    if (row.email_verified_at) return 'ok';
+    if (row.used_at !== null) return 'used';
+    if (row.expires_at < new Date()) return 'expired';
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`UPDATE users SET email_verified_at = now() WHERE id = $1 AND email_verified_at IS NULL`, [
+        row.user_id,
+      ]);
+      await client.query(`UPDATE email_verification_tokens SET used_at = now() WHERE id = $1`, [row.id]);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+    return 'ok';
+  }
+
+  /**
+   * ส่งลิงก์ยืนยันอีกครั้ง — ตอบข้อความเดียวกันเสมอไม่ว่าจะมีบัญชีนี้ ยืนยันแล้ว หรืออยู่ในช่วงพัก
+   * (กันคนเดาว่าอีเมล/ชื่อผู้ใช้ไหนมีอยู่ในระบบ)
+   */
+  async resendVerification(identifier: string) {
+    if (!this.mail.enabled) return { message: VERIFY_RESEND_MESSAGE };
+
+    const isEmail = identifier.includes('@');
+    const res = await this.pool.query<{
+      id: string;
+      email: string;
+      username: string;
+      email_verified_at: Date | null;
+      last_sent: Date | null;
+    }>(
+      `SELECT u.id, u.email, u.username, u.email_verified_at,
+              (SELECT max(created_at) FROM email_verification_tokens WHERE user_id = u.id) AS last_sent
+       FROM users u
+       WHERE u.deleted_at IS NULL AND ${isEmail ? 'u.email' : 'u.username'} = $1`,
+      [identifier.trim()],
+    );
+    const u = res.rows[0];
+    if (!u || u.email_verified_at) return { message: VERIFY_RESEND_MESSAGE };
+    if (u.last_sent && Date.now() - u.last_sent.getTime() < VERIFY_RESEND_COOLDOWN_SECONDS * 1000) {
+      return { message: VERIFY_RESEND_MESSAGE };
+    }
+
+    try {
+      await this.issueVerification(u.id, u.email, u.username);
+    } catch (err) {
+      this.logger.error(`ส่งอีเมลยืนยันซ้ำไม่สำเร็จ user=${u.id}: ${(err as Error).message}`);
+    }
+    return { message: VERIFY_RESEND_MESSAGE };
   }
 
   async login(dto: LoginDto) {
     const isEmail = dto.identifier.includes('@');
     const result = await this.pool.query<
-      UserRow & { password_hash: string; is_suspended: boolean; suspended_until: Date | null }
+      UserRow & {
+        password_hash: string;
+        is_suspended: boolean;
+        suspended_until: Date | null;
+        email_verified_at: Date | null;
+      }
     >(
       `SELECT id, username, email, display_name, avatar_url, location, profile_completed_at,
-              password_hash, is_suspended, suspended_until
+              password_hash, is_suspended, suspended_until, email_verified_at
        FROM users
        WHERE deleted_at IS NULL AND ${isEmail ? 'email' : 'username'} = $1`,
       [dto.identifier.trim()],
@@ -173,6 +291,16 @@ export class AuthService {
       } else {
         throw AppException.unauthorized('บัญชีนี้ถูกระงับการใช้งาน');
       }
+    }
+
+    // ต้องยืนยันอีเมลก่อนถึงเข้าได้ (เฉพาะเมื่อมีระบบอีเมลพร้อมส่งจริง) — เช็กหลังรหัสผ่านถูกและไม่ถูกแบนเท่านั้น
+    // ไม่งั้นคนเดารหัสจะรู้ว่ามีบัญชีนี้อยู่จริง
+    if (this.mail.enabled && !user.email_verified_at) {
+      throw new AppException(
+        'EMAIL_NOT_VERIFIED',
+        'ยังไม่ได้ยืนยันอีเมล กรุณากดลิงก์ยืนยันที่ส่งไปทางอีเมลก่อนเข้าสู่ระบบ',
+        HttpStatus.FORBIDDEN,
+      );
     }
 
     await this.pool.query('UPDATE users SET last_login_at = now() WHERE id = $1', [

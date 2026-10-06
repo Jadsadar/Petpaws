@@ -6,6 +6,7 @@ import '../../utils/password_policy.dart';
 import '../../widgets/password_checklist.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/field_error.dart';
+import 'verify_email_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -57,14 +58,24 @@ class _RegisterScreenState extends State<RegisterScreen> with FieldErrors {
 
     setState(() => _isLoading = true);
     try {
-      await AuthService.instance.register(
+      final needsVerification = await AuthService.instance.register(
         email: emailController.text.trim(),
         password: passwordController.text,
         username: username,
       );
       currentUserProfile['email'] = emailController.text.trim();
-      // POST /auth/register ไม่ได้ล็อกอินให้ — กลับไปหน้า login ให้ผู้ใช้เข้าเอง
       if (!mounted) return;
+      // ต้องยืนยันอีเมล: แสดงหน้า "ตรวจอีเมลของคุณ" ก่อน (ปิดหน้านั้นแล้วค่อยกลับไปหน้า login)
+      if (needsVerification) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => VerifyEmailScreen(email: emailController.text.trim(), identifier: username),
+          ),
+        );
+        if (!mounted) return;
+      }
+      // POST /auth/register ไม่ได้ล็อกอินให้ — กลับไปหน้า login ให้ผู้ใช้เข้าเอง
       Navigator.pop(context, true);
     } on AuthFailure catch (e) {
       if (!mounted) return;
