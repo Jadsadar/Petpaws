@@ -126,3 +126,11 @@ UPDATE users SET is_admin = true WHERE username = '...';
 - **สำรองมือ:** `ssh ubuntu@<IP>` แล้ว `sudo ENV_FILE=/opt/petpaws/.env BACKUP_DIR=/opt/petpaws/backups bash /opt/petpaws/backend/db/backup.sh`
 - **กู้คืน** (ล้างข้อมูลปัจจุบันทั้งหมด — หยุด api/worker ก่อน): `docker stop petpaws-api petpaws-worker` → `docker exec -i petpaws-postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"'` → `gunzip -c db-<เวลา>.sql.gz | docker exec -i petpaws-postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'` → `docker start petpaws-api petpaws-worker`
 - ไฟล์สำรองอยู่ดิสก์เดียวกับระบบ กันได้เฉพาะข้อมูลถูกลบ/แก้ผิดพลาด **ดิสก์พังต้องมี EBS snapshot** (AWS Console > EC2 > Lifecycle Manager ตั้งรายวัน เก็บ 7 รอบ)
+
+## ยืนยันอีเมลตอนสมัคร
+
+- สมัครแล้วระบบส่งลิงก์ไปทางอีเมล (กดยืนยันได้เลย ไม่ใช่รหัส OTP) ต้องกดก่อนถึงล็อกอินได้ ลิงก์อยู่ได้ 24 ชั่วโมง ขอส่งซ้ำได้ทุก 60 วินาที
+- บัญชีที่มีอยู่ก่อนเปิดระบบนี้ถือว่ายืนยันแล้ว (migration `017`) ไม่ถูกล็อกเอาท์
+- **เปิดใช้งานจริง:** ใส่ `BREVO_API_KEY` และ `MAIL_FROM_EMAIL` ใน `.env` ของ production (เข้ารหัสด้วย SOPS) ดูขั้นตอนใน `.env.production.example` ยังไม่ใส่ = ระบบอีเมลปิด ไม่บังคับยืนยัน
+- **dev/ทดสอบ:** ตั้ง `MAIL_PROVIDER=log` แล้วดูลิงก์ยืนยันใน log ของ API (ไม่ส่งอีเมลจริง)
+- ลิงก์ในอีเมลชี้ไปที่ `APP_PUBLIC_URL` (ค่าเริ่มต้นใน `docker-compose.prod.yml`) ถ้าเปลี่ยนที่อยู่เซิร์ฟเวอร์ต้องแก้ค่านี้ด้วย
