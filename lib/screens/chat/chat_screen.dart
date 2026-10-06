@@ -467,7 +467,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final myUid = AuthService.instance.currentUser?.uid ?? '';
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.transparent, // เห็นพื้นหลังมือจับอุ้งเท้าเหมือนหน้าอื่น
       appBar: AppBar(
         title: GestureDetector(
           onTap: widget.otherUserId.isEmpty

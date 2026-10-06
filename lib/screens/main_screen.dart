@@ -10,6 +10,7 @@ import 'profile/profile_screen.dart';
 import 'upload/upload_screen.dart';
 import '../theme/app_theme.dart';
 import '../widgets/pop_icon.dart';
+import '../shared/favorites_store.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -40,7 +41,18 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
+    // ให้หน้าที่เปิดจากที่อื่น (เช่น โปรไฟล์ผู้อื่น) เห็นและกดถูกใจชุดเดียวกับหน้าหลัก
+    FavoritesStore.instance.attach(
+      isLiked: (id) => likedDogs.any((d) => d['id'] == id),
+      toggle: onToggleFavoriteDog,
+    );
     _loadInitialData();
+  }
+
+  @override
+  void dispose() {
+    FavoritesStore.instance.detach();
+    super.dispose();
   }
 
   Future<void> _loadInitialData() async {

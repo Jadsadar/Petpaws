@@ -8,6 +8,7 @@ import '../../widgets/pet_avatar.dart';
 import '../../widgets/pet_network_image.dart';
 import '../detail/pet_detail_screen.dart';
 import '../../theme/app_theme.dart';
+import '../../shared/favorites_store.dart';
 
 /// หน้าโปรไฟล์ของผู้ใช้คนอื่น เปิดได้จากประกาศสัตว์เลี้ยงหรือจากห้องแชท
 ///
@@ -63,9 +64,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   AppBar _appBar() => AppBar(
         title: const Text('โปรไฟล์ผู้ใช้',
             style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark)),
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.appBar,
         iconTheme: const IconThemeData(color: AppColors.primary),
-        elevation: 1,
+        elevation: 0,
         centerTitle: true,
       );
 
@@ -73,14 +74,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: Colors.transparent,
         appBar: _appBar(),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
     if (_hasError || _profile == null) {
       return Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: Colors.transparent,
         appBar: _appBar(),
         body: Center(
           child: Column(
@@ -100,7 +101,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Widget _scaffold(
       BuildContext context, Map<String, dynamic> profile, List<Map<String, dynamic>> pets) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.transparent, // เห็นพื้นหลังเหมือนหน้าอื่น
       appBar: _appBar(),
       body: ListView(
         padding: const EdgeInsets.all(24),
@@ -279,8 +280,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             builder: (context) => PetDetailScreen(
               dog: pet,
               isMyPost: false,
-              isFavorited: false,
-              onToggleFavorite: () {},
+              // สถานะถูกใจจริงจากหน้าหลัก (เดิมใส่ false ตายตัว เลยขึ้นว่ายังไม่ถูกใจเสมอ)
+              isFavorited: FavoritesStore.instance.isLiked(pet['id'] as String?),
+              onToggleFavorite: () => FavoritesStore.instance.toggle(pet),
             ),
           ),
         ),
