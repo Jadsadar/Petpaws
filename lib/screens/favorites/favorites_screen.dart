@@ -112,6 +112,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                   petId: dog['id'] as String,
                   dogName: dog['name'] as String,
                   otherUserName: ownerName,
+                  otherUserAvatar: dog['ownerAvatar'] as String?,
                   otherUserId: ownerId,
                 )));
   }

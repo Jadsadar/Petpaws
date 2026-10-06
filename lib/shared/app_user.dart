@@ -9,6 +9,7 @@ class AppUser {
     required this.displayName,
     this.photoURL,
     this.profileCompleted = false,
+    this.province,
   });
 
   final String uid;
@@ -18,6 +19,10 @@ class AppUser {
   final String? photoURL;
   final bool profileCompleted;
 
+  /// จังหวัดในโปรไฟล์ ใช้เติมค่าเริ่มต้นตอนลงประกาศ — null = ยังไม่รู้ (backend รุ่นเก่า
+  /// ไม่ส่งมากับผลล็อกอิน) ต้องถามจาก GET /users/me เอง ส่วน '' = รู้แล้วว่าไม่ได้ตั้งไว้
+  final String? province;
+
   factory AppUser.fromJson(Map<String, dynamic> json) => AppUser(
         uid: json['id'] as String,
         username: json['username'] as String,
@@ -25,14 +30,17 @@ class AppUser {
         displayName: (json['displayName'] as String?) ?? '',
         photoURL: json['avatarUrl'] as String?,
         profileCompleted: (json['profileCompleted'] as bool?) ?? false,
+        province: json.containsKey('province') ? (json['province'] as String?) ?? '' : null,
       );
 
-  AppUser copyWith({String? displayName, bool? profileCompleted}) => AppUser(
+  AppUser copyWith({String? displayName, String? photoURL, bool? profileCompleted, String? province}) =>
+      AppUser(
         uid: uid,
         username: username,
         email: email,
         displayName: displayName ?? this.displayName,
-        photoURL: photoURL,
+        photoURL: photoURL ?? this.photoURL,
         profileCompleted: profileCompleted ?? this.profileCompleted,
+        province: province ?? this.province,
       );
 }

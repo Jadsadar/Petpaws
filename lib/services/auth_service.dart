@@ -62,6 +62,7 @@ class AuthService {
             ? null
             : me['profileImageUrl'] as String?,
         profileCompleted: displayName != (me['username'] as String),
+        province: (me['province'] as String?) ?? '',
       );
       ChatSocket.instance.connect();
       _controller.add(_currentUser);
@@ -122,13 +123,19 @@ class AuthService {
       ...extraFields,
     }) as Map<String, dynamic>;
 
-    _currentUser = _currentUser?.copyWith(displayName: displayName, profileCompleted: true) ??
+    final province = (res['province'] as String?) ?? '';
+    _currentUser = _currentUser?.copyWith(
+          displayName: displayName,
+          profileCompleted: true,
+          province: province,
+        ) ??
         AppUser(
           uid: res['id'] as String,
           username: res['username'] as String,
           email: res['email'] as String,
           displayName: displayName,
           profileCompleted: true,
+          province: province,
         );
     _controller.add(_currentUser);
   }
@@ -147,16 +154,15 @@ class AuthService {
     final url = uploadRes['url'] as String;
 
     await _api.patch('/users/me', body: {'profileImageUrl': url});
-    _currentUser = AppUser(
-      uid: _currentUser!.uid,
-      username: _currentUser!.username,
-      email: _currentUser!.email,
-      displayName: _currentUser!.displayName,
-      photoURL: url,
-      profileCompleted: _currentUser!.profileCompleted,
-    );
+    _currentUser = _currentUser!.copyWith(photoURL: url);
     _controller.add(_currentUser);
     return url;
+  }
+
+  /// โปรไฟล์ถูกแก้จากหน้าโปรไฟล์ (PATCH /users/me ผ่าน UsersService) — จำจังหวัดใหม่ไว้
+  /// ไม่งั้นหน้าลงประกาศจะเติมจังหวัดเก่าให้ ไม่ต้องแจ้ง authStateChanges เพราะไม่มีจอไหนโชว์ค่านี้
+  void rememberProfile(Map<String, dynamic> me) {
+    _currentUser = _currentUser?.copyWith(province: (me['province'] as String?) ?? '');
   }
 
   Future<void> signOut() async {

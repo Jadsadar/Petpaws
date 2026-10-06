@@ -16,6 +16,7 @@ interface UserRow {
   email: string;
   display_name: string;
   avatar_url: string | null;
+  location: string | null;
   profile_completed_at: Date | null;
 }
 
@@ -48,6 +49,8 @@ export class AuthService {
       displayName: row.display_name,
       avatarUrl: row.avatar_url,
       profileCompleted: row.profile_completed_at !== null,
+      // แอปเก็บไว้เติมจังหวัดเริ่มต้นตอนลงประกาศ ไม่ต้องยิง GET /users/me เพิ่ม
+      province: row.location,
     };
   }
 
@@ -134,7 +137,7 @@ export class AuthService {
     const result = await this.pool.query<
       UserRow & { password_hash: string; is_suspended: boolean; suspended_until: Date | null }
     >(
-      `SELECT id, username, email, display_name, avatar_url, profile_completed_at,
+      `SELECT id, username, email, display_name, avatar_url, location, profile_completed_at,
               password_hash, is_suspended, suspended_until
        FROM users
        WHERE deleted_at IS NULL AND ${isEmail ? 'email' : 'username'} = $1`,
@@ -348,7 +351,7 @@ export class AuthService {
 
   async me(userId: string) {
     const result = await this.pool.query<UserRow>(
-      `SELECT id, username, email, display_name, avatar_url, profile_completed_at
+      `SELECT id, username, email, display_name, avatar_url, location, profile_completed_at
        FROM users WHERE id = $1 AND deleted_at IS NULL`,
       [userId],
     );

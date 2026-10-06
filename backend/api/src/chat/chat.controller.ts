@@ -3,6 +3,7 @@ import { ChatService } from './chat.service.js';
 import { CreateChatDto } from './dto/create-chat.dto.js';
 import { CreateMediaUploadDto } from './dto/create-media-upload.dto.js';
 import { ListMessagesQueryDto } from './dto/list-messages.dto.js';
+import { LookupChatQueryDto } from './dto/lookup-chat.dto.js';
 import { SendMessageDto } from './dto/send-message.dto.js';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator.js';
 
@@ -18,6 +19,12 @@ export class ChatController {
   @Get()
   list(@CurrentUser() user: AuthUser, @Query('petName') petName?: string) {
     return this.chatService.list(user.id, petName);
+  }
+
+  // ต้องมาก่อน @Get(':id') ไม่งั้น Nest จับคำว่า "lookup" เป็นค่า :id
+  @Get('lookup')
+  lookup(@CurrentUser() user: AuthUser, @Query() query: LookupChatQueryDto) {
+    return this.chatService.lookup(user.id, query);
   }
 
   @Post()

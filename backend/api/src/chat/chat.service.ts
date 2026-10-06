@@ -15,6 +15,7 @@ import { ChatMediaService, type ResolvedMedia } from './chat-media.service.js';
 import type { CreateChatDto } from './dto/create-chat.dto.js';
 import type { CreateMediaUploadDto } from './dto/create-media-upload.dto.js';
 import type { ListMessagesQueryDto } from './dto/list-messages.dto.js';
+import type { LookupChatQueryDto } from './dto/lookup-chat.dto.js';
 import type { MessageMediaDto, MessageMediaType } from './dto/message-media.dto.js';
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -95,7 +96,7 @@ export class ChatService {
   private afterMessageSent(chatId: string, recipientId: string, message: SentMessage) {
     this.chatGateway.emitNewMessage(chatId, { ...message });
     // ทั้งสองฝั่ง: ผู้รับได้ badge/ห้องใหม่ ผู้ส่งได้ lastMessage อัปเดตในเครื่องอื่นของตัวเอง
-    this.chatGateway.notifyUsers([recipientId, message.senderId], {
+    void this.notifyInbox(chatId, [recipientId, message.senderId], {
       type: 'message',
       conversationId: chatId,
       message: { ...message },
@@ -105,6 +106,62 @@ export class ChatService {
     this.pushQueue
       .add(SEND_MESSAGE_PUSH_JOB, { messageId: message.id }, { jobId: message.id, delay: PUSH_COALESCE_MS })
       .catch((err: Error) => this.logger.error(`enqueue push ไม่สำเร็จ message=${message.id}`, err.stack));
+  }
+
+  /**
+   * แจ้ง 'notification' (กล่องข้อความเปลี่ยน) พร้อมสถานะล่าสุด "ของแต่ละคน" แนบไปด้วย:
+   *   room        — ห้องนี้ในกล่องข้อความของคนนั้น (ข้อความล่าสุด, ยังไม่อ่านกี่ข้อความ, สถานะห้อง)
+   *   unreadTotal — ยังไม่อ่านรวมทุกห้อง (badge)
+   * แอปแก้ข้อมูลในเครื่องได้เลย ไม่ต้องยิง GET /chats (query หนักสุดของแชท) + GET /chats/unread-count
+   * ใหม่ทุกครั้งที่มีข้อความเข้า — 1 query ตรงนี้แทนคำขอ HTTP 2–6 ครั้งจากทั้งสองฝั่ง
+   *
+   * ไม่ throw: ถ้า query ล้มก็ยังส่งแจ้งเตือนแบบไม่มีข้อมูลแนบ แอปจะถอยไปดึงใหม่เองเหมือนเดิม
+   */
+  private async notifyInbox(chatId: string, userIds: string[], payload: Record<string, unknown>) {
+    const snapshots = new Map<string, Record<string, unknown>>();
+    try {
+      const res = await this.pool.query<{
+        user_id: string;
+        unread_count: number;
+        unread_total: number;
+        last_message: string | null;
+        last_message_at: Date;
+        status: string;
+        closed_reason: string | null;
+        pet_name: string;
+      }>(
+        `SELECT u.id AS user_id,
+                CASE WHEN c.initiator_id = u.id THEN c.initiator_unread_count ELSE c.owner_unread_count END
+                  AS unread_count,
+                (SELECT COALESCE(SUM(CASE WHEN a.initiator_id = u.id
+                                          THEN a.initiator_unread_count ELSE a.owner_unread_count END), 0)
+                   FROM conversations a WHERE a.initiator_id = u.id OR a.owner_id = u.id)::int AS unread_total,
+                c.last_message_preview AS last_message, c.last_message_at, c.status, c.closed_reason,
+                p.name AS pet_name
+           FROM unnest($2::uuid[]) AS u(id)
+           JOIN conversations c ON c.id = $1
+           JOIN pets p ON p.id = c.pet_id`,
+        [chatId, userIds],
+      );
+      for (const r of res.rows) {
+        snapshots.set(r.user_id, {
+          room: {
+            lastMessage: r.last_message ?? '',
+            lastMessageAt: r.last_message_at,
+            unreadCount: r.unread_count,
+            status: r.status,
+            closedReason: r.closed_reason,
+            petName: r.pet_name,
+          },
+          unreadTotal: r.unread_total,
+        });
+      }
+    } catch (err) {
+      this.logger.warn(`อ่านสถานะกล่องข้อความไม่สำเร็จ chat=${chatId}: ${(err as Error).message}`);
+    }
+    for (const userId of new Set(userIds)) {
+      this.chatGateway.notifyUsers([userId], { ...payload, ...snapshots.get(userId) });
+    }
   }
 
   private toChat(row: ChatRow) {
@@ -306,9 +363,33 @@ export class ChatService {
     return res.rows.map((r) => this.toChat(r));
   }
 
+  /**
+   * ห้องแชทเดิมของประกาศนี้ระหว่างฉันกับอีกฝ่าย (null = ยังไม่เคยคุย) — แทนการโหลด GET /chats
+   * ทั้งกล่องมาวนหาในแอป วิ่งบน unique index (pet_id, initiator_id) ห้องเยอะแค่ไหนก็ query เดียว
+   * ห้องที่ฉันลบไปแล้ว (ยังไม่มีข้อความใหม่) ถือว่าไม่เจอ ให้ตรงกับที่ GET /chats ไม่แสดง
+   */
+  async lookup(userId: string, query: LookupChatQueryDto) {
+    const res = await this.pool.query<{ id: string }>(
+      `SELECT c.id FROM conversations c
+        WHERE c.pet_id = $1
+          AND ((c.initiator_id = $2 AND c.owner_id = $3) OR (c.initiator_id = $3 AND c.owner_id = $2))
+          AND NOT EXISTS (
+            SELECT 1 FROM conversation_hides h
+             WHERE h.conversation_id = c.id AND h.user_id = $2 AND h.hidden_at >= c.last_message_at
+          )`,
+      [query.petId, userId, query.otherUserId],
+    );
+    return { chatId: res.rows[0]?.id ?? null };
+  }
+
   private async assertParticipant(chatId: string, userId: string) {
-    const res = await this.pool.query<{ initiator_id: string; owner_id: string; status: string }>(
-      `SELECT initiator_id, owner_id, status FROM conversations WHERE id = $1`,
+    const res = await this.pool.query<{
+      initiator_id: string;
+      owner_id: string;
+      status: string;
+      closed_reason: string | null;
+    }>(
+      `SELECT initiator_id, owner_id, status, closed_reason FROM conversations WHERE id = $1`,
       [chatId],
     );
     if (res.rows.length === 0) throw AppException.notFound('ไม่พบห้องแชทนี้');
@@ -325,8 +406,8 @@ export class ChatService {
    * ห้องจะมีกี่หมื่นข้อความ แต่ละหน้าก็อ่านแค่ limit แถว
    */
   async messages(userId: string, chatId: string, query: ListMessagesQueryDto = {}) {
-    await this.assertParticipant(chatId, userId);
-    const res = await this.pool.query<MessageRow>(
+    const conv = await this.assertParticipant(chatId, userId);
+    const page = this.pool.query<MessageRow>(
       `SELECT id, sender_id, body, kind, media_type, media_url, thumbnail_url,
               media_width, media_height, media_duration_ms, created_at, read_at
        FROM messages
@@ -342,7 +423,12 @@ export class ChatService {
        LIMIT $3`,
       [chatId, query.before ?? null, query.limit ?? DEFAULT_PAGE_SIZE, userId],
     );
-    return res.rows.reverse().map((r) => this.toMessage(r));
+    if (query.include !== 'room') {
+      return (await page).rows.reverse().map((r) => this.toMessage(r));
+    }
+    // หน้าแชทเปิดห้อง: ส่งสถานะห้องมาในคำขอเดียวกัน ไม่ต้องยิง GET /chats/:id แยก
+    const [res, room] = await Promise.all([page, this.roomStatus(userId, chatId, conv)]);
+    return { messages: res.rows.reverse().map((r) => this.toMessage(r)), room };
   }
 
   async sendMessage(userId: string, chatId: string, dto: { text?: string; media?: MessageMediaDto }) {
@@ -364,25 +450,29 @@ export class ChatService {
     await this.pool.query(`SELECT mark_conversation_read($1, $2)`, [chatId, userId]);
     // อีกฝ่ายที่เปิดห้องอยู่เห็น "อ่านแล้ว" + เครื่องอื่นของผู้อ่านเอง badge ลดตาม
     this.chatGateway.emitRead(chatId, userId, new Date());
-    this.chatGateway.notifyUsers([userId], { type: 'read', conversationId: chatId });
+    await this.notifyInbox(chatId, [userId], { type: 'read', conversationId: chatId });
     return { success: true };
   }
 
   /** สถานะห้อง + ฉันบล็อกอีกฝ่ายอยู่ไหม — หน้าแชทใช้เลือกว่าจะโชว์ช่องพิมพ์หรือแถบ "ห้องถูกปิด" */
   async detail(userId: string, chatId: string) {
-    const conv = await this.assertParticipant(chatId, userId);
+    return this.roomStatus(userId, chatId, await this.assertParticipant(chatId, userId));
+  }
+
+  private async roomStatus(
+    userId: string,
+    chatId: string,
+    conv: { initiator_id: string; owner_id: string; status: string; closed_reason: string | null },
+  ) {
     const otherId = conv.initiator_id === userId ? conv.owner_id : conv.initiator_id;
-    const [info, blocked] = await Promise.all([
-      this.pool.query<{ closed_reason: string | null }>(
-        `SELECT closed_reason FROM conversations WHERE id = $1`,
-        [chatId],
-      ),
-      this.pool.query(`SELECT 1 FROM blocks WHERE blocker_id = $1 AND blocked_id = $2`, [userId, otherId]),
+    const blocked = await this.pool.query(`SELECT 1 FROM blocks WHERE blocker_id = $1 AND blocked_id = $2`, [
+      userId,
+      otherId,
     ]);
     return {
       id: chatId,
       status: conv.status,
-      closedReason: info.rows[0].closed_reason,
+      closedReason: conv.closed_reason,
       otherUserId: otherId,
       blockedByMe: blocked.rows.length > 0,
     };
@@ -397,7 +487,7 @@ export class ChatService {
        ON CONFLICT (conversation_id, user_id) DO UPDATE SET hidden_at = now()`,
       [chatId, userId],
     );
-    this.chatGateway.notifyUsers([userId], { type: 'hidden', conversationId: chatId });
+    await this.notifyInbox(chatId, [userId], { type: 'hidden', conversationId: chatId });
     return { success: true };
   }
 
@@ -431,7 +521,7 @@ export class ChatService {
         createdAt: r.created_at,
       };
       this.chatGateway.emitNewMessage(r.conversation_id, { ...message });
-      this.chatGateway.notifyUsers([r.initiator_id, r.owner_id], {
+      await this.notifyInbox(r.conversation_id, [r.initiator_id, r.owner_id], {
         type: 'message',
         conversationId: r.conversation_id,
         message,
