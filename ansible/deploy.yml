@@ -72,6 +72,7 @@
         src: "../{{ item }}"
         dest: "{{ deploy_dir }}/{{ item }}"
         mode: "0644"
+      register: config_copy
       loop:
         - docker-compose.prod.yml
         - Caddyfile
@@ -297,6 +298,16 @@
           DEPLOY_DIR={{ deploy_dir }}
           /usr/bin/python3 {{ deploy_dir }}/scripts/daily_report.py
           >> {{ deploy_dir }}/backups/daily-report.log 2>&1
+
+    # Caddyfile ถูก mount เป็นไฟล์เดี่ยว: ตอน copy ไฟล์ถูกแทนที่ด้วยไฟล์ใหม่ (inode ใหม่) แต่ container ที่รันอยู่
+    # ยังถือไฟล์เก่า และ `compose up` ไม่รีสตาร์ต caddy ถ้า compose ไม่เปลี่ยน — กฎใหม่ใน Caddyfile จึงไม่มีผล
+    # (เคยทำให้เส้นทางอัปโหลดรูปใช้ไม่ได้) รีสตาร์ตเฉพาะตอน Caddyfile เปลี่ยนจริง กระตุกแค่ไม่กี่วินาที
+    - name: รีสตาร์ต Caddy เมื่อ Caddyfile เปลี่ยน
+      ansible.builtin.command:
+        cmd: docker compose -f docker-compose.prod.yml --env-file .env restart caddy
+        chdir: "{{ deploy_dir }}"
+      when: config_copy.results | selectattr('item', 'equalto', 'Caddyfile') | map(attribute='changed') | first | default(false)
+      changed_when: true
 
     - name: แจ้ง Discord ว่า deploy สำเร็จ
       ansible.builtin.command:
