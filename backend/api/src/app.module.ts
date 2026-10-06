@@ -17,14 +17,24 @@ import { AppConfigModule } from './config/app-config.module.js';
 import { CacheModule } from './cache/cache.module.js';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AppThrottlerGuard, DEFAULT_RATE_LIMIT } from './common/rate-limit.js';
+import { RedisThrottlerStorage } from './common/redis-throttler.storage.js';
+import { CACHE_REDIS } from './cache/cache.constants.js';
+import type { Redis } from 'ioredis';
 
 @Module({
   imports: [
     AppConfigModule,
     JwtModule.register({}),
-    ThrottlerModule.forRoot([DEFAULT_RATE_LIMIT]),
     DatabaseModule,
     CacheModule,
+    // ตัวนับเก็บใน Redis ตัว cache — API ทุกตัวหลัง load balancer นับรวมกัน (ไม่ตั้ง/ล่ม = นับในหน่วยความจำ)
+    ThrottlerModule.forRootAsync({
+      inject: [CACHE_REDIS],
+      useFactory: (redis: Redis | null) => ({
+        throttlers: [DEFAULT_RATE_LIMIT],
+        storage: new RedisThrottlerStorage(redis),
+      }),
+    }),
     AuthModule,
     UsersModule,
     TraitsModule,

@@ -50,8 +50,7 @@ export const AUTH_RATE_LIMITS = {
  * - ข้าม WebSocket — ChatGateway ไม่มี request แบบ HTTP ให้ดึง IP/header
  * - error เป็นรูปแบบ { error: { code, message } } เดียวกับทั้งระบบ
  *
- * ตัวนับอยู่ในหน่วยความจำของ process — ถูกต้องเฉพาะตอนมี API instance เดียว
- * (เงื่อนไขเดียวกับ ChatGateway) ถ้าสเกลหลาย instance ต้องย้ายไปเก็บใน Redis
+ * ตัวนับเก็บใน Redis (RedisThrottlerStorage) — ถูกต้องแม้มี API หลายตัวหลัง load balancer
  */
 @Injectable()
 export class AppThrottlerGuard extends ThrottlerGuard {
