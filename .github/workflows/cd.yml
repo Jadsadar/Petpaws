@@ -86,8 +86,30 @@ jobs:
           ansible-playbook -i ansible/inventory.ini ansible/provision.yml \
             --private-key ~/.ssh/petpaws-deploy.pem
 
+      # ข้อมูลของรอบนี้ไว้แจ้ง Discord (commit / ข้อความ commit / คนที่ merge / ลิงก์ดูรอบนี้)
+      # ส่งผ่าน env แล้วเขียนเป็น JSON ด้วย python — ไม่เอา ${{ }} ที่มีข้อความจากคนอื่นไปแทรกใน shell โดยตรง
+      # (ข้อความ commit ควบคุมโดยคนเขียน PR จึงต้องกัน injection) ตัดปีกกาออกกัน Ansible เข้าใจเป็น template
+      - name: เตรียมข้อมูลรอบ deploy สำหรับแจ้ง Discord
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ACTOR: ${{ github.event.workflow_run.actor.login || github.actor }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 - <<'PY' > /tmp/deploy_meta.json
+          import json, os, re, subprocess
+          msg = subprocess.check_output(["git", "log", "-1", "--pretty=%s"]).decode().strip()
+          clean = lambda t: re.sub(r"[{}]", "", t)[:200]
+          print(json.dumps({
+              "deploy_commit": os.environ["SHA"][:7],
+              "deploy_message": clean(msg),
+              "deploy_actor": clean(os.environ["ACTOR"]),
+              "deploy_run_url": os.environ["RUN_URL"],
+          }))
+          PY
+
       - name: Deploy ขึ้น VPS
         run: |
           ansible-playbook -i ansible/inventory.ini ansible/deploy.yml \
             --private-key ~/.ssh/petpaws-deploy.pem \
-            --extra-vars "env_file_src=/tmp/prod.env"
+            --extra-vars "env_file_src=/tmp/prod.env" \
+            --extra-vars "@/tmp/deploy_meta.json"
