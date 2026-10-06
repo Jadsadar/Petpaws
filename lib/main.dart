@@ -9,6 +9,7 @@ import 'services/admin_service.dart';
 import 'services/auth_service.dart';
 import 'shared/app_user.dart';
 import 'theme/app_theme.dart';
+import 'widgets/update_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -52,7 +53,8 @@ class PetPawsApp extends StatelessWidget {
           }),
         );
       },
-      home: const AuthGate(),
+      // ตรวจเวอร์ชันใหม่ตอนเปิดแอป (Android เท่านั้น) แล้วถามว่าจะอัพเดตไหม
+      home: const UpdateGate(child: AuthGate()),
     );
   }
 }

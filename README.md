@@ -126,3 +126,12 @@ UPDATE users SET is_admin = true WHERE username = '...';
 - **สำรองมือ:** `ssh ubuntu@<IP>` แล้ว `sudo ENV_FILE=/opt/petpaws/.env BACKUP_DIR=/opt/petpaws/backups bash /opt/petpaws/backend/db/backup.sh`
 - **กู้คืน** (ล้างข้อมูลปัจจุบันทั้งหมด — หยุด api/worker ก่อน): `docker stop petpaws-api petpaws-worker` → `docker exec -i petpaws-postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"'` → `gunzip -c db-<เวลา>.sql.gz | docker exec -i petpaws-postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'` → `docker start petpaws-api petpaws-worker`
 - ไฟล์สำรองอยู่ดิสก์เดียวกับระบบ กันได้เฉพาะข้อมูลถูกลบ/แก้ผิดพลาด **ดิสก์พังต้องมี EBS snapshot** (AWS Console > EC2 > Lifecycle Manager ตั้งรายวัน เก็บ 7 รอบ)
+
+## แอป Android และการอัพเดต
+
+- ทุกครั้งที่ merge เข้า `main` และ CI ผ่าน workflow **Release** สร้างไฟล์ APK แล้วออก GitHub Release (`v1.0.<เลขรอบ>`) ไฟล์ติดตั้งอยู่ในหน้า Releases ของ repo
+- **อัพเดตในแอป:** ตอนเปิดแอปบน Android แอปตรวจ Release ล่าสุด ถ้ามีเลขสูงกว่าที่ติดตั้งอยู่ จะขึ้นกล่อง "Petpaws มีเวอร์ชั่นใหม่แล้ว ต้องการอัพเดตเวอร์ชั่นหรือไม่" กด "อัพเดต" แล้วระบบเปิดลิงก์ดาวน์โหลด APK ให้ติดตั้งทับ (ข้อมูลในแอปไม่หาย) ครั้งแรกที่ติดตั้งผ่านเบราว์เซอร์ Android จะขอสิทธิ์ "ติดตั้งแอปที่ไม่รู้จัก"
+- **ต้องเซ็นด้วย keystore ตัวเดียวกันทุกเวอร์ชัน** ไม่งั้น Android ไม่ยอมติดตั้งทับ keystore ตัวจริงเก็บเป็น GitHub Secrets 4 ตัว: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` (Settings > Secrets and variables > Actions) ถ้ายังไม่ตั้ง workflow Release จะหยุดพร้อมข้อความบอก ไม่ปล่อย APK ที่เซ็นผิด
+- **ห้ามทำ keystore หาย:** ถ้าหาย แอปที่ติดตั้งไปแล้วจะอัพเดตไม่ได้อีก (ผู้ใช้ต้องถอนแอปแล้วติดตั้งใหม่) เก็บสำรองไฟล์ `.jks` กับรหัสผ่านไว้ที่ปลอดภัยนอก repo ห้ามลง git
+- APK ที่ออกก่อนมี keystore ตัวจริง (เซ็นด้วย debug key คนละดอก) ต้องถอนแล้วติดตั้งเวอร์ชันใหม่ครั้งเดียว หลังจากนั้นอัพเดตทับได้ตลอด
+- ทุก merge เข้า `main` ออก Release ใหม่ (แม้แก้เฉพาะ backend) ผู้ใช้จะเห็นแจ้งอัพเดตทุกครั้ง
