@@ -11,6 +11,37 @@
 # ของ production ตั้งรหัสผ่านใหม่ ผลคือ API ต่อ DB ไม่ได้เพราะรหัสผ่านไม่ตรงกัน
 name: petpaws-prod
 
+# ค่าที่ API ทุกตัวใช้ร่วมกัน — api และ api-2 เป็นโค้ด/ค่าชุดเดียวกัน แก้ที่นี่ที่เดียวไม่ให้สองตัวเพี้ยนกัน
+x-api: &api
+  image: petpaws-api:latest
+  restart: unless-stopped
+  env_file:
+    - .env
+  environment:
+    # ที่อยู่ที่แอปเข้าถึงรูป/ไฟล์ได้จริง (ผ่าน Caddy path /petpaws-media/) — ไม่ใช่ความลับ จึงตั้งที่นี่
+    # ไม่ใช่ใน secrets/production.env.enc ถ้ามีโดเมนแล้วตั้ง S3_PUBLIC_ENDPOINT ใน .env ทับได้
+    # (S3_ENDPOINT=http://minio:9000 ยังเป็นที่อยู่ภายในที่ API ใช้เรียก MinIO เอง)
+    S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://43.211.6.248}
+    # อีเมลยืนยันตอนสมัคร (ลิงก์ในอีเมลชี้มาที่ API นี้) — ค่าที่ไม่ลับตั้งไว้ที่นี่
+    # คีย์จริง BREVO_API_KEY + MAIL_FROM_EMAIL ต้องใส่ใน .env (secrets/production.env.enc ผ่าน SOPS) ถึงจะเปิดใช้:
+    # ยังไม่ใส่ = ระบบอีเมลปิด ไม่บังคับยืนยันอีเมล ผู้ใช้ล็อกอินได้ตามเดิม
+    APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://43.211.6.248}
+    MAIL_PROVIDER: ${MAIL_PROVIDER:-brevo}
+    MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Petpaws}
+    # ที่อยู่ภายในเครือข่าย docker ไม่ใช่ความลับ — worker ไม่ใช้ cache จึงไม่ตั้งให้
+    REDIS_CACHE_URL: ${REDIS_CACHE_URL:-redis://redis-cache:6379}
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    # ไม่รอ healthy — cache ล่ม API ยังทำงานต่อได้ (อ่าน DB ตรง) แค่ช้าลง
+    redis-cache:
+      condition: service_started
+    minio:
+      condition: service_healthy
+  # ไม่ expose port ออก host ตรงๆ — เข้าถึงได้ผ่าน Caddy เท่านั้น
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -98,43 +129,27 @@ services:
       retries: 10
       start_period: 10s
 
+  # API สองตัวหลัง Caddy (load balancer) — image เดียวกัน build ครั้งเดียวที่ service api
+  # ได้: deploy ทีละตัวโดยระบบไม่ดับ (ansible/deploy.yml), ตัวหนึ่งพังอีกตัวรับงานต่อ, ใช้ CPU ครบทุกคอร์
+  # (Node ตัวเดียวใช้คอร์เดียว) — ทำได้เพราะ API ไม่เก็บ state ในตัว: WebSocket กับ rate limit ผ่าน Redis
   api:
+    <<: *api
     build:
       context: ./backend/api
     container_name: petpaws-api
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      # ที่อยู่ที่แอปเข้าถึงรูป/ไฟล์ได้จริง (ผ่าน Caddy path /petpaws-media/) — ไม่ใช่ความลับ จึงตั้งที่นี่
-      # ไม่ใช่ใน secrets/production.env.enc ถ้ามีโดเมนแล้วตั้ง S3_PUBLIC_ENDPOINT ใน .env ทับได้
-      # (S3_ENDPOINT=http://minio:9000 ยังเป็นที่อยู่ภายในที่ API ใช้เรียก MinIO เอง)
-      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://43.211.6.248}
-      # อีเมลยืนยันตอนสมัคร (ลิงก์ในอีเมลชี้มาที่ API นี้) — ค่าที่ไม่ลับตั้งไว้ที่นี่
-      # คีย์จริง BREVO_API_KEY + MAIL_FROM_EMAIL ต้องใส่ใน .env (secrets/production.env.enc ผ่าน SOPS) ถึงจะเปิดใช้:
-      # ยังไม่ใส่ = ระบบอีเมลปิด ไม่บังคับยืนยันอีเมล ผู้ใช้ล็อกอินได้ตามเดิม
-      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://43.211.6.248}
-      MAIL_PROVIDER: ${MAIL_PROVIDER:-brevo}
-      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Petpaws}
-      # ที่อยู่ภายในเครือข่าย docker ไม่ใช่ความลับ — worker ไม่ใช้ cache จึงไม่ตั้งให้
-      REDIS_CACHE_URL: ${REDIS_CACHE_URL:-redis://redis-cache:6379}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      # ไม่รอ healthy — cache ล่ม API ยังทำงานต่อได้ (อ่าน DB ตรง) แค่ช้าลง
-      redis-cache:
-        condition: service_started
-      minio:
-        condition: service_healthy
-    # ไม่ expose port ออก host ตรงๆ — เข้าถึงได้ผ่าน Caddy เท่านั้น
+
+  api-2:
+    <<: *api
+    container_name: petpaws-api-2
+    # ใช้ image ที่ service api build ไว้ ไม่ต้องไปดึงจาก registry
+    pull_policy: never
 
   # BullMQ worker (ส่ง push แชท + ลบไฟล์รูปค้างทุกคืน) — image เดียวกับ api แต่รัน
   # dist/worker แทน ไม่เปิด HTTP port ถ้าไม่มี service นี้ job จะค้างในคิวไม่มีใครทำ
   worker:
-    build:
-      context: ./backend/api
+    # image เดียวกับ api (build ครั้งเดียว) แค่รันคนละคำสั่ง
+    image: petpaws-api:latest
+    pull_policy: never
     container_name: petpaws-worker
     restart: unless-stopped
     command: ["node", "dist/worker"]

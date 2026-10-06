@@ -1,0 +1,28 @@
+# เปลี่ยน API หนึ่งตัวเป็น image ใหม่ แล้วรอจนพร้อมรับงาน — deploy.yml เรียกทีละตัว (rolling deploy)
+# item = ชื่อ service ใน docker-compose.prod.yml (api / api-2)
+#
+# --no-deps: ไม่แตะ service อื่น (infra ขึ้นไปแล้วในขั้นก่อน) ระหว่างนี้ API อีกตัวยังรับงานอยู่
+---
+- name: สร้าง API ใหม่ด้วย image ล่าสุด {{ item }}
+  ansible.builtin.shell: |
+    set -o pipefail
+    timeout 300 docker compose -f docker-compose.prod.yml --env-file .env up -d --no-deps {{ item }} 2>&1 | tee -a deploy.log
+  args:
+    chdir: "{{ deploy_dir }}"
+    executable: /bin/bash
+  changed_when: true
+
+# เช็ก DB ผ่าน HEALTHCHECK สูงสุด ~2.5 นาที ก่อนเปลี่ยนตัวถัดไป
+- name: รอ API พร้อม {{ item }}
+  ansible.builtin.shell: |
+    set -o pipefail
+    docker inspect --format '{% raw %}{{.State.Health.Status}}{% endraw %}' \
+      "$(docker compose -f docker-compose.prod.yml --env-file .env ps -q {{ item }})"
+  args:
+    chdir: "{{ deploy_dir }}"
+    executable: /bin/bash
+  register: api_health
+  until: api_health.stdout == 'healthy'
+  retries: 30
+  delay: 5
+  changed_when: false
