@@ -1,7 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
-import type { Pool } from 'pg';
-import { PG_POOL } from '../database/database.module.js';
+import { Injectable } from '@nestjs/common';
+import { InjectDataSource } from '@nestjs/typeorm';
+import { IsNull, type DataSource } from 'typeorm';
 import { AppException } from '../common/app-exception.js';
+import { RefreshToken, User } from '../database/entities/index.js';
 import type { BanUserDto } from './dto/ban-user.dto.js';
 import { toPage } from './dto/pagination.dto.js';
 import { CacheService } from '../cache/cache.service.js';
@@ -100,12 +101,21 @@ export interface PagingArgs {
 
 const totalOf = (rows: { total_count: string }[]) => (rows.length > 0 ? Number(rows[0].total_count) : 0);
 
+/**
+ * หน้าแอดมินส่วนใหญ่เป็นรายงาน (CTE รวมเป้าหมายรายงาน, window count, json_agg รูป) — คงเป็น SQL
+ * ผ่าน dataSource.query เพราะเขียนด้วย QueryBuilder แล้วอ่านยากขึ้นโดยไม่ได้อะไรเพิ่ม
+ * ส่วนการเขียน (แบน/ปลดแบน/เพิกถอน session) ใช้ repository/transaction ของ TypeORM
+ */
 @Injectable()
 export class AdminService {
   constructor(
-    @Inject(PG_POOL) private readonly pool: Pool,
+    @InjectDataSource() private readonly dataSource: DataSource,
     private readonly cache: CacheService,
   ) {}
+
+  private rows<T>(sql: string, params: unknown[] = []) {
+    return this.dataSource.query<T[]>(sql, params);
+  }
 
   /** แอปโหลดตัวเลขสรุปใหม่ทันทีหลังแอดมินตัดสิน — ต้องล้างก่อน ไม่งั้นเห็นเลขเก่า */
   private invalidateSummary() {
@@ -131,7 +141,7 @@ export class AdminService {
    * total = จำนวนผู้ใช้ทั้งหมดที่ถึงเกณฑ์ (ก่อนแบ่งหน้า) ใช้ window count หลัง GROUP BY/HAVING
    */
   async reportedUsers(minReports: number, paging: PagingArgs) {
-    const res = await this.pool.query<ReportedUserRow>(
+    const rows = await this.rows<ReportedUserRow>(
       `WITH ${PENDING_TARGETS}
        SELECT u.id, u.username, u.email, u.display_name, u.avatar_url, u.is_suspended, u.suspended_until,
               count(DISTINCT t.reporter_id) AS report_count,
@@ -147,8 +157,8 @@ export class AdminService {
       [minReports, paging.pageSize, paging.offset],
     );
     return toPage(
-      res.rows.map((r) => this.toUser(r)),
-      totalOf(res.rows),
+      rows.map((r) => this.toUser(r)),
+      totalOf(rows),
       paging.page,
       paging.pageSize,
     );
@@ -159,7 +169,7 @@ export class AdminService {
    * และรูปของประกาศที่ถูกรายงาน ไม่เห็นประวัติแชทส่วนที่เหลือของผู้ใช้
    */
   async userReports(userId: string, paging: PagingArgs) {
-    const res = await this.pool.query<UserReportRow>(
+    const rows = await this.rows<UserReportRow>(
       `WITH ${PENDING_TARGETS}
        SELECT r.id, r.reason, r.detail, r.created_at,
               r.reporter_id, ru.username AS reporter_username, ru.display_name AS reporter_name,
@@ -180,8 +190,8 @@ export class AdminService {
       [userId, paging.pageSize, paging.offset],
     );
     return toPage(
-      res.rows.map((r) => this.toReport(r)),
-      totalOf(res.rows),
+      rows.map((r) => this.toReport(r)),
+      totalOf(rows),
       paging.page,
       paging.pageSize,
     );
@@ -216,7 +226,7 @@ export class AdminService {
   }
 
   async bannedUsers(paging: PagingArgs) {
-    const res = await this.pool.query<BannedUserRow>(
+    const rows = await this.rows<BannedUserRow>(
       `SELECT id, username, email, display_name, avatar_url, suspended_until,
               count(*) OVER() AS total_count
        FROM users
@@ -227,7 +237,7 @@ export class AdminService {
       [paging.pageSize, paging.offset],
     );
     return toPage(
-      res.rows.map((r) => ({
+      rows.map((r) => ({
         id: r.id,
         username: r.username,
         email: r.email,
@@ -236,7 +246,7 @@ export class AdminService {
         suspendedUntil: r.suspended_until,
         permanent: r.suspended_until === null,
       })),
-      totalOf(res.rows),
+      totalOf(rows),
       paging.page,
       paging.pageSize,
     );
@@ -248,7 +258,7 @@ export class AdminService {
   }
 
   private async loadSummary() {
-    const res = await this.pool.query<{ reported: string; temporary: string; permanent: string }>(
+    const [r] = await this.rows<{ reported: string; temporary: string; permanent: string }>(
       `WITH ${PENDING_TARGETS}
        SELECT
          (SELECT count(DISTINCT u.id) FROM target t
@@ -258,7 +268,6 @@ export class AdminService {
          (SELECT count(*) FROM users
             WHERE is_suspended AND deleted_at IS NULL AND suspended_until IS NULL) AS permanent`,
     );
-    const r = res.rows[0];
     return { reported: Number(r.reported), temporary: Number(r.temporary), permanent: Number(r.permanent) };
   }
 
@@ -268,7 +277,7 @@ export class AdminService {
    * ไม่ส่งเบอร์โทร/ไลน์ เพราะแอดมินตัดสินจากเนื้อหาที่ถูกรายงานได้โดยไม่ต้องใช้ช่องทางติดต่อ
    */
   async userProfile(userId: string) {
-    const user = await this.pool.query<{
+    const [u] = await this.rows<{
       id: string;
       username: string;
       email: string;
@@ -288,10 +297,9 @@ export class AdminService {
        FROM users WHERE id = $1 AND deleted_at IS NULL`,
       [userId],
     );
-    const u = user.rows[0];
     if (!u) throw AppException.notFound('ไม่พบผู้ใช้นี้');
 
-    const pets = await this.pool.query<ProfilePetRow>(
+    const pets = await this.rows<ProfilePetRow>(
       `SELECT p.id, p.name, p.species::text AS species, p.status::text AS status, p.description,
               p.location, p.created_at, (p.deleted_at IS NOT NULL) AS deleted,
               ${PET_PHOTOS_SQL} AS photos
@@ -302,7 +310,7 @@ export class AdminService {
       [userId],
     );
 
-    const pending = await this.pool.query<{ n: string }>(
+    const [pending] = await this.rows<{ n: string }>(
       `WITH ${PENDING_TARGETS}
        SELECT count(DISTINCT reporter_id) AS n FROM target WHERE user_id = $1`,
       [userId],
@@ -322,8 +330,8 @@ export class AdminService {
       suspendedUntil: u.suspended_until,
       createdAt: u.created_at,
       lastLoginAt: u.last_login_at,
-      pendingReportCount: Number(pending.rows[0]?.n ?? 0),
-      pets: pets.rows.map((p) => ({
+      pendingReportCount: Number(pending?.n ?? 0),
+      pets: pets.map((p) => ({
         id: p.id,
         name: p.name,
         species: p.species,
@@ -340,36 +348,35 @@ export class AdminService {
   async ban(adminId: string, userId: string, dto: BanUserDto) {
     if (userId === adminId) throw AppException.forbidden('แบนตัวเองไม่ได้');
 
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
+    const suspendedUntil = await this.dataSource.transaction(async (em) => {
+      // ล็อกแถวผู้ใช้ไว้จนจบ transaction — แอดมินสองคนแบนพร้อมกันจะได้ไม่ทับกันกลางทาง
+      const target = await em.findOne(User, {
+        select: { id: true, isAdmin: true },
+        where: { id: userId, deletedAt: IsNull() },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!target) throw AppException.notFound('ไม่พบผู้ใช้นี้');
+      if (target.isAdmin) throw AppException.forbidden('แบนแอดมินด้วยกันไม่ได้');
 
-      const target = await client.query<{ is_admin: boolean }>(
-        `SELECT is_admin FROM users WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
-        [userId],
-      );
-      if (target.rows.length === 0) throw AppException.notFound('ไม่พบผู้ใช้นี้');
-      if (target.rows[0].is_admin) throw AppException.forbidden('แบนแอดมินด้วยกันไม่ได้');
-
-      const updated = await client.query<{ suspended_until: Date | null }>(
-        `UPDATE users
-         SET is_suspended = true,
-             suspended_until = CASE WHEN $2::int IS NULL THEN NULL
-                                    ELSE now() + make_interval(days => $2::int) END
-         WHERE id = $1
-         RETURNING suspended_until`,
-        [userId, dto.days ?? null],
+      // days มาจาก DTO ที่ validate แล้วว่าเป็นจำนวนเต็ม 1–3650 (ไม่ใช่ข้อความจากผู้ใช้ตรง ๆ)
+      await em.update(
+        User,
+        { id: userId },
+        {
+          isSuspended: true,
+          suspendedUntil: () => (dto.days ? `now() + make_interval(days => ${Math.trunc(dto.days)})` : 'NULL'),
+        },
       );
 
       // เตะออกจากทุกเครื่อง — access token ที่ออกไปแล้วยังใช้ได้จนหมดอายุ (JWT_ACCESS_TTL)
-      await client.query(
-        `UPDATE refresh_tokens SET revoked_at = now(), revoked_reason = 'suspended'
-         WHERE user_id = $1 AND revoked_at IS NULL`,
-        [userId],
+      await em.update(
+        RefreshToken,
+        { userId, revokedAt: IsNull() },
+        { revokedAt: () => 'now()', revokedReason: 'suspended' },
       );
 
       // ปิดรายงานค้างของคนนี้ให้หลุดจากคิว (reviewed_at ต้องมีค่าตาม CHECK reports_reviewed_consistent)
-      await client.query(
+      await em.query(
         `WITH ${PENDING_TARGETS}
          UPDATE reports
          SET status = 'actioned', reviewed_by = $2, reviewed_at = now(), review_note = $3
@@ -377,30 +384,26 @@ export class AdminService {
         [userId, adminId, dto.note ?? null],
       );
 
-      await client.query('COMMIT');
-      await this.invalidateSummary();
-      return { success: true, suspendedUntil: updated.rows[0].suspended_until };
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+      const banned = await em.findOne(User, { select: { id: true, suspendedUntil: true }, where: { id: userId } });
+      return banned!.suspendedUntil;
+    });
+
+    await this.invalidateSummary();
+    return { success: true, suspendedUntil };
   }
 
   async unban(userId: string) {
-    const res = await this.pool.query(
-      `UPDATE users SET is_suspended = false, suspended_until = NULL
-       WHERE id = $1 AND deleted_at IS NULL`,
-      [userId],
-    );
-    if (res.rowCount === 0) throw AppException.notFound('ไม่พบผู้ใช้นี้');
+    const res = await this.dataSource
+      .getRepository(User)
+      .update({ id: userId, deletedAt: IsNull() }, { isSuspended: false, suspendedUntil: null });
+    if (res.affected === 0) throw AppException.notFound('ไม่พบผู้ใช้นี้');
     await this.invalidateSummary();
     return { success: true };
   }
 
   async dismissReports(adminId: string, userId: string) {
-    const res = await this.pool.query(
+    // UPDATE ผ่าน dataSource.query ได้ [แถว, จำนวนที่แก้] กลับมา
+    const [, dismissed] = await this.dataSource.query<[unknown[], number]>(
       `WITH ${PENDING_TARGETS}
        UPDATE reports
        SET status = 'dismissed', reviewed_by = $2, reviewed_at = now()
@@ -408,6 +411,6 @@ export class AdminService {
       [userId, adminId],
     );
     await this.invalidateSummary();
-    return { success: true, dismissed: res.rowCount ?? 0 };
+    return { success: true, dismissed: dismissed ?? 0 };
   }
 }
