@@ -16,6 +16,9 @@ services:
     image: postgres:16-alpine
     container_name: petpaws-postgres
     restart: unless-stopped
+    # pg_stat_statements: เก็บสถิติว่า query ไหนถูกเรียกกี่ครั้ง/กินเวลารวมเท่าไหร่ (ดู GET /admin/perf-stats)
+    # ต้องโหลดตอนเปิด server — เปลี่ยนค่านี้ postgres จะถูกสร้างใหม่ตอน deploy (DB ดับไม่กี่วินาที)
+    command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements", "-c", "pg_stat_statements.track=top"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-petpaws}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-petpaws_dev_password}

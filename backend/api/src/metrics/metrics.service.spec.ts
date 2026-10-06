@@ -1,0 +1,55 @@
+import { describe, expect, it, vi } from 'vitest';
+import type { Pool } from 'pg';
+import { MetricsService, SLOW_REQUEST_MS } from './metrics.service.js';
+
+// ไม่มี Redis = นับในหน่วยความจำ (logic รวมผลแบบเดียวกับตอนอ่านจาก Redis)
+// การนับผ่าน Redis จริงอยู่ใน test/perf-stats.e2e-spec.ts
+const pool = (rows: unknown[] | Error) =>
+  ({
+    query: vi.fn(async () => {
+      if (rows instanceof Error) throw rows;
+      return { rows };
+    }),
+  }) as unknown as Pool;
+
+describe('MetricsService', () => {
+  it('รวมเวลาต่อ route: จำนวน, เฉลี่ย, สูงสุด, จำนวนครั้งที่ช้า — เรียงตามเวลารวมมากสุดก่อน', async () => {
+    const m = new MetricsService(null, pool([]));
+    m.record('GET /pets/deck', 100);
+    m.record('GET /pets/deck', SLOW_REQUEST_MS + 100);
+    m.record('GET /chats', 50);
+
+    const { routes } = await m.stats();
+
+    expect(routes.map((r) => r.route)).toEqual(['GET /pets/deck', 'GET /chats']);
+    expect(routes[0]).toMatchObject({ count: 2, avgMs: 350, maxMs: 600, slowCount: 1 });
+  });
+
+  it('แปลงผล pg_stat_statements เป็นตัวเลข (pg คืน bigint เป็น string)', async () => {
+    const m = new MetricsService(
+      null,
+      pool([{ query: 'SELECT * FROM deck_feed($1)', calls: '12', total_ms: 340.6, mean_ms: 28.383, rows: '240' }]),
+    );
+
+    const { queries } = await m.stats();
+
+    expect(queries).toEqual({
+      available: true,
+      items: [{ query: 'SELECT * FROM deck_feed($1)', calls: 12, totalMs: 341, meanMs: 28.38, rows: 240 }],
+    });
+  });
+
+  it('ยังไม่ได้เปิด pg_stat_statements = บอกว่าใช้ไม่ได้ ไม่ throw', async () => {
+    const m = new MetricsService(null, pool(new Error('relation "pg_stat_statements" does not exist')));
+
+    await expect(m.stats()).resolves.toMatchObject({ queries: { available: false, items: [] } });
+  });
+
+  it('reset ล้างตัวนับ (ไม่มี pg_stat_statements ก็ไม่พัง)', async () => {
+    const m = new MetricsService(null, pool(new Error('no extension')));
+    m.record('GET /chats', 10);
+
+    await expect(m.reset()).resolves.toEqual({ success: true });
+    expect((await m.stats()).routes).toEqual([]);
+  });
+});
