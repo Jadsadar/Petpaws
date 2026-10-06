@@ -15,13 +15,13 @@ export class Conversation {
   @Column({ name: 'owner_id', type: 'uuid' })
   ownerId!: string;
 
-  @Column({ name: 'status', type: 'enum', enum: CONVERSATION_STATUS, enumName: 'conversation_status', insert: false, update: false })
+  @Column({ name: 'status', type: 'enum', enum: CONVERSATION_STATUS, enumName: 'conversation_status' })
   status!: 'active' | 'closed';
 
-  @Column({ name: 'closed_at', type: 'timestamptz', nullable: true, insert: false, update: false })
+  @Column({ name: 'closed_at', type: 'timestamptz', nullable: true })
   closedAt!: Date | null;
 
-  @Column({ name: 'closed_reason', type: 'enum', enum: CONVERSATION_CLOSED_REASON, enumName: 'conversation_closed_reason', nullable: true, insert: false, update: false })
+  @Column({ name: 'closed_reason', type: 'enum', enum: CONVERSATION_CLOSED_REASON, enumName: 'conversation_closed_reason', nullable: true })
   closedReason!: 'pet_adopted' | 'pet_deleted' | 'blocked' | 'user_deleted' | 'moderation' | null;
 
   @Column({ name: 'last_message_at', type: 'timestamptz', insert: false, update: false })

@@ -1,17 +1,33 @@
-import { Inject, Injectable } from '@nestjs/common';
-import type { Pool, PoolClient } from 'pg';
-import { PG_POOL } from '../database/database.module.js';
+import { Injectable } from '@nestjs/common';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, EntityManager, In, IsNull, type Repository } from 'typeorm';
+import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity.js';
 import { AppException } from '../common/app-exception.js';
 import { homeTypeEnumToLabel, homeTypeLabelToEnum } from '../common/home-type.js';
 import { CacheService, type CacheRef } from '../cache/cache.service.js';
+import { Pet, Trait, User, UserContact, UserTrait } from '../database/entities/index.js';
 import type { UpdateProfileDto } from './dto/update-profile.dto.js';
 
 @Injectable()
 export class UsersService {
   constructor(
-    @Inject(PG_POOL) private readonly pool: Pool,
+    @InjectDataSource() private readonly dataSource: DataSource,
+    @InjectRepository(User) private readonly users: Repository<User>,
+    @InjectRepository(UserContact) private readonly contacts: Repository<UserContact>,
     private readonly cache: CacheService,
   ) {}
+
+  /** slug ของนิสัย/ไลฟ์สไตล์ที่ผู้ใช้เลือกไว้ */
+  private async traitSlugs(userId: string): Promise<string[]> {
+    const rows = await this.dataSource
+      .createQueryBuilder(UserTrait, 'ut')
+      .innerJoin(Trait, 't', 't.id = ut.trait_id')
+      .select('t.slug', 'slug')
+      .where('ut.user_id = :userId', { userId })
+      .orderBy('t.sort_order')
+      .getRawMany<{ slug: string }>();
+    return rows.map((r) => r.slug);
+  }
 
   /**
    * โปรไฟล์เต็ม (self) — คีย์ตรงกับ currentUserProfile ฝั่ง Flutter เป๊ะ ๆ
@@ -19,40 +35,38 @@ export class UsersService {
    * เพื่อให้ ProfileScreen ใช้ response นี้เติม state ได้ตรง ๆ โดยไม่ต้องแปลง key
    */
   async getMe(userId: string) {
-    const [userRes, contactRes, traitsRes] = await Promise.all([
-      this.pool.query(
-        `SELECT id, username, email, display_name, bio, location, home_type, avatar_url
-         FROM users WHERE id = $1 AND deleted_at IS NULL`,
-        [userId],
-      ),
-      this.pool.query(
-        `SELECT phone, line_id, fb_name FROM user_contacts WHERE user_id = $1`,
-        [userId],
-      ),
-      this.pool.query(
-        `SELECT t.slug FROM user_traits ut JOIN traits t ON t.id = ut.trait_id
-         WHERE ut.user_id = $1`,
-        [userId],
-      ),
+    const [u, c, traits] = await Promise.all([
+      this.users.findOne({
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          displayName: true,
+          bio: true,
+          location: true,
+          homeType: true,
+          avatarUrl: true,
+        },
+        where: { id: userId, deletedAt: IsNull() },
+      }),
+      this.contacts.findOneBy({ userId }),
+      this.traitSlugs(userId),
     ]);
-
-    if (userRes.rows.length === 0) throw AppException.notFound('ไม่พบบัญชีผู้ใช้');
-    const u = userRes.rows[0];
-    const c = contactRes.rows[0] ?? {};
+    if (!u) throw AppException.notFound('ไม่พบบัญชีผู้ใช้');
 
     return {
       id: u.id,
       username: u.username,
       email: u.email,
-      name: u.display_name,
+      name: u.displayName,
       province: u.location,
       bio: u.bio,
-      homeType: homeTypeEnumToLabel(u.home_type),
-      profileImageUrl: u.avatar_url ?? '',
-      phone: c.phone ?? '',
-      lineId: c.line_id ?? '',
-      fbLink: c.fb_name ?? '',
-      traits: traitsRes.rows.map((r) => r.slug),
+      homeType: homeTypeEnumToLabel(u.homeType),
+      profileImageUrl: u.avatarUrl ?? '',
+      phone: c?.phone ?? '',
+      lineId: c?.lineId ?? '',
+      fbLink: c?.fbName ?? '',
+      traits,
     };
   }
 
@@ -66,105 +80,54 @@ export class UsersService {
   }
 
   private async loadPublic(userId: string) {
-    const [userRes, contactRes, traitsRes] = await Promise.all([
-      this.pool.query(
-        `SELECT display_name, location, avatar_url FROM users
-         WHERE id = $1 AND deleted_at IS NULL`,
-        [userId],
-      ),
-      this.pool.query(
-        `SELECT line_id, fb_name FROM user_contacts WHERE user_id = $1`,
-        [userId],
-      ),
-      this.pool.query(
-        `SELECT t.slug FROM user_traits ut JOIN traits t ON t.id = ut.trait_id
-         WHERE ut.user_id = $1`,
-        [userId],
-      ),
+    const [u, c, traits] = await Promise.all([
+      this.users.findOne({
+        select: { displayName: true, location: true, avatarUrl: true },
+        where: { id: userId, deletedAt: IsNull() },
+      }),
+      this.contacts.findOne({ select: { lineId: true, fbName: true }, where: { userId } }),
+      this.traitSlugs(userId),
     ]);
-
-    if (userRes.rows.length === 0) throw AppException.notFound('ไม่พบผู้ใช้นี้');
-    const u = userRes.rows[0];
-    const c = contactRes.rows[0] ?? {};
+    if (!u) throw AppException.notFound('ไม่พบผู้ใช้นี้');
 
     return {
-      displayName: u.display_name,
+      displayName: u.displayName,
       province: u.location,
-      profileImageUrl: u.avatar_url ?? '',
-      lineId: c.line_id ?? '',
-      fbLink: c.fb_name ?? '',
-      traits: traitsRes.rows.map((r) => r.slug),
+      profileImageUrl: u.avatarUrl ?? '',
+      lineId: c?.lineId ?? '',
+      fbLink: c?.fbName ?? '',
+      traits,
     };
   }
 
   async updateMe(userId: string, dto: UpdateProfileDto) {
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
-
-      const userFields: string[] = [];
-      const userValues: unknown[] = [];
-      let i = 1;
-
-      if (dto.name !== undefined) {
-        userFields.push(`display_name = $${i++}`);
-        userValues.push(dto.name.trim() || 'ผู้ใช้');
-      }
-      if (dto.province !== undefined) {
-        userFields.push(`location = $${i++}`);
-        userValues.push(dto.province);
-      }
-      if (dto.bio !== undefined) {
-        userFields.push(`bio = $${i++}`);
-        userValues.push(dto.bio);
-      }
+    await this.dataSource.transaction(async (em) => {
+      const patch: QueryDeepPartialEntity<User> = {};
+      if (dto.name !== undefined) patch.displayName = dto.name.trim() || 'ผู้ใช้';
+      if (dto.province !== undefined) patch.location = dto.province;
+      if (dto.bio !== undefined) patch.bio = dto.bio;
       if (dto.homeType !== undefined) {
         const enumValue = homeTypeLabelToEnum(dto.homeType);
         if (!enumValue) throw new AppException('INVALID_HOME_TYPE', 'ประเภทที่พักอาศัยไม่ถูกต้อง');
-        userFields.push(`home_type = $${i++}`);
-        userValues.push(enumValue);
+        patch.homeType = enumValue as User['homeType'];
       }
-      if (dto.profileImageUrl !== undefined) {
-        userFields.push(`avatar_url = $${i++}`);
-        userValues.push(dto.profileImageUrl);
-      }
-
+      if (dto.profileImageUrl !== undefined) patch.avatarUrl = dto.profileImageUrl;
       // เรียก PATCH /users/me สำเร็จครั้งแรก = ถือว่ากรอกโปรไฟล์ครั้งแรกเสร็จแล้ว
       // (แทนที่การเช็ก displayName ว่างแบบเดิมฝั่ง Firebase — ดู migration 011)
-      userFields.push('profile_completed_at = COALESCE(profile_completed_at, now())');
+      patch.profileCompletedAt = () => 'COALESCE(profile_completed_at, now())';
+      await em.update(User, { id: userId }, patch);
 
-      if (userFields.length > 0) {
-        userValues.push(userId);
-        await client.query(
-          `UPDATE users SET ${userFields.join(', ')} WHERE id = $${i}`,
-          userValues,
-        );
+      // ส่งมาเฉพาะช่องที่จะแก้ — upsert ตั้งค่าเฉพาะช่องที่ส่งมา ช่องอื่นคงค่าเดิม (updated_at ใช้ trigger)
+      const contact: Partial<UserContact> = {};
+      if (dto.phone !== undefined) contact.phone = dto.phone;
+      if (dto.lineId !== undefined) contact.lineId = dto.lineId;
+      if (dto.fbLink !== undefined) contact.fbName = dto.fbLink;
+      if (Object.keys(contact).length > 0) {
+        await em.upsert(UserContact, { userId, ...contact }, { conflictPaths: ['userId'] });
       }
 
-      if (dto.phone !== undefined || dto.lineId !== undefined || dto.fbLink !== undefined) {
-        await client.query(
-          `INSERT INTO user_contacts (user_id, phone, line_id, fb_name)
-           VALUES ($1, $2, $3, $4)
-           ON CONFLICT (user_id) DO UPDATE SET
-             phone = COALESCE($2, user_contacts.phone),
-             line_id = COALESCE($3, user_contacts.line_id),
-             fb_name = COALESCE($4, user_contacts.fb_name),
-             updated_at = now()`,
-          [userId, dto.phone ?? null, dto.lineId ?? null, dto.fbLink ?? null],
-        );
-      }
-
-      if (dto.traits !== undefined) {
-        await this.replaceTraits(client, userId, dto.traits);
-      }
-
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+      if (dto.traits !== undefined) await this.replaceTraits(em, userId, dto.traits);
+    });
 
     await this.invalidateProfile(userId, dto);
     return this.getMe(userId);
@@ -174,22 +137,19 @@ export class UsersService {
   private async invalidateProfile(userId: string, dto: UpdateProfileDto) {
     const refs: CacheRef[] = [{ ns: 'userPublic', id: userId }];
     if (this.cache.enabled && (dto.name !== undefined || dto.profileImageUrl !== undefined)) {
-      const pets = await this.pool.query<{ id: string }>(
-        `SELECT id FROM pets WHERE owner_id = $1 AND deleted_at IS NULL`,
-        [userId],
-      );
-      refs.push({ ns: 'petsByOwner', id: userId }, ...pets.rows.map((p) => ({ ns: 'pet' as const, id: p.id })));
+      const pets = await this.dataSource
+        .getRepository(Pet)
+        .find({ select: { id: true }, where: { ownerId: userId, deletedAt: IsNull() } });
+      refs.push({ ns: 'petsByOwner', id: userId }, ...pets.map((p) => ({ ns: 'pet' as const, id: p.id })));
     }
     await this.cache.invalidate(...refs);
   }
 
-  private async replaceTraits(client: PoolClient, userId: string, slugs: string[]) {
-    await client.query('DELETE FROM user_traits WHERE user_id = $1', [userId]);
+  private async replaceTraits(em: EntityManager, userId: string, slugs: string[]) {
+    await em.delete(UserTrait, { userId });
     if (slugs.length === 0) return;
-    await client.query(
-      `INSERT INTO user_traits (user_id, trait_id)
-       SELECT $1, id FROM traits WHERE slug = ANY($2::text[])`,
-      [userId, slugs],
-    );
+    // slug ที่ไม่มีอยู่จริงถูกข้ามเงียบ ๆ เหมือน INSERT ... SELECT เดิม
+    const traits = await em.find(Trait, { select: { id: true }, where: { slug: In(slugs) } });
+    if (traits.length > 0) await em.insert(UserTrait, traits.map((t) => ({ userId, traitId: t.id })));
   }
 }
