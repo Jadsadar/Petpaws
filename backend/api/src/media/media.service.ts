@@ -18,6 +18,7 @@ const MAX_UPLOAD_BYTES = 8 * 1024 * 1024; // 8MB — สอดคล้องก
 const ALLOWED_CONTENT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const UPLOAD_PREFIX = 'uploads/';
 const S3_DELETE_BATCH = 1000; // เพดานของ DeleteObjects ต่อ 1 request
+const DEFAULT_UPLOAD_TTL_SECONDS = 900;
 
 // ชื่อไฟล์เป็น UUID ใหม่ทุกครั้ง เนื้อไฟล์ใต้ key เดิมไม่มีวันเปลี่ยน — ให้แอป/CDN
 // cache ได้ตลอดไป ไม่ต้องกลับมาถาม server ซ้ำ
@@ -120,6 +121,29 @@ export class MediaService implements OnModuleInit {
     );
 
     return { url: this.urlForKey(key) };
+  }
+
+  /**
+   * ใบอนุญาตให้แอปอัปรูปประกาศ/รูปโปรไฟล์ตรงไป storage เอง (presigned POST) — ไฟล์ไม่ต้องวิ่ง
+   * ผ่าน API และไม่ค้างใน RAM ของ API ระหว่างอัป (สำคัญเมื่อรัน API หลายตัวหลัง load balancer)
+   *
+   * ได้ url สาธารณะกลับไปพร้อมกัน อัปเสร็จแล้วใช้ url นี้แบบเดียวกับผลของ uploadImage()
+   * ไฟล์ที่อัปแล้วไม่ถูกใช้ถูก MediaCleanupProcessor กวาดทิ้งเหมือนเดิม (ไล่จาก prefix uploads/)
+   */
+  async createImageUpload(contentType: string) {
+    if (!ALLOWED_CONTENT_TYPES.has(contentType)) {
+      throw new AppException('INVALID_FILE_TYPE', 'รองรับเฉพาะไฟล์ JPEG, PNG, WEBP');
+    }
+    const ttl = Number(this.config.get<string>('S3_UPLOAD_URL_TTL')) || DEFAULT_UPLOAD_TTL_SECONDS;
+    const key = `${UPLOAD_PREFIX}${randomUUID()}.${contentType.split('/')[1]}`;
+    const upload = await this.presignPost(key, contentType, MAX_UPLOAD_BYTES, ttl);
+    return {
+      key,
+      url: this.urlForKey(key),
+      upload,
+      maxBytes: MAX_UPLOAD_BYTES,
+      expiresAt: new Date(Date.now() + ttl * 1000),
+    };
   }
 
   urlForKey(key: string): string {

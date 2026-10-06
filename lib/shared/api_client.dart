@@ -103,7 +103,8 @@ class ApiClient {
         return _decode(res);
       }, auth);
 
-  /// อัปโหลดไฟล์แบบ multipart — ใช้กับ POST /media/upload เท่านั้น
+  /// อัปโหลดไฟล์แบบ multipart — ใช้กับ POST /media/upload เท่านั้น (ทางสำรองของ backend รุ่นก่อน
+  /// ทางหลักคือ [uploadPresigned] ตรงไป storage ดู StorageService)
   Future<dynamic> uploadFile(
     String path, {
     required Uint8List bytes,
