@@ -103,3 +103,11 @@ service-account*.json
 
 # Jenkins agent binary — download from <jenkins-url>/jnlpJars/agent.jar
 agent.jar
+
+# ไฟล์สำรองข้อมูล/กุญแจ ห้ามลง git เด็ดขาด (มีข้อมูลผู้ใช้จริง)
+*.sql.gz
+db-*.sql
+media-*.tar.gz
+petpaws-backups/
+backups/
+pull-backup.ps1

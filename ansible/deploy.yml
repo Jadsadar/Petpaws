@@ -112,6 +112,18 @@
         owner: root
         mode: "0700"
 
+    - name: สร้างโฟลเดอร์สคริปต์ดูแลระบบ
+      ansible.builtin.file:
+        path: "{{ deploy_dir }}/scripts"
+        state: directory
+        mode: "0755"
+
+    - name: Copy สคริปต์รายงานประจำวันเข้า Discord (daily_report.py)
+      ansible.builtin.copy:
+        src: ../scripts/daily_report.py
+        dest: "{{ deploy_dir }}/scripts/daily_report.py"
+        mode: "0755"
+
     - name: Copy .env production (ค่าจริง ไม่ใช่ example)
       ansible.builtin.copy:
         src: "{{ env_file_src }}"
@@ -245,3 +257,17 @@
           ENV_FILE={{ deploy_dir }}/.env BACKUP_DIR={{ deploy_dir }}/backups
           /bin/bash {{ deploy_dir }}/backend/db/backup.sh
           >> {{ deploy_dir }}/backups/backup.log 2>&1
+
+    # รายงานเช้าเข้า Discord ทุกวัน 08:00 เวลาไทย (= 01:00 UTC เพราะ cron ของเครื่องใช้ UTC)
+    # ต้องมีไฟล์ {{ deploy_dir }}/.discord-webhook (Webhook URL เป็นความลับ สร้างมือครั้งเดียว ไม่เก็บใน git)
+    # ไม่มีไฟล์ = สคริปต์แค่เขียนเตือนใน log แล้วจบ ไม่กระทบระบบ
+    - name: ตั้ง cron รายงานเช้าเข้า Discord
+      ansible.builtin.cron:
+        name: petpaws daily discord report
+        user: root
+        minute: "0"
+        hour: "1"
+        job: >-
+          DEPLOY_DIR={{ deploy_dir }}
+          /usr/bin/python3 {{ deploy_dir }}/scripts/daily_report.py
+          >> {{ deploy_dir }}/backups/daily-report.log 2>&1
