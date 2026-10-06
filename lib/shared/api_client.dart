@@ -22,7 +22,7 @@ class ApiClient {
   //   flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:3000
   // (Android emulator ใช้ http://10.0.2.2:3000) APK ที่ CI สร้างก็ใช้ค่าเริ่มต้นนี้
   static const String baseUrl =
-      String.fromEnvironment('API_BASE_URL', defaultValue: 'http://3.24.61.96');
+      String.fromEnvironment('API_BASE_URL', defaultValue: 'http://43.211.6.248');
 
   final _tokenStorage = TokenStorage.instance;
 
