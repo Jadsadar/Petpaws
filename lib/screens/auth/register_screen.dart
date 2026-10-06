@@ -6,6 +6,8 @@ import '../../utils/password_policy.dart';
 import '../../widgets/password_checklist.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/field_error.dart';
+import '../../widgets/privacy_consent_dialog.dart';
+import '../../widgets/paw_loader.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -24,8 +26,29 @@ class _RegisterScreenState extends State<RegisterScreen> with FieldErrors {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
 
+  /// ยินยอมให้เก็บ/ใช้ข้อมูลส่วนบุคคลแล้ว (ต้องยินยอมก่อนสมัคร)
+  bool _consented = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // เข้าหน้าสมัครแล้วเด้งหนังสือขอความยินยอมขึ้นมาทันที
+    WidgetsBinding.instance.addPostFrameCallback((_) => _askConsent());
+  }
+
+  Future<void> _askConsent() async {
+    final ok = await showPrivacyConsentDialog(context);
+    if (!mounted || ok == null) return;
+    setState(() => _consented = ok);
+    if (ok) clearFieldErrors();
+  }
+
   Future<void> handleRegister() async {
     clearFieldErrors();
+    if (!_consented) {
+      showFieldError('consent', 'กรุณาอ่านและกดยินยอมการใช้ข้อมูลส่วนบุคคลก่อนสมัครสมาชิก');
+      return;
+    }
     final username = usernameController.text.trim();
     if (username.isEmpty ||
         emailController.text.isEmpty ||
@@ -174,7 +197,40 @@ class _RegisterScreenState extends State<RegisterScreen> with FieldErrors {
                             borderRadius: BorderRadius.circular(AppRadius.card)))),
               ],
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 16),
+            // สถานะการยินยอม + ปุ่มเปิดอ่านอีกครั้ง
+            Container(
+              padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+              decoration: BoxDecoration(
+                color: AppColors.section,
+                borderRadius: BorderRadius.circular(AppRadius.card),
+                border: Border.all(
+                    color: _consented ? AppColors.success : AppColors.sand),
+              ),
+              child: Row(
+                children: [
+                  Icon(_consented ? Icons.verified_user : Icons.privacy_tip_outlined,
+                      color: _consented ? AppColors.success : AppColors.brown),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                        _consented
+                            ? 'ยินยอมการใช้ข้อมูลส่วนบุคคลแล้ว'
+                            : 'ยังไม่ได้ยินยอมการใช้ข้อมูลส่วนบุคคล',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: _consented ? AppColors.success : AppColors.textDark)),
+                  ),
+                  TextButton(
+                    key: const ValueKey('consent-open'),
+                    onPressed: _askConsent,
+                    child: Text(_consented ? 'อ่านอีกครั้ง' : 'อ่านและยินยอม'),
+                  ),
+                ],
+              ),
+            ),
+            InlineError(fieldError('consent')),
+            const SizedBox(height: 24),
             ElevatedButton(
               key: const ValueKey('register-submit'),
               onPressed: _isLoading ? null : handleRegister,
@@ -190,8 +246,7 @@ class _RegisterScreenState extends State<RegisterScreen> with FieldErrors {
                   ? const SizedBox(
                       width: 24,
                       height: 24,
-                      child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2.5),
+                      child: PawSpinner(color: Colors.white),
                     )
                   : const Text('สมัครสมาชิก',
                       style: TextStyle(

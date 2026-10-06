@@ -11,6 +11,7 @@ import 'upload/upload_screen.dart';
 import '../theme/app_theme.dart';
 import '../widgets/pop_icon.dart';
 import '../shared/favorites_store.dart';
+import '../widgets/paw_loader.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -107,9 +108,15 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   /// เปลี่ยนตัวกรองชนิดสัตว์ → ดึงเด็คใหม่ตามชนิดนั้นตั้งแต่ต้น (เริ่ม cursor ใหม่)
+  /// กำลังโหลดการ์ดของหมวดที่เพิ่งเลือก (หน้าค้นหาแสดงอุ้งเท้าเดินแทนการ์ดเก่า)
+  bool _loadingSpecies = false;
+
   Future<void> onSpeciesFilterChanged(String species) async {
     if (species == _speciesFilter) return;
-    setState(() => _speciesFilter = species);
+    setState(() {
+      _speciesFilter = species;
+      _loadingSpecies = true;
+    });
     try {
       final page = await _petService.deck(species: species);
       // ระหว่างรอ ผู้ใช้อาจเปลี่ยนตัวกรองซ้ำ — ใช้ผลของรอบล่าสุดเท่านั้น
@@ -122,6 +129,8 @@ class _MainScreenState extends State<MainScreen> {
       });
     } catch (_) {
       if (mounted) _showError('โหลดการ์ดไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+    } finally {
+      if (mounted && species == _speciesFilter) setState(() => _loadingSpecies = false);
     }
   }
 
@@ -367,7 +376,7 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: PawLoader());
     }
     if (_loadError != null) {
       return Center(
@@ -397,6 +406,7 @@ class _MainScreenState extends State<MainScreen> {
           onToggleFavorite: onToggleFavoriteDog,
           speciesFilter: _speciesFilter,
           onSpeciesFilterChanged: onSpeciesFilterChanged,
+          loading: _loadingSpecies,
         ),
         FavoritesScreen(
           likedDogs: likedDogs,
@@ -413,7 +423,7 @@ class _MainScreenState extends State<MainScreen> {
           likedDogs: likedDogs,
           onToggleFavorite: onToggleFavoriteDog,
         ),
-        const ProfileScreen(),
+        ProfileScreen(active: _selectedIndex == 4),
       ],
     );
   }

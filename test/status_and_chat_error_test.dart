@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:petpaws/screens/chat/chat_screen.dart';
 import 'package:petpaws/screens/upload/upload_screen.dart';
 import 'package:petpaws/services/chat_socket.dart';
+import 'package:petpaws/widgets/paw_loader.dart';
 
 http.Response _json(Object body, [int status = 200]) =>
     http.Response(jsonEncode(body), status, headers: {'content-type': 'application/json; charset=utf-8'});
@@ -98,7 +99,7 @@ void main() {
       ));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('chat-load-error')), findsOneWidget);
-      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byType(PawLoader), findsNothing);
 
       healthy = true;
       await tester.tap(find.byKey(const ValueKey('chat-retry')));

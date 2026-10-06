@@ -264,6 +264,10 @@ class AppTheme {
         prefixIconColor: AppColors.primary,
         border: pillBorder,
         enabledBorder: pillBorder,
+        // ช่องที่ยังแก้ไม่ได้ (เช่น โปรไฟล์ก่อนกดแก้ไข) ขอบจาง ไม่ดูเหมือนกดได้
+        disabledBorder: pillBorder.copyWith(
+          borderSide: const BorderSide(color: AppColors.sand, width: 1.2),
+        ),
         errorBorder: pillBorder.copyWith(
           borderSide: const BorderSide(color: AppColors.danger, width: 1.6),
         ),

@@ -9,6 +9,7 @@ import 'services/admin_service.dart';
 import 'services/auth_service.dart';
 import 'shared/app_user.dart';
 import 'theme/app_theme.dart';
+import 'widgets/paw_loader.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -106,7 +107,7 @@ class _AuthGateState extends State<AuthGate> {
           future: _adminFor(user.uid),
           builder: (context, adminSnap) {
             if (adminSnap.connectionState != ConnectionState.done) {
-              return const Scaffold(body: Center(child: CircularProgressIndicator()));
+              return const Scaffold(body: Center(child: PawLoader()));
             }
             // เช็กแอดมินก่อนเช็กโปรไฟล์: แอดมินไม่ต้องกรอกโปรไฟล์ผู้ใช้
             if (adminSnap.data == true) {

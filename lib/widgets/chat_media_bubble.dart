@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../screens/chat/media_viewer_screen.dart';
 import '../theme/app_theme.dart';
+import 'paw_loader.dart';
 
 /// กรอบรูป/วิดีโอใน bubble แชท — โหลดแค่ thumbnail (~30KB) ตัวจริงโหลดตอนกดเปิด
 ///
@@ -112,14 +113,21 @@ class ChatMediaBubble extends StatelessWidget {
                   alignment: Alignment.center,
                   child: failed
                       ? const Icon(Icons.error_outline, color: Colors.white, size: 36)
+                      // วงแหวนบอก % อัปโหลด + อุ้งเท้าหมุนตรงกลาง
                       : SizedBox(
                           width: 44,
                           height: 44,
-                          child: CircularProgressIndicator(
-                            // 0 = กำลังเตรียมไฟล์ (บีบอัด/ขอสิทธิ์) ยังไม่รู้ว่านานเท่าไหร่
-                            value: progress! > 0 ? progress : null,
-                            color: Colors.white,
-                            strokeWidth: 3,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              if (progress! > 0)
+                                CircularProgressIndicator(
+                                  value: progress,
+                                  color: Colors.white,
+                                  strokeWidth: 3,
+                                ),
+                              const PawSpinner(size: 22, color: Colors.white),
+                            ],
                           ),
                         ),
                 ),

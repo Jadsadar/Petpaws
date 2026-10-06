@@ -85,6 +85,17 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('login-register-link')));
     await settle(tester);
+
+    // หน้ายินยอมเด้งขึ้นมา: ปุ่มยินยอมกดไม่ได้จนกว่าจะเลื่อนอ่านจนสุด + ติ๊ก
+    await waitFor(tester, find.byKey(const ValueKey('consent-accept')));
+    expect(tester.widget<ElevatedButton>(find.byKey(const ValueKey('consent-accept'))).onPressed,
+        isNull, reason: 'ยังไม่ได้อ่านจนจบ ต้องกดยินยอมไม่ได้');
+    await tester.drag(find.byKey(const ValueKey('consent-scroll')), const Offset(0, -6000));
+    await settle(tester);
+    await tester.tap(find.byKey(const ValueKey('consent-check')));
+    await settle(tester);
+    await tester.tap(find.byKey(const ValueKey('consent-accept')));
+    await settle(tester);
     await tester.enterText(find.byKey(const ValueKey('register-username')), username);
     await tester.enterText(find.byKey(const ValueKey('register-email')), '$username@e2e.test');
     await tester.enterText(find.byKey(const ValueKey('register-password')), password);
