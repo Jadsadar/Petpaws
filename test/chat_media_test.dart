@@ -6,6 +6,19 @@ import 'package:petpaws/services/chat_media_service.dart';
 import 'package:petpaws/shared/api_client.dart';
 
 void main() {
+  group('ApiClient.presignedUploadTimeout', () {
+    test('รูปเล็กได้เวลาราวเพดานปกติ วิดีโอใหญ่ได้นานขึ้นตามขนาดไฟล์', () {
+      const mb = 1024 * 1024;
+      final image = ApiClient.presignedUploadTimeout(300 * 1024);
+      final video = ApiClient.presignedUploadTimeout(50 * mb);
+
+      expect(image, greaterThanOrEqualTo(ApiClient.uploadTimeout));
+      expect(image, lessThan(const Duration(seconds: 70)));
+      // 50MB ที่ ~64KB/วินาที + 60 วินาที
+      expect(video, const Duration(seconds: 60 + 800));
+    });
+  });
+
   group('prepareChatImage', () {
     test('JPEG ที่ไม่ต้องหมุน ส่งไฟล์เดิม (ไม่ encode ซ้ำให้คุณภาพตก)', () {
       final bytes = img.encodeJpg(img.Image(width: 1600, height: 1200));
