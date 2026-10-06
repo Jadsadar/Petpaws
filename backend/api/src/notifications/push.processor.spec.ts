@@ -12,6 +12,7 @@ const messageRow = {
   body: 'สวัสดีครับ สนใจน้องอยู่',
   sender_name: 'ภูผา ใจดี',
   recipient_id: 'user-owner',
+  superseded: false,
 };
 
 function setup({
@@ -54,6 +55,16 @@ describe('PushProcessor', () => {
     const out = await processor.process(job);
 
     expect(out).toEqual({ skipped: 'message-gone' });
+    expect(fcm.send).not.toHaveBeenCalled();
+  });
+
+  it('มีข้อความใหม่ของคนเดิมตามมาติด ๆ (ส่งหลายรูป) ข้าม ให้ข้อความล่าสุดเด้งครั้งเดียว', async () => {
+    const { processor, devices, fcm } = setup({ rows: [{ ...messageRow, superseded: true }] });
+
+    const out = await processor.process(job);
+
+    expect(out).toEqual({ skipped: 'superseded' });
+    expect(devices.tokensForUser).not.toHaveBeenCalled();
     expect(fcm.send).not.toHaveBeenCalled();
   });
 

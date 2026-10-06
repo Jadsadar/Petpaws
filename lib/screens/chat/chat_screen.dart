@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -18,9 +19,11 @@ import '../../theme/app_theme.dart';
 
 /// รูป/วิดีโอที่กำลังอัป — โชว์เป็น bubble ท้ายห้องพร้อมความคืบหน้าจนกว่าจะส่งสำเร็จ
 class _PendingMedia {
-  _PendingMedia(this.media);
+  _PendingMedia(this.media) : id = 'pending_${_seq++}';
+  // นับเลขแทนเวลา — เลือกหลายรูปทีเดียวสร้างหลายตัวในไมโครวินาทีเดียวกันได้ id จะชนกัน
+  static int _seq = 0;
   final PreparedMedia media;
-  final String id = 'pending_${DateTime.now().microsecondsSinceEpoch}';
+  final String id;
   double progress = 0;
   bool failed = false;
 }
@@ -267,7 +270,12 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _showAttachSheet() async {
     final media = ChatMediaService.instance;
-    final pick = await showModalBottomSheet<Future<PreparedMedia?> Function()>(
+    Future<List<PreparedMedia>> single(Future<PreparedMedia?> picked) async {
+      final m = await picked;
+      return m == null ? const [] : [m];
+    }
+
+    final pick = await showModalBottomSheet<Future<List<PreparedMedia>> Function()>(
       context: context,
       builder: (sheet) => SafeArea(
         child: Column(
@@ -276,26 +284,27 @@ class _ChatScreenState extends State<ChatScreen> {
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
               title: const Text('รูปภาพจากคลัง'),
-              onTap: () => Navigator.pop(sheet, () => media.pickImage(ImageSource.gallery)),
+              subtitle: const Text('เลือกได้สูงสุด ${ChatMediaService.maxImagesPerPick} รูป'),
+              onTap: () => Navigator.pop(sheet, _pickGalleryImages),
             ),
             if (!kIsWeb)
               ListTile(
                 leading: const Icon(Icons.photo_camera_outlined),
                 title: const Text('ถ่ายรูป'),
-                onTap: () => Navigator.pop(sheet, () => media.pickImage(ImageSource.camera)),
+                onTap: () => Navigator.pop(sheet, () => single(media.pickImage(ImageSource.camera))),
               ),
             if (ChatMediaService.canSendVideo) ...[
               ListTile(
                 leading: const Icon(Icons.video_library_outlined),
                 title: const Text(kIsWeb ? 'วิดีโอจากเครื่อง' : 'วิดีโอจากคลัง'),
                 subtitle: Text(ChatMediaService.videoLimitHint),
-                onTap: () => Navigator.pop(sheet, () => media.pickVideo(ImageSource.gallery)),
+                onTap: () => Navigator.pop(sheet, () => single(media.pickVideo(ImageSource.gallery))),
               ),
               if (ChatMediaService.canRecordVideo)
                 ListTile(
                   leading: const Icon(Icons.videocam_outlined),
                   title: const Text('ถ่ายวิดีโอ'),
-                  onTap: () => Navigator.pop(sheet, () => media.pickVideo(ImageSource.camera)),
+                  onTap: () => Navigator.pop(sheet, () => single(media.pickVideo(ImageSource.camera))),
                 ),
             ],
           ],
@@ -305,41 +314,101 @@ class _ChatScreenState extends State<ChatScreen> {
     if (pick != null) await _prepareAndSend(pick);
   }
 
-  Future<void> _prepareAndSend(Future<PreparedMedia?> Function() pick) async {
+  Future<List<PreparedMedia>> _pickGalleryImages() async {
+    final picked = await ChatMediaService.instance.pickImages();
+    if (picked.skipped > 0 && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          duration: AppTheme.snackDuration,
+          content: Text('ข้าม ${picked.skipped} รูป (อ่านไฟล์ไม่ได้ หรือเกิน '
+              '${ChatMediaService.maxImagesPerPick} รูป)')));
+    }
+    return picked.images;
+  }
+
+  Future<void> _prepareAndSend(Future<List<PreparedMedia>> Function() pick) async {
     setState(() => _preparingMedia = true);
-    PreparedMedia? media;
+    var picked = const <PreparedMedia>[];
     try {
-      media = await pick();
+      picked = await pick();
     } catch (e) {
       _showError(e, 'เปิดไฟล์นี้ไม่ได้ กรุณาเลือกไฟล์อื่น');
     } finally {
       if (mounted) setState(() => _preparingMedia = false);
     }
-    if (media == null || !mounted) return;
+    if (picked.isEmpty || !mounted) return;
 
-    final pending = _PendingMedia(media);
-    setState(() => _pending.add(pending));
-    await _uploadPending(pending);
+    final batch = [for (final m in picked) _PendingMedia(m)];
+    setState(() => _pending.addAll(batch));
+    await _sendPending(batch);
   }
 
-  Future<void> _uploadPending(_PendingMedia pending) async {
+  /// อัปพร้อมกันได้ครั้งละกี่ไฟล์ — มากกว่านี้เน็ตมือถือแบ่งกันจนทุกไฟล์ช้าลงพอ ๆ กัน
+  static const _uploadConcurrency = 3;
+
+  /// อัปทั้งชุดพร้อมกันทีละ [_uploadConcurrency] ไฟล์ แต่ส่งข้อความ "ตามลำดับที่เลือก" เสมอ
+  /// (รูปที่ 3 อัปเสร็จก่อนรูปที่ 1 ก็ต้องรอ ไม่งั้นลำดับในห้องสลับกัน)
+  ///
+  /// ส่งทีละข้อความจึงปลอดภัยตอนห้องยังไม่เกิด: ข้อความแรกสร้างห้อง ที่เหลือเข้าห้องนั้นต่อ
+  /// ชิ้นที่ล้มเหลวค้างเป็น bubble ให้แตะลองใหม่ ชิ้นถัดไปส่งต่อได้เลยไม่ต้องรอ
+  Future<void> _sendPending(List<_PendingMedia> batch) async {
     setState(() {
-      pending.failed = false;
-      pending.progress = 0;
+      for (final p in batch) {
+        p.failed = false;
+        p.progress = 0;
+      }
     });
-    try {
-      final media = await ChatMediaService.instance.upload(
-        pending.media,
-        onProgress: (v) {
-          if (mounted) setState(() => pending.progress = v);
-        },
-      );
-      await _deliver(media: media);
-      if (mounted) setState(() => _pending.remove(pending));
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => pending.failed = true);
-      _showError(e, 'ส่งไฟล์ไม่สำเร็จ แตะที่รูปเพื่อลองใหม่');
+
+    // ผลของแต่ละชิ้นเป็น record ไม่ใช่ completeError — ชิ้นท้าย ๆ ที่ล้มก่อนถึงคิว await
+    // จะกลายเป็น unhandled error ของ zone
+    final uploads = [
+      for (final _ in batch) Completer<({Map<String, dynamic>? media, Object? error})>()
+    ];
+    var next = 0;
+    Future<void> worker() async {
+      while (next < batch.length) {
+        final i = next++;
+        final pending = batch[i];
+        try {
+          final media = await ChatMediaService.instance.upload(
+            pending.media,
+            onProgress: (v) {
+              if (mounted) setState(() => pending.progress = v);
+            },
+          );
+          uploads[i].complete((media: media, error: null));
+        } catch (e) {
+          uploads[i].complete((media: null, error: e));
+        }
+      }
+    }
+
+    for (var w = 0; w < math.min(_uploadConcurrency, batch.length); w++) {
+      unawaited(worker());
+    }
+
+    Object? lastError;
+    var failed = 0;
+    for (var i = 0; i < batch.length; i++) {
+      final pending = batch[i];
+      final result = await uploads[i].future;
+      try {
+        if (result.error != null) throw result.error!;
+        await _deliver(media: result.media);
+        if (mounted) setState(() => _pending.remove(pending));
+      } catch (e) {
+        failed++;
+        lastError = e;
+        if (mounted) setState(() => pending.failed = true);
+      }
+    }
+
+    if (failed == 0 || !mounted) return;
+    if (batch.length == 1) {
+      _showError(lastError!, 'ส่งไฟล์ไม่สำเร็จ แตะที่รูปเพื่อลองใหม่');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          duration: AppTheme.snackDuration,
+          content: Text('ส่งไม่สำเร็จ $failed จาก ${batch.length} ไฟล์ แตะที่รูปเพื่อลองใหม่')));
     }
   }
 
@@ -367,7 +436,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
     if (retry == null || !mounted) return;
     if (retry) {
-      await _uploadPending(pending);
+      await _sendPending([pending]);
     } else {
       setState(() => _pending.remove(pending));
     }

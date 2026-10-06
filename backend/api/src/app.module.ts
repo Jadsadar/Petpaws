@@ -15,11 +15,14 @@ import { AdminModule } from './admin/admin.module.js';
 import { JwtAuthGuard } from './common/jwt-auth.guard.js';
 import { AppConfigModule } from './config/app-config.module.js';
 import { CacheModule } from './cache/cache.module.js';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { AppThrottlerGuard, DEFAULT_RATE_LIMIT } from './common/rate-limit.js';
 
 @Module({
   imports: [
     AppConfigModule,
     JwtModule.register({}),
+    ThrottlerModule.forRoot([DEFAULT_RATE_LIMIT]),
     DatabaseModule,
     CacheModule,
     AuthModule,
@@ -33,6 +36,10 @@ import { CacheModule } from './cache/cache.module.js';
     AdminModule,
   ],
   controllers: [AppController],
-  providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
+  // ลำดับมีผล: JwtAuthGuard ต้องมาก่อน ให้ rate limit นับต่อบัญชีจาก request.user ได้
+  providers: [
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: AppThrottlerGuard },
+  ],
 })
 export class AppModule {}

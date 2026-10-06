@@ -10,7 +10,12 @@
 	# รูป/วิดีโอ: แอปโหลดและอัปตรงมาที่ path ของ bucket (S3_PUBLIC_ENDPOINT ชี้มาที่โดเมนนี้)
 	# แล้วส่งต่อให้ MinIO ภายใน — ไม่ต้องเปิด port 9000 ออกอินเทอร์เน็ต
 	# ชื่อ bucket ต้องตรงกับ S3_BUCKET ใน .env (ค่าเริ่มต้น petpaws-media)
-	handle /petpaws-media/* {
+	#
+	# ต้องรับ "/petpaws-media" แบบไม่มี / ท้ายด้วย: presigned POST ของแชท (อัปรูป/วิดีโอ)
+	# ยิงไปที่ URL ของ bucket ตรง ๆ ซึ่ง AWS SDK สร้างมาไม่มี / ท้าย — ถ้าจับแค่ /petpaws-media/*
+	# คำขออัปจะหลุดไปเข้า API แล้วได้ 404 (ส่งรูป/วิดีโอในแชทไม่ได้ทั้งหมด)
+	@media path /petpaws-media /petpaws-media/*
+	handle @media {
 		reverse_proxy petpaws-minio:9000
 	}
 

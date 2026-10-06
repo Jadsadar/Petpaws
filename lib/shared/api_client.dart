@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -30,6 +31,12 @@ class ApiClient {
   /// แล้วหน้าจอหมุนโหลดตลอดไปโดยผู้ใช้ไม่รู้ว่าเกิดอะไรขึ้น
   static const Duration requestTimeout = Duration(seconds: 20);
   static const Duration uploadTimeout = Duration(seconds: 60);
+
+  /// เวลาสูงสุดของการอัปไฟล์แชทตรงไป S3 — ตามขนาดไฟล์ เพราะวิดีโอ 50MB กับรูป 300KB
+  /// ใช้เพดานเดียวกันไม่ได้: [uploadTimeout] + เผื่อเน็ตช้าสุดที่ยังพอใช้ได้ ~64KB/วินาที
+  /// (รูป ≈ 1 นาที, วิดีโอ 10MB ≈ 3.5 นาที, 50MB ≈ 14 นาที)
+  static Duration presignedUploadTimeout(int bytes) =>
+      uploadTimeout + Duration(seconds: bytes ~/ (64 * 1024));
 
   /// เรียกตอน logout หรือ refresh ล้มเหลว ให้ AuthService ไปแจ้ง UI ต่อ
   void Function()? onSessionExpired;
@@ -144,10 +151,14 @@ class ApiClient {
     // ด้วยตัวนับ byte แล้วส่งเป็น StreamedRequest แทน
     final total = form.contentLength;
     var sent = 0;
+    // ครบเวลาแล้วยกเลิกคำขอจริง (ไม่ใช่แค่เลิกรอ) — ไม่งั้นไฟล์ยังวิ่งต่อเบื้องหลังกินเน็ต
+    // ขณะที่ผู้ใช้กดลองใหม่ซ้อนเข้าไปอีกรอบ
+    final abort = Completer<void>();
+    final timer = Timer(presignedUploadTimeout(total), abort.complete);
     // finalize() ก่อนคัดลอก header เสมอ — header content-type (พร้อม boundary)
     // ถูกใส่ตอน finalize ถ้าคัดลอกก่อน S3 จะได้คำขอที่ไม่มี content-type แล้วตอบ 400
     final body = form.finalize();
-    final request = http.StreamedRequest('POST', form.url)
+    final request = http.AbortableStreamedRequest('POST', form.url, abortTrigger: abort.future)
       ..headers.addAll(form.headers)
       ..contentLength = total;
     body.listen(
@@ -161,7 +172,14 @@ class ApiClient {
       cancelOnError: true,
     );
 
-    final res = await http.Response.fromStream(await request.send());
+    final http.Response res;
+    try {
+      res = await http.Response.fromStream(await request.send());
+    } on http.RequestAbortedException {
+      throw ApiException(0, 'UPLOAD_TIMEOUT', 'อัปโหลดไฟล์นานเกินไป กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่');
+    } finally {
+      timer.cancel();
+    }
     if (res.statusCode < 200 || res.statusCode >= 300) {
       // S3 ตอบ error เป็น XML (<Code>EntityTooLarge</Code> ฯลฯ) ไม่ใช่รูปแบบของ API เรา
       final code = RegExp(r'<Code>(\w+)</Code>').firstMatch(res.body)?.group(1);

@@ -4,7 +4,7 @@ import type { Job } from 'bullmq';
 import type { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module.js';
 import { DevicesService } from '../devices/devices.service.js';
-import { PUSH_QUEUE, type MessagePushJobData } from '../queue/queue.constants.js';
+import { PUSH_COALESCE_MS, PUSH_QUEUE, type MessagePushJobData } from '../queue/queue.constants.js';
 import { FcmService } from './fcm.service.js';
 
 const PREVIEW_MAX_CHARS = 100;
@@ -30,18 +30,28 @@ export class PushProcessor extends WorkerHost {
       body: string;
       sender_name: string;
       recipient_id: string;
+      superseded: boolean;
     }>(
       `SELECT m.conversation_id, message_preview(m.body, m.media_type) AS body, s.display_name AS sender_name,
-              CASE WHEN m.sender_id = c.initiator_id THEN c.owner_id ELSE c.initiator_id END AS recipient_id
+              CASE WHEN m.sender_id = c.initiator_id THEN c.owner_id ELSE c.initiator_id END AS recipient_id,
+              -- คนเดิมส่งข้อความใหม่ตามมาติด ๆ (ส่งหลายรูป) = ให้ push ของข้อความนั้นเด้งแทน
+              EXISTS (
+                SELECT 1 FROM messages n
+                 WHERE n.conversation_id = m.conversation_id AND n.sender_id = m.sender_id
+                   AND n.deleted_at IS NULL
+                   AND (n.created_at, n.id) > (m.created_at, m.id)
+                   AND n.created_at <= m.created_at + $2::int * interval '1 millisecond'
+              ) AS superseded
        FROM messages m
        JOIN conversations c ON c.id = m.conversation_id
        JOIN users s ON s.id = m.sender_id
        WHERE m.id = $1 AND m.deleted_at IS NULL`,
-      [job.data.messageId],
+      [job.data.messageId, PUSH_COALESCE_MS],
     );
     // ข้อความถูกลบไปก่อน worker มาถึง — ไม่มีอะไรต้องแจ้ง ไม่ใช่ error ที่ควร retry
     const msg = res.rows[0];
     if (!msg) return { skipped: 'message-gone' };
+    if (msg.superseded) return { skipped: 'superseded' };
 
     const tokens = await this.devices.tokensForUser(msg.recipient_id);
     if (tokens.length === 0) return { skipped: 'no-tokens' };
