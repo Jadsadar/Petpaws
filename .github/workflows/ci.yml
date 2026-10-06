@@ -186,6 +186,101 @@ jobs:
           path: coverage/lcov.info
           retention-days: 14
 
+  # E2E ฝั่งแอป: เปิดแอป Flutter จริงใน Chrome (headless) แล้วกดตามขั้นตอนผู้ใช้
+  # ต่อ API จริง + Postgres/Redis/S3 จริง (ล็อกอิน, กรองหมวด, ถูกใจ, สมัคร→สร้างโปรไฟล์)
+  # เทสต์อยู่ใน integration_test/app_e2e_test.dart
+  mobile-e2e:
+    name: Mobile e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: petpaws
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: petpaws
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U petpaws -d petpaws"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      s3:
+        image: localstack/localstack:3.8.1
+        env:
+          SERVICES: s3
+        ports: ["4566:4566"]
+        options: >-
+          --health-cmd "curl -sf http://localhost:4566/_localstack/health"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    # ค่าเฉพาะใน CI ชั่วคราว ไม่ใช่ความลับจริง ฐานข้อมูลถูกสร้างใหม่และทิ้งไปทุกรอบ
+    env:
+      DATABASE_URL: postgres://petpaws:ci_password@localhost:5432/petpaws
+      REDIS_URL: redis://localhost:6379
+      JWT_ACCESS_SECRET: ci-only-access-secret
+      JWT_REFRESH_SECRET: ci-only-refresh-secret
+      JWT_ACCESS_TTL: 15m
+      JWT_REFRESH_TTL: 7d
+      API_PORT: "3000"
+      CORS_ORIGIN: "*"
+      S3_ENDPOINT: http://localhost:4566
+      S3_REGION: us-east-1
+      S3_BUCKET: petpaws-ci
+      S3_ACCESS_KEY_ID: test
+      S3_SECRET_ACCESS_KEY: test
+      S3_FORCE_PATH_STYLE: "true"
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/api/package-lock.json
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: 3.44.3
+          cache: true
+
+      - name: Create S3 bucket
+        run: curl -sf -X PUT "$S3_ENDPOINT/$S3_BUCKET" -o /dev/null
+
+      # schema เดียวกับ production + บัญชี demo01..demo10 ที่เทสต์ใช้ล็อกอิน
+      - name: Apply DB migrations and demo seed
+        run: |
+          for f in backend/db/migrations/*.sql backend/db/seeds/003_demo_accounts.sql; do
+            echo "apply $f"
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+
+      - name: Build and start API
+        working-directory: backend/api
+        run: |
+          npm ci
+          npm run build
+          nohup npm run start:prod > ../../api.log 2>&1 &
+          timeout 60 sh -c 'until curl -sf http://localhost:3000/health; do sleep 2; done'
+
+      - name: Install Flutter packages
+        run: flutter pub get --enforce-lockfile
+
+      # runner ของ GitHub มี Chrome + chromedriver รุ่นตรงกันติดมาให้แล้ว ($CHROMEWEBDRIVER)
+      - name: Run app e2e (headless Chrome)
+        run: |
+          "$CHROMEWEBDRIVER/chromedriver" --port=4444 &
+          flutter drive             --driver=test_driver/integration_test.dart             --target=integration_test/app_e2e_test.dart             -d web-server --browser-name=chrome --headless             --dart-define=API_BASE_URL=http://localhost:3000
+
+      - name: API log (เมื่อเทสต์ล้ม)
+        if: failure()
+        run: tail -n 200 api.log
+
   security:
     name: Security scan
     runs-on: ubuntu-latest

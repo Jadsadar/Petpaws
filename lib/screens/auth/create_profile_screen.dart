@@ -211,6 +211,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> with FieldErr
                 title: 'ข้อมูลทั่วไป',
                 children: [
                 TextField(
+                  key: const ValueKey('profile-name'),
                   controller: nameController,
                   enabled: !_isSaving,
                   autofocus: true,
@@ -330,6 +331,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> with FieldErr
               ),
               const SizedBox(height: 32),
               ElevatedButton(
+                key: const ValueKey('profile-submit'),
                 onPressed: _isSaving ? null : _saveProfile,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,

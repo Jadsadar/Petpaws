@@ -130,6 +130,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 48),
               TextField(
+                key: const ValueKey('login-identifier'),
                 controller: identifierController,
                 onChanged: (_) => _clearFieldErrors(),
                 enabled: !_isLoading,
@@ -148,6 +149,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
               TextField(
+                key: const ValueKey('login-password'),
                 controller: passwordController,
                 onChanged: (_) => _clearFieldErrors(),
                 obscureText: _obscurePassword,
@@ -182,6 +184,7 @@ class _LoginScreenState extends State<LoginScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
+                  key: const ValueKey('login-submit'),
                   onPressed: _isLoading ? null : login,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
@@ -214,6 +217,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           fontWeight: FontWeight.w600,
                           color: AppColors.textDark)),
                   GestureDetector(
+                    key: const ValueKey('login-register-link'),
                     onTap: _isLoading ? null : _goToRegister,
                     child: const Text(
                       'สมัครเลย',
