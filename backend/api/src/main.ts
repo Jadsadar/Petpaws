@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module.js';
 import { AllExceptionsFilter } from './common/http-exception.filter.js';
+import { RedisIoAdapter } from './common/redis-io.adapter.js';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -35,6 +36,11 @@ async function bootstrap() {
     origin: corsOrigin === '*' ? true : corsOrigin.split(','),
     credentials: true,
   });
+
+  // WebSocket ผ่าน Redis pub/sub — API หลายตัวหลัง load balancer ส่งข้อความสดถึงกันได้
+  const ioAdapter = new RedisIoAdapter(app);
+  await ioAdapter.connectToRedis(config.getOrThrow<string>('REDIS_URL'));
+  app.useWebSocketAdapter(ioAdapter);
 
   const port = config.get<string>('API_PORT', '3000');
   await app.listen(port);
