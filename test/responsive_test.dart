@@ -35,9 +35,11 @@ import 'package:petpaws/screens/upload/pet_post_preview_screen.dart';
 import 'package:petpaws/screens/upload/upload_screen.dart';
 import 'package:petpaws/services/admin_service.dart';
 import 'package:petpaws/services/chat_socket.dart';
+import 'package:petpaws/services/update_service.dart';
 import 'package:petpaws/theme/app_theme.dart';
 import 'package:petpaws/widgets/province_picker.dart';
 import 'package:petpaws/widgets/swipeable_card.dart';
+import 'package:petpaws/widgets/update_gate.dart';
 import 'package:petpaws/widgets/report_dialog.dart';
 
 http.Response _json(Object body, [int status = 200]) =>
@@ -764,4 +766,12 @@ void main() {
       await _tap(t, find.byType(RadioListTile<String>));
     },
   });
+  _responsive(
+    'UpdateGate กล่องอัพเดต',
+    () => UpdateGate(
+      enabled: true,
+      check: () async => const UpdateInfo(buildNumber: 99, versionName: '1.0.99', apkUrl: 'https://example.com/app.apk'),
+      child: const Scaffold(body: Center(child: Text('หน้าแรก'))),
+    ),
+  );
 }
