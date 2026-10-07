@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../utils/pet_species.dart';
 import '../../utils/pet_tags.dart';
 import '../../theme/app_theme.dart';
+import '../chat/media_viewer_screen.dart';
 
 /// พรีวิวประกาศก่อนโพสต์จริง — หน้าตาเหมือนหน้ารายละเอียดที่คนอื่นจะเห็น
 /// ปิดหน้านี้พร้อมค่า true เมื่อกด "ยืนยันโพสต์" (กด "แก้ไข" หรือย้อนกลับ = false/null)
@@ -16,6 +17,11 @@ class PetPostPreviewScreen extends StatelessWidget {
   final Uint8List imageBytes;
 
   static const _orange = AppColors.primary;
+
+  void _openFullImage(BuildContext context) {
+    Navigator.push(context,
+        MaterialPageRoute(builder: (_) => MemoryImageViewerScreen(bytes: imageBytes)));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +41,31 @@ class PetPostPreviewScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Image.memory(imageBytes, width: double.infinity, height: 360, fit: BoxFit.cover),
+            // แตะรูปหรือปุ่มแว่นขยาย → ดูรูปเต็มจอ ซูมได้ (แบบเดียวกับหน้ารายละเอียด)
+            Stack(
+              children: [
+                GestureDetector(
+                  onTap: () => _openFullImage(context),
+                  child: Image.memory(imageBytes,
+                      width: double.infinity, height: 360, fit: BoxFit.cover),
+                ),
+                Positioned(
+                  right: 16,
+                  bottom: 16,
+                  child: Material(
+                    color: Colors.white.withValues(alpha: 0.92),
+                    shape: const CircleBorder(),
+                    elevation: 3,
+                    child: IconButton(
+                      key: const ValueKey('preview-zoom'),
+                      tooltip: 'ดูรูปเต็ม',
+                      icon: const Icon(Icons.zoom_in, color: AppColors.textDark),
+                      onPressed: () => _openFullImage(context),
+                    ),
+                  ),
+                ),
+              ],
+            ),
             Padding(
               padding: const EdgeInsets.all(24),
               child: Column(

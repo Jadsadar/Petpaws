@@ -16,6 +16,8 @@ import '../../widgets/pet_avatar.dart';
 import '../../widgets/report_dialog.dart';
 import '../profile/user_profile_screen.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/paw_loader.dart';
+import 'media_send_preview_screen.dart';
 
 /// ข้อความของเราที่ยังไม่ได้รับการยืนยันจาก server — โชว์เป็น bubble ท้ายห้องทันทีที่กดส่ง
 /// (ตัวหนังสือ "กำลังส่ง" หรือรูป/วิดีโอพร้อมความคืบหน้า) จนกว่า server จะบันทึกสำเร็จ
@@ -408,6 +410,14 @@ class _ChatScreenState extends State<ChatScreen> {
     }
     if (picked.isEmpty || !mounted) return;
 
+    // ให้ดูก่อนส่ง (เอาบางชิ้นออกได้) แล้วกด "ส่ง" ยืนยันอีกครั้ง — ยกเลิก = ไม่ส่งอะไร
+    final confirmed = await Navigator.push<List<PreparedMedia>>(
+      context,
+      MaterialPageRoute(builder: (_) => MediaSendPreviewScreen(media: picked)),
+    );
+    if (confirmed == null || confirmed.isEmpty || !mounted) return;
+    picked = confirmed;
+
     final batch = [for (final m in picked) _Pending.media(m)];
     setState(() => _pending.addAll(batch));
     await _sendPending(batch);
@@ -751,7 +761,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildMessageList(String myUid) {
     if (_resolvingChat) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: PawLoader());
     }
 
     final messagesStream = _messagesStream;
@@ -796,7 +806,7 @@ class _ChatScreenState extends State<ChatScreen> {
           );
         }
         if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(child: PawLoader());
         }
         final serverMessages = snapshot.data!;
 
@@ -926,7 +936,7 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Center(
         child: feed.loadingOlder
             ? const SizedBox(
-                width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                width: 24, height: 24, child: PawSpinner(color: AppColors.primary))
             : TextButton.icon(
                 onPressed: () => feed
                     .loadOlder()
@@ -1052,7 +1062,7 @@ class _ChatScreenState extends State<ChatScreen> {
             color: AppColors.primary,
             icon: _preparingMedia
                 ? const SizedBox(
-                    width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+                    width: 22, height: 22, child: PawSpinner(color: AppColors.primary))
                 : const Icon(Icons.add_photo_alternate_outlined),
           ),
           Expanded(

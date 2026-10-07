@@ -5,6 +5,7 @@ import '../../widgets/pet_avatar.dart';
 import 'admin_photos.dart';
 import 'admin_widgets.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/paw_loader.dart';
 
 /// โปรไฟล์ของผู้ใช้ที่ถูกรายงาน (อ่านอย่างเดียว): ข้อมูลบัญชี + ประกาศทั้งหมดพร้อมรูป
 /// รวมประกาศที่ถูกลบ/รับเลี้ยงแล้ว เพราะรายงานอาจชี้ไปที่ประกาศที่หายจากเด็คไปแล้ว
@@ -44,7 +45,7 @@ class _AdminUserProfileScreenState extends State<AdminUserProfileScreen> {
         future: _future,
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: PawLoader());
           }
           if (snap.hasError) return AdminErrorView(error: snap.error!, onRetry: _reload);
           final p = snap.data!;

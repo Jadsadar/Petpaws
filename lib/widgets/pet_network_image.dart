@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import 'paw_loader.dart';
 
 /// แสดงรูปภาพจาก URL พร้อม fallback icon เมื่อไม่มีรูปหรือโหลดไม่สำเร็จ
 class PetNetworkImage extends StatelessWidget {
@@ -63,10 +64,7 @@ class PetNetworkImage extends StatelessWidget {
                   child: SizedBox(
                     width: 24,
                     height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: iconColor.withOpacity(0.45),
-                    ),
+                    child: PawSpinner(color: iconColor.withValues(alpha: 0.45)),
                   ),
                 ),
               );

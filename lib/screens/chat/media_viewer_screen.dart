@@ -1,9 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../widgets/chat_media_bubble.dart' show formatDuration;
 import '../../theme/app_theme.dart';
+import '../../widgets/paw_loader.dart';
 
 /// ดูรูปเต็มจอ ซูม/เลื่อนได้ — โชว์ thumbnail (มีใน cache แล้วจาก bubble) ระหว่างรอตัวจริง
 class ImageViewerScreen extends StatelessWidget {
@@ -26,7 +29,7 @@ class ImageViewerScreen extends StatelessWidget {
               imageUrl: url,
               fit: BoxFit.contain,
               placeholder: (_, __) => thumbnailUrl == null
-                  ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                  ? const Center(child: PawLoader(color: Colors.white))
                   : CachedNetworkImage(imageUrl: thumbnailUrl!, fit: BoxFit.contain),
               errorWidget: (_, __, ___) =>
                   const Icon(Icons.broken_image_outlined, color: Colors.white54, size: 64),
@@ -39,6 +42,25 @@ class ImageViewerScreen extends StatelessWidget {
 }
 
 /// เล่นวิดีโอแบบ stream (ไม่ต้องโหลดทั้งไฟล์ก่อน — MinIO/S3 รองรับ Range request)
+/// ดูรูปจากในเครื่องเต็มจอ (ยังไม่ได้อัปโหลด เช่น หน้าตัวอย่างประกาศ) ซูม/เลื่อนได้
+class MemoryImageViewerScreen extends StatelessWidget {
+  const MemoryImageViewerScreen({super.key, required this.bytes});
+
+  final Uint8List bytes;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(backgroundColor: Colors.black, foregroundColor: Colors.white, elevation: 0),
+      body: InteractiveViewer(
+        maxScale: 5,
+        child: Center(child: Image.memory(bytes, fit: BoxFit.contain)),
+      ),
+    );
+  }
+}
+
 class VideoViewerScreen extends StatefulWidget {
   const VideoViewerScreen({super.key, required this.url, this.thumbnailUrl});
 
@@ -242,7 +264,7 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
                       children: [
                         if (widget.thumbnailUrl != null)
                           CachedNetworkImage(imageUrl: widget.thumbnailUrl!, fit: BoxFit.contain),
-                        const CircularProgressIndicator(color: Colors.white),
+                        const PawSpinner(color: Colors.white),
                       ],
                     ),
                   )

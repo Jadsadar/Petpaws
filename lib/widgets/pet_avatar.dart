@@ -29,21 +29,31 @@ class PetAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipOval(
-      child: SizedBox(
-        width: radius * 2,
-        height: radius * 2,
-        child: PetNetworkImage(
-          imageUrl: _hasValidUrl ? imageUrl : null,
-          width: radius * 2,
-          height: radius * 2,
-          fit: BoxFit.cover,
-          backgroundColor: backgroundColor,
-          iconColor: iconColor,
-          iconSize: radius,
-          fallbackIcon: icon,
+    // บังคับเป็นสี่เหลี่ยมจัตุรัสเสมอ — ใน ListTile ความสูงถูกจำกัด ถ้าไม่บังคับ
+    // ความกว้างจะเหลือ 2r แต่ความสูงโดนบีบ รูปเลยกลายเป็นวงรี
+    return LayoutBuilder(builder: (context, c) {
+      var d = radius * 2;
+      if (c.hasBoundedWidth && c.maxWidth < d) d = c.maxWidth;
+      if (c.hasBoundedHeight && c.maxHeight < d) d = c.maxHeight;
+      return Center(
+        widthFactor: 1,
+        heightFactor: 1,
+        child: ClipOval(
+          child: SizedBox.square(
+            dimension: d,
+            child: PetNetworkImage(
+              imageUrl: _hasValidUrl ? imageUrl : null,
+              width: d,
+              height: d,
+              fit: BoxFit.cover,
+              backgroundColor: backgroundColor,
+              iconColor: iconColor,
+              iconSize: d / 2,
+              fallbackIcon: icon,
+            ),
+          ),
         ),
-      ),
-    );
+      );
+    });
   }
 }

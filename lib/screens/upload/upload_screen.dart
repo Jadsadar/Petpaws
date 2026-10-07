@@ -16,6 +16,7 @@ import 'edit_dog_screen.dart';
 import 'pet_post_preview_screen.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/field_error.dart';
+import '../../widgets/paw_loader.dart';
 
 class UploadScreen extends StatefulWidget {
   final Function(Map<String, dynamic>) onAddDog;
@@ -398,8 +399,7 @@ class _UploadScreenState extends State<UploadScreen> with FieldErrors {
                   ? const SizedBox(
                       width: 24,
                       height: 24,
-                      child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2.5),
+                      child: PawSpinner(color: Colors.white),
                     )
                   : const Text('โพสต์หาบ้าน',
                       style:
