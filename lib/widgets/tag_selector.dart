@@ -40,7 +40,7 @@ class TagSelector extends StatelessWidget {
                           ? AppColors.onPrimary
                           : (canTap ? AppColors.textDark : AppColors.textMuted),
                       fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal)),
+                          isSelected ? FontWeight.w600 : FontWeight.normal)),
               selected: isSelected,
               onSelected: canTap ? (_) => onToggle(tag.id) : null,
               selectedColor: AppColors.primary,
@@ -50,7 +50,7 @@ class TagSelector extends StatelessWidget {
                   : backgroundColor,
               side: const BorderSide(color: AppColors.sand),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.card)),
+                  borderRadius: BorderRadius.circular(AppRadius.chip)),
             );
           }).toList(),
         ),

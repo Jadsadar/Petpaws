@@ -13,7 +13,9 @@ const Duration _autoRefresh = Duration(seconds: 15);
 /// หน้าดูอัตรา cache hit/miss ของ API แยกตามชนิดข้อมูล + สถานะ Redis cache
 /// รีเฟรชเองทุก 15 วินาทีระหว่างเปิดหน้านี้ไว้
 class AdminCacheStatsScreen extends StatefulWidget {
-  const AdminCacheStatsScreen({super.key});
+  const AdminCacheStatsScreen({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   State<AdminCacheStatsScreen> createState() => _AdminCacheStatsScreenState();
@@ -24,12 +26,18 @@ class _AdminCacheStatsScreenState extends State<AdminCacheStatsScreen> {
   Object? _error;
   bool _loading = true;
   Timer? _timer;
+  bool _fetching = false;
 
   @override
   void initState() {
     super.initState();
     _load();
-    _timer = Timer.periodic(_autoRefresh, (_) => _load());
+    _timer = Timer.periodic(_autoRefresh, (_) {
+      if (TickerMode.valuesOf(context).enabled &&
+          ModalRoute.of(context)?.isCurrent != false) {
+        _load();
+      }
+    });
   }
 
   @override
@@ -39,6 +47,8 @@ class _AdminCacheStatsScreenState extends State<AdminCacheStatsScreen> {
   }
 
   Future<void> _load() async {
+    if (_fetching) return;
+    _fetching = true;
     try {
       final s = await AdminService.instance.cacheStats();
       if (!mounted) return;
@@ -54,6 +64,8 @@ class _AdminCacheStatsScreenState extends State<AdminCacheStatsScreen> {
         _error = e;
         _loading = false;
       });
+    } finally {
+      _fetching = false;
     }
   }
 
@@ -62,10 +74,15 @@ class _AdminCacheStatsScreenState extends State<AdminCacheStatsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('เริ่มนับใหม่'),
-        content: const Text('ล้างตัวนับ hit/miss ทั้งหมดแล้วเริ่มนับจากตอนนี้\n(ข้อมูลที่ cache ไว้ยังอยู่)'),
+        content: const Text(
+            'ล้างตัวนับ hit/miss ทั้งหมดแล้วเริ่มนับจากตอนนี้\n(ข้อมูลที่ cache ไว้ยังอยู่)'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('เริ่มนับใหม่')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('ยกเลิก')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('เริ่มนับใหม่')),
         ],
       ),
     );
@@ -81,12 +98,26 @@ class _AdminCacheStatsScreenState extends State<AdminCacheStatsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.embedded) {
+      return Column(children: [
+        Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              key: const ValueKey('cache-reset'),
+              onPressed: _stats?.available == true ? _reset : null,
+              icon: const Icon(Icons.restart_alt),
+              label: const Text('เริ่มนับ Cache ใหม่'),
+            )),
+        Expanded(child: _body()),
+      ]);
+    }
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('สถิติ cache', style: TextStyle(fontWeight: FontWeight.bold, color: adminOrange)),
+        title: const Text('สถิติ cache',
+            style: TextStyle(fontWeight: FontWeight.w600, color: adminOrange)),
         backgroundColor: Colors.white,
-        elevation: 1,
+        elevation: 0,
         centerTitle: true,
         iconTheme: const IconThemeData(color: adminOrange),
         actions: [
@@ -98,7 +129,7 @@ class _AdminCacheStatsScreenState extends State<AdminCacheStatsScreen> {
           ),
         ],
       ),
-      body: _body(),
+      body: AppPageFrame(maxWidth: AppLayout.dashboardWidth, child: _body()),
     );
   }
 
@@ -114,14 +145,19 @@ class _AdminCacheStatsScreenState extends State<AdminCacheStatsScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           if (_error != null)
-            CacheBanner(color: AppColors.warning, text: 'รีเฟรชไม่สำเร็จ: ${adminErrorMessage(_error!)}'),
+            CacheBanner(
+                color: AppColors.warning,
+                text: 'รีเฟรชไม่สำเร็จ: ${adminErrorMessage(_error!)}'),
           if (!s.enabled)
             const CacheBanner(
                 color: AppColors.danger,
-                text: 'ปิด cache อยู่ (server ไม่ได้ตั้ง REDIS_CACHE_URL) — ทุก request อ่าน DB ตรง')
+                text:
+                    'ปิด cache อยู่ (server ไม่ได้ตั้ง REDIS_CACHE_URL) — ทุก request อ่าน DB ตรง')
           else if (!s.available)
             const CacheBanner(
-                color: AppColors.danger, text: 'ต่อ Redis cache ไม่ได้ — API ยังทำงานโดยอ่าน DB ตรง แต่จะช้าลง'),
+                color: AppColors.danger,
+                text:
+                    'ต่อ Redis cache ไม่ได้ — API ยังทำงานโดยอ่าน DB ตรง แต่จะช้าลง'),
           CacheOverallCard(stats: s),
           const SizedBox(height: 20),
           const CacheSectionTitle('แยกตามชนิดข้อมูล'),

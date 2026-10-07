@@ -47,13 +47,16 @@ class DiscoverScreen extends StatelessWidget {
     final ownerId = dog['ownerId'] as String?;
     final myUid = AuthService.instance.currentUser?.uid;
     if (ownerId == null || ownerId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(duration: AppTheme.snackDuration, 
-          content: Text('สัตว์เลี้ยงตัวอย่างนี้ยังไม่มีเจ้าของจริงในระบบให้แชทด้วย')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          duration: AppTheme.snackDuration,
+          content: Text(
+              'สัตว์เลี้ยงตัวอย่างนี้ยังไม่มีเจ้าของจริงในระบบให้แชทด้วย')));
       return;
     }
     if (ownerId == myUid) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(duration: AppTheme.snackDuration, content: Text('นี่คือประกาศของคุณเอง')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          duration: AppTheme.snackDuration,
+          content: Text('นี่คือประกาศของคุณเอง')));
       return;
     }
     final ownerName = dog['ownerName'] as String? ?? 'เจ้าของ';
@@ -82,14 +85,17 @@ class DiscoverScreen extends StatelessWidget {
     await reportWithDialog(
       context,
       title: 'รายงานประกาศนี้',
-      send: (reason, detail) =>
-          ReportService.instance.reportPet(petId, reason: reason, detail: detail),
+      send: (reason, detail) => ReportService.instance
+          .reportPet(petId, reason: reason, detail: detail),
       blockUserId: (ownerId == null || ownerId.isEmpty) ? null : ownerId,
       blockUserName: dog['ownerName'] as String? ?? 'เจ้าของประกาศนี้',
       // บล็อกแล้วถือว่าปัดทิ้ง: ตัวที่รายงานกับตัวอื่นของเจ้าของเดียวกันที่ค้างในเด็ค
       // (server เองก็ซ่อนประกาศของคนที่บล็อกอยู่แล้ว แต่เด็คในเครื่องดึงมาไว้ก่อนหน้า)
       onBlocked: () {
-        final sameOwner = [for (final d in dogs) if (d['ownerId'] == ownerId) d];
+        final sameOwner = [
+          for (final d in dogs)
+            if (d['ownerId'] == ownerId) d
+        ];
         for (final d in sameOwner) {
           onPass(d);
         }
@@ -104,21 +110,24 @@ class DiscoverScreen extends StatelessWidget {
         title: const Text('PetPaws',
             style: TextStyle(
                 fontFamily: AppTheme.logoFont,
-                fontWeight: FontWeight.bold, color: AppColors.primary, shadows: AppTheme.outline)),
+                fontWeight: FontWeight.w600,
+                color: AppColors.primary)),
         backgroundColor: AppColors.appBar,
         elevation: 0,
         centerTitle: true,
       ),
-      body: Column(
-        children: [
-          // แถบเลือกชนิดสัตว์ แตะแล้วกรองการ์ดทันที
-          SpeciesFilterBar(
-            current: speciesFilter,
-            onChanged: onSpeciesFilterChanged,
-          ),
-          Expanded(child: _deck(context)),
-        ],
-      ),
+      body: AppPageFrame(
+          maxWidth: 720,
+          child: Column(
+            children: [
+              // แถบเลือกชนิดสัตว์ แตะแล้วกรองการ์ดทันที
+              SpeciesFilterBar(
+                current: speciesFilter,
+                onChanged: onSpeciesFilterChanged,
+              ),
+              Expanded(child: _deck(context)),
+            ],
+          )),
     );
   }
 
@@ -129,53 +138,57 @@ class DiscoverScreen extends StatelessWidget {
           child: PawLoader(label: 'กำลังหาน้อง ๆ ให้คุณ...'));
     }
     return dogs.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 28),
-                    child: Text('ขอบคุณที่ทำให้สัตว์ทุกตัวมีบ้านที่อบอุ่น!',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textDark)),
-                  ),
-                  if (canUndo) ...[
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: onUndoPass,
-                      icon: const Icon(Icons.replay),
-                      label: const Text('ลองดูสัตว์เลี้ยงอีกครั้ง'),
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primarySoft,
-                          foregroundColor: AppColors.onPrimary),
-                    )
-                  ]
-                ],
-              ),
-            )
-          : Column(
+        ? Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: SwipeableCard(
-                      dog: dogs.first,
-                      onLike: () => onLike(dogs.first),
-                      onPass: () => onPass(dogs.first),
-                      likedDogs: likedDogs,
-                      onToggleFavorite: onToggleFavorite,
-                    ),
-                  ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 28),
+                  child: Text('ขอบคุณที่ทำให้สัตว์ทุกตัวมีบ้านที่อบอุ่น!',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textDark)),
                 ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 24.0, left: 8, right: 8),
-                  // ปุ่มรวมกว้าง ~330px: จอ 320 ย่อทั้งแถวลงเล็กน้อยแทนล้น
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Row(
+                if (canUndo) ...[
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: onUndoPass,
+                    icon: const Icon(Icons.replay),
+                    label: const Text('ลองดูสัตว์เลี้ยงอีกครั้ง'),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primarySoft,
+                        foregroundColor: AppColors.onPrimary),
+                  )
+                ]
+              ],
+            ),
+          )
+        : Column(
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Center(
+                      child: ConstrainedBox(
+                          constraints: const BoxConstraints(
+                              maxWidth: AppLayout.deckWidth, maxHeight: 640),
+                          child: SwipeableCard(
+                            dog: dogs.first,
+                            onLike: () => onLike(dogs.first),
+                            onPass: () => onPass(dogs.first),
+                            likedDogs: likedDogs,
+                            onToggleFavorite: onToggleFavorite,
+                          ))),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 24.0, left: 8, right: 8),
+                // ปุ่มรวมกว้าง ~330px: จอ 320 ย่อทั้งแถวลงเล็กน้อยแทนล้น
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       FloatingActionButton(
@@ -185,7 +198,7 @@ class DiscoverScreen extends StatelessWidget {
                         backgroundColor: Colors.white,
                         foregroundColor: Colors.grey.shade500,
                         mini: true,
-                        elevation: 2,
+                        elevation: 0,
                         child: const Icon(Icons.flag_outlined, size: 24),
                       ),
                       const SizedBox(width: 24),
@@ -194,7 +207,7 @@ class DiscoverScreen extends StatelessWidget {
                         onPressed: () => onPass(dogs.first),
                         backgroundColor: Colors.white,
                         foregroundColor: AppColors.danger,
-                        elevation: 2,
+                        elevation: 0,
                         child: const Icon(Icons.close, size: 30),
                       ),
                       const SizedBox(width: 24),
@@ -205,7 +218,7 @@ class DiscoverScreen extends StatelessWidget {
                             canUndo ? Colors.white : Colors.grey[200],
                         foregroundColor: AppColors.primarySoft,
                         mini: true,
-                        elevation: canUndo ? 2 : 0,
+                        elevation: 0,
                         child: const Icon(Icons.replay, size: 24),
                       ),
                       const SizedBox(width: 24),
@@ -215,7 +228,7 @@ class DiscoverScreen extends StatelessWidget {
                         onPressed: () => onLike(dogs.first),
                         backgroundColor: Colors.white,
                         foregroundColor: AppColors.success,
-                        elevation: 2,
+                        elevation: 0,
                         child: const Icon(Icons.favorite, size: 30),
                       ),
                       const SizedBox(width: 24),
@@ -227,15 +240,15 @@ class DiscoverScreen extends StatelessWidget {
                         backgroundColor: Colors.white,
                         foregroundColor: Colors.pink.shade300,
                         mini: true,
-                        elevation: 2,
+                        elevation: 0,
                         child: const Icon(Icons.chat_bubble, size: 24),
                       ),
                     ],
                   ),
-                  ),
-                )
-              ],
-            );
+                ),
+              )
+            ],
+          );
   }
 }
 
@@ -243,7 +256,8 @@ class DiscoverScreen extends StatelessWidget {
 /// แถบหมวดสัตว์เลี้ยงด้านบนหน้าค้นหา: ทั้งหมด / สุนัข / แมว / นก / ปลา / กระต่าย / อื่นๆ
 /// แตะแล้วกรองการ์ดทันที (ค่า key ตรงกับ petSpeciesLabels, '' = ทั้งหมด)
 class SpeciesFilterBar extends StatelessWidget {
-  const SpeciesFilterBar({super.key, required this.current, required this.onChanged});
+  const SpeciesFilterBar(
+      {super.key, required this.current, required this.onChanged});
 
   final String current;
   final ValueChanged<String> onChanged;
@@ -261,31 +275,33 @@ class SpeciesFilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // ช่องมีความสูงตายตัว ตัวอักษรขยายได้ไม่เกิน 1.3 เท่า ไม่งั้นป้ายชื่อล้นช่อง
-    return MediaQuery.withClampedTextScaling(maxScaleFactor: 1.3, child: LayoutBuilder(builder: (context, constraints) {
-      // ทุกช่องกว้างเท่ากัน เต็มความกว้างบนมือถือ แต่บนจอกว้าง (เว็บ) จำกัดแถบไม่เกิน
-      // 760px แล้วจัดกลาง ไม่ให้ช่องใหญ่เกินไป ไอคอน/ตัวอักษร/ความสูงปรับตามขนาดช่อง
-      final width = constraints.maxWidth.clamp(0.0, 760.0);
-      final narrow = width < 600;
-      final gap = narrow ? 6.0 : 12.0, side = narrow ? 10.0 : 16.0;
-      final n = _items.length;
-      final tile = (width - side * 2 - gap * (n - 1)) / n;
-      final scale = (tile / 72).clamp(0.8, 1.2);
-      return Center(
-        child: SizedBox(
-        width: width,
-        height: 74 * scale + 18,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(side, 10, side, 8),
-          child: Row(children: [
-            for (var i = 0; i < n; i++) ...[
-              if (i > 0) SizedBox(width: gap),
-              Expanded(child: _tile(_items[i], double.infinity, scale)),
-            ],
-          ]),
-        ),
-        ),
-      );
-    }));
+    return MediaQuery.withClampedTextScaling(
+        maxScaleFactor: 1.3,
+        child: LayoutBuilder(builder: (context, constraints) {
+          // ทุกช่องกว้างเท่ากัน เต็มความกว้างบนมือถือ แต่บนจอกว้าง (เว็บ) จำกัดแถบไม่เกิน
+          // 760px แล้วจัดกลาง ไม่ให้ช่องใหญ่เกินไป ไอคอน/ตัวอักษร/ความสูงปรับตามขนาดช่อง
+          final width = constraints.maxWidth.clamp(0.0, 760.0);
+          final narrow = width < 600;
+          final gap = narrow ? 6.0 : 12.0, side = narrow ? 10.0 : 16.0;
+          final n = _items.length;
+          final tile = (width - side * 2 - gap * (n - 1)) / n;
+          final scale = (tile / 72).clamp(0.8, 1.2);
+          return Center(
+            child: SizedBox(
+              width: width,
+              height: 64 * scale + 18,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(side, 10, side, 8),
+                child: Row(children: [
+                  for (var i = 0; i < n; i++) ...[
+                    if (i > 0) SizedBox(width: gap),
+                    Expanded(child: _tile(_items[i], double.infinity, scale)),
+                  ],
+                ]),
+              ),
+            ),
+          );
+        }));
   }
 
   Widget _tile((String, String, Widget) item, double width, double scale) {
@@ -294,41 +310,42 @@ class SpeciesFilterBar extends StatelessWidget {
     final fg = selected ? AppColors.onPrimary : AppColors.textDark;
     return PressScale(
       child: Material(
-      key: ValueKey('species-chip-${key.isEmpty ? 'all' : key}'),
-      color: selected ? AppColors.primary : Colors.white,
-      elevation: selected ? 2 : 1,
-      shadowColor: Colors.black26,
-      borderRadius: BorderRadius.circular(18 * scale),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18 * scale),
-        onTap: () => onChanged(key),
-        child: SizedBox(
-          width: width,
-          child: IconTheme(
-            data: IconThemeData(color: fg, size: 24 * scale),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // ช่องที่เพิ่งถูกเลือก ไอคอนเด้ง+ส่ายครั้งหนึ่ง (key เปลี่ยน = เล่นใหม่)
-                Transform.scale(
-                    scale: scale,
-                    child: selected
-                        ? PopIcon(key: ValueKey('pop-$key'), child: icon)
-                        : icon),
-                SizedBox(height: 4 * scale),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(label,
-                    style: TextStyle(
-                        fontSize: 12 * scale,
-                        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                        color: fg)),
-                ),
-              ],
+        key: ValueKey('species-chip-${key.isEmpty ? 'all' : key}'),
+        color: selected ? AppColors.primary : Colors.white,
+        elevation: 0,
+        shadowColor: Colors.black26,
+        borderRadius: BorderRadius.circular(AppRadius.control),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.control),
+          onTap: () => onChanged(key),
+          child: SizedBox(
+            width: width,
+            child: IconTheme(
+              data: IconThemeData(color: fg, size: 24 * scale),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // ช่องที่เพิ่งถูกเลือก ไอคอนเด้ง+ส่ายครั้งหนึ่ง (key เปลี่ยน = เล่นใหม่)
+                  Transform.scale(
+                      scale: scale,
+                      child: selected
+                          ? PopIcon(key: ValueKey('pop-$key'), child: icon)
+                          : icon),
+                  SizedBox(height: 4 * scale),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(label,
+                        style: TextStyle(
+                            fontSize: 12 * scale,
+                            fontWeight:
+                                selected ? FontWeight.w600 : FontWeight.w500,
+                            color: fg)),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-      ),
       ),
     );
   }

@@ -87,7 +87,8 @@ class _MainScreenState extends State<MainScreen> {
     if (_isFetchingMore || !_deckHasMore || allDogs.length > 3) return;
     _isFetchingMore = true;
     try {
-      final page = await _petService.deck(cursor: _deckCursor, species: _speciesFilter);
+      final page =
+          await _petService.deck(cursor: _deckCursor, species: _speciesFilter);
       if (!mounted) return;
       setState(() {
         // ตัวที่ใส่กลับเข้า deck เอง (เลิกถูกใจ/เลิกปัด) กลายเป็นตัวที่ server
@@ -130,13 +131,16 @@ class _MainScreenState extends State<MainScreen> {
     } catch (_) {
       if (mounted) _showError('โหลดการ์ดไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
     } finally {
-      if (mounted && species == _speciesFilter) setState(() => _loadingSpecies = false);
+      if (mounted && species == _speciesFilter) {
+        setState(() => _loadingSpecies = false);
+      }
     }
   }
 
   void _showError(String message) {
     _messengerKey.currentState?.clearSnackBars();
-    _messengerKey.currentState?.showSnackBar(SnackBar(duration: AppTheme.snackDuration, content: Text(message)));
+    _messengerKey.currentState?.showSnackBar(
+        SnackBar(duration: AppTheme.snackDuration, content: Text(message)));
   }
 
   void onLike(Map<String, dynamic> dog) {
@@ -178,7 +182,8 @@ class _MainScreenState extends State<MainScreen> {
 
   /// server ตอบ 404 = ประกาศถูกลบไปแล้ว (เจ้าของลบ หรือข้อมูลถูกรีเซ็ต) แต่การ์ดยังค้าง
   /// อยู่ในเครื่อง — ไม่ต้องใส่การ์ดกลับ ไม่งั้นปัดเท่าไรก็ตีกลับมาที่เดิมไม่จบ
-  bool _isGone(Object error) => error is ApiException && error.statusCode == 404;
+  bool _isGone(Object error) =>
+      error is ApiException && error.statusCode == 404;
 
   bool _reloadingStaleDeck = false;
 
@@ -225,11 +230,13 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void onEditDog(Map<String, dynamic> updatedDog) => setState(() {
-        final index = myPostedDogs.indexWhere((d) => d['id'] == updatedDog['id']);
+        final index =
+            myPostedDogs.indexWhere((d) => d['id'] == updatedDog['id']);
         if (index != -1) myPostedDogs[index] = updatedDog;
       });
 
-  Future<void> onChangeStatus(Map<String, dynamic> dog, String newStatus) async {
+  Future<void> onChangeStatus(
+      Map<String, dynamic> dog, String newStatus) async {
     final id = dog['id'] as String;
     final previousStatus = dog['status'];
     setState(() {
@@ -299,80 +306,90 @@ class _MainScreenState extends State<MainScreen> {
     return ScaffoldMessenger(
       key: _messengerKey,
       child: Scaffold(
-        body: _buildBody(),
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _selectedIndex,
-          onTap: (index) => setState(() => _selectedIndex = index),
-          type: BottomNavigationBarType.fixed,
-          // แท็บที่เลือก: ชมพู + ไอคอน/ตัวอักษรใหญ่ขึ้น  แท็บอื่น: เทา ขนาดปกติ
-          selectedItemColor: AppColors.primary,
-          unselectedItemColor: Colors.grey.shade500,
-          selectedIconTheme: const IconThemeData(size: 32),
-          unselectedIconTheme: const IconThemeData(size: 24),
-          selectedFontSize: 14,
-          unselectedFontSize: 12,
-          backgroundColor: Colors.white,
-          items: [
-            const BottomNavigationBarItem(
-                icon: Icon(Icons.search),
-                activeIcon: PopIcon(child: Icon(Icons.search)),
-                label: 'ค้นหา'),
-            const BottomNavigationBarItem(
-                icon: Icon(Icons.favorite_border),
-                activeIcon: PopIcon(child: Icon(Icons.favorite_border)),
-                label: 'ถูกใจ'),
-            BottomNavigationBarItem(
-              label: 'แชท',
-              icon: _chatIcon(),
-              activeIcon: PopIcon(child: _chatIcon()),
-            ),
-            const BottomNavigationBarItem(
-                icon: Icon(Icons.post_add),
-                activeIcon: PopIcon(child: Icon(Icons.post_add)),
-                label: 'ลงประกาศ'),
-            const BottomNavigationBarItem(
-                icon: Icon(Icons.person),
-                activeIcon: PopIcon(child: Icon(Icons.person)),
-                label: 'โปรไฟล์'),
-          ],
-        ),
+        body: AppPageFrame(
+            maxWidth: AppLayout.dashboardWidth, child: _buildBody()),
+        bottomNavigationBar: Container(
+            decoration: const BoxDecoration(
+                color: Colors.white, border: Border(top: AppLayout.border)),
+            child: Center(
+                heightFactor: 1,
+                child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                        maxWidth: AppLayout.dashboardWidth),
+                    child: BottomNavigationBar(
+                      currentIndex: _selectedIndex,
+                      onTap: (index) => setState(() => _selectedIndex = index),
+                      type: BottomNavigationBarType.fixed,
+                      // แท็บที่เลือก: ชมพู + ไอคอน/ตัวอักษรใหญ่ขึ้น  แท็บอื่น: เทา ขนาดปกติ
+                      selectedItemColor: AppColors.primary,
+                      unselectedItemColor: Colors.grey.shade500,
+                      selectedIconTheme: const IconThemeData(size: 28),
+                      unselectedIconTheme: const IconThemeData(size: 24),
+                      selectedFontSize: 14,
+                      unselectedFontSize: 12,
+                      backgroundColor: Colors.white,
+                      items: [
+                        const BottomNavigationBarItem(
+                            icon: Icon(Icons.search),
+                            activeIcon: PopIcon(child: Icon(Icons.search)),
+                            label: 'ค้นหา'),
+                        const BottomNavigationBarItem(
+                            icon: Icon(Icons.favorite_border),
+                            activeIcon:
+                                PopIcon(child: Icon(Icons.favorite_border)),
+                            label: 'ถูกใจ'),
+                        BottomNavigationBarItem(
+                          label: 'แชท',
+                          icon: _chatIcon(),
+                          activeIcon: PopIcon(child: _chatIcon()),
+                        ),
+                        const BottomNavigationBarItem(
+                            icon: Icon(Icons.post_add),
+                            activeIcon: PopIcon(child: Icon(Icons.post_add)),
+                            label: 'ลงประกาศ'),
+                        const BottomNavigationBarItem(
+                            icon: Icon(Icons.person),
+                            activeIcon: PopIcon(child: Icon(Icons.person)),
+                            label: 'โปรไฟล์'),
+                      ],
+                    )))),
       ),
     );
   }
 
   /// ไอคอนแชทพร้อมจุดจำนวนข้อความยังไม่อ่าน
   Widget _chatIcon() => StreamBuilder<int>(
-                stream: ChatService.instance.unreadChatCountStream(),
-                builder: (context, snapshot) {
-                  final unread = snapshot.data ?? 0;
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      const Icon(Icons.chat_bubble_outline),
-                      if (unread > 0)
-                        Positioned(
-                          right: -4,
-                          top: -4,
-                          child: Container(
-                            width: 16,
-                            height: 16,
-                            decoration: const BoxDecoration(
-                              color: AppColors.danger,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Center(
-                              child: Text('$unread',
-                                  style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold)),
-                            ),
-                          ),
-                        ),
-                    ],
-                  );
-                },
-              );
+        stream: ChatService.instance.unreadChatCountStream(),
+        builder: (context, snapshot) {
+          final unread = snapshot.data ?? 0;
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              const Icon(Icons.chat_bubble_outline),
+              if (unread > 0)
+                Positioned(
+                  right: -4,
+                  top: -4,
+                  child: Container(
+                    width: 16,
+                    height: 16,
+                    decoration: const BoxDecoration(
+                      color: AppColors.danger,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text('$unread',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+      );
 
   Widget _buildBody() {
     if (_isLoading) {
@@ -385,10 +402,13 @@ class _MainScreenState extends State<MainScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 28),
-              child: Text(_loadError!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
+              child: Text(_loadError!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.grey)),
             ),
             const SizedBox(height: 16),
-            ElevatedButton(onPressed: _loadInitialData, child: const Text('ลองใหม่')),
+            ElevatedButton(
+                onPressed: _loadInitialData, child: const Text('ลองใหม่')),
           ],
         ),
       );

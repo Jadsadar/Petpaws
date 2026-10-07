@@ -54,7 +54,7 @@ class PasswordChecklist extends StatelessWidget {
                     style: TextStyle(
                         color: color,
                         fontSize: 12,
-                        fontWeight: FontWeight.bold)),
+                        fontWeight: FontWeight.w600)),
               ],
             ),
             const SizedBox(height: 8),
@@ -68,9 +68,8 @@ class PasswordChecklist extends StatelessWidget {
                             ? Icons.check_circle
                             : Icons.circle_outlined,
                         size: 15,
-                        color: rule.passed
-                            ? AppColors.success
-                            : AppColors.mocha),
+                        color:
+                            rule.passed ? AppColors.success : AppColors.mocha),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(rule.label,

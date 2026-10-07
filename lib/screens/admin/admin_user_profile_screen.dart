@@ -11,7 +11,8 @@ import '../../widgets/paw_loader.dart';
 /// รวมประกาศที่ถูกลบ/รับเลี้ยงแล้ว เพราะรายงานอาจชี้ไปที่ประกาศที่หายจากเด็คไปแล้ว
 /// ไม่แสดงเบอร์โทร/ไลน์ (backend ไม่ส่งมาให้แอดมินตั้งแต่ต้น)
 class AdminUserProfileScreen extends StatefulWidget {
-  const AdminUserProfileScreen({super.key, required this.userId, required this.fallbackTitle});
+  const AdminUserProfileScreen(
+      {super.key, required this.userId, required this.fallbackTitle});
 
   final String userId;
 
@@ -23,7 +24,8 @@ class AdminUserProfileScreen extends StatefulWidget {
 }
 
 class _AdminUserProfileScreenState extends State<AdminUserProfileScreen> {
-  late Future<AdminProfile> _future = AdminService.instance.profile(widget.userId);
+  late Future<AdminProfile> _future =
+      AdminService.instance.profile(widget.userId);
 
   void _reload() => setState(() {
         _future = AdminService.instance.profile(widget.userId);
@@ -35,39 +37,46 @@ class _AdminUserProfileScreenState extends State<AdminUserProfileScreen> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: Text('โปรไฟล์ · ${widget.fallbackTitle}',
-            style: const TextStyle(fontWeight: FontWeight.bold, color: adminOrange, fontSize: 18)),
+            style: const TextStyle(
+                fontWeight: FontWeight.w600, color: adminOrange, fontSize: 16)),
         backgroundColor: Colors.white,
-        elevation: 1,
+        elevation: 0,
         centerTitle: true,
         iconTheme: const IconThemeData(color: adminOrange),
       ),
-      body: FutureBuilder<AdminProfile>(
-        future: _future,
-        builder: (context, snap) {
-          if (snap.connectionState != ConnectionState.done) {
-            return const Center(child: PawLoader());
-          }
-          if (snap.hasError) return AdminErrorView(error: snap.error!, onRetry: _reload);
-          final p = snap.data!;
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _ProfileHeader(profile: p),
-              const SizedBox(height: 16),
-              Text('ประกาศของผู้ใช้นี้ (${p.pets.length})',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              if (p.pets.isEmpty)
-                Text('ยังไม่เคยลงประกาศ', style: TextStyle(color: Colors.grey.shade600))
-              else
-                for (final pet in p.pets) ...[
-                  _PetCard(pet: pet),
+      body: AppPageFrame(
+          maxWidth: AppLayout.dashboardWidth,
+          child: FutureBuilder<AdminProfile>(
+            future: _future,
+            builder: (context, snap) {
+              if (snap.connectionState != ConnectionState.done) {
+                return const Center(child: PawLoader());
+              }
+              if (snap.hasError) {
+                return AdminErrorView(error: snap.error!, onRetry: _reload);
+              }
+              final p = snap.data!;
+              return ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  _ProfileHeader(profile: p),
+                  const SizedBox(height: 16),
+                  Text('ประกาศของผู้ใช้นี้ (${p.pets.length})',
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
+                  if (p.pets.isEmpty)
+                    Text('ยังไม่เคยลงประกาศ',
+                        style: TextStyle(color: Colors.grey.shade600))
+                  else
+                    for (final pet in p.pets) ...[
+                      _PetCard(pet: pet),
+                      const SizedBox(height: 8),
+                    ],
                 ],
-            ],
-          );
-        },
-      ),
+              );
+            },
+          )),
     );
   }
 }
@@ -82,7 +91,7 @@ class _ProfileHeader extends StatelessWidget {
     final p = profile;
     final hasAvatar = p.avatarUrl.isNotEmpty;
     return Card(
-      elevation: 1,
+      elevation: 0,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -92,17 +101,26 @@ class _ProfileHeader extends StatelessWidget {
               children: [
                 GestureDetector(
                   key: const ValueKey('profile-avatar'),
-                  onTap: hasAvatar ? () => openAdminPhotoViewer(context, [p.avatarUrl], title: p.title) : null,
-                  child: PetAvatar(imageUrl: p.avatarUrl, radius: 36, icon: Icons.person),
+                  onTap: hasAvatar
+                      ? () => openAdminPhotoViewer(context, [p.avatarUrl],
+                          title: p.title)
+                      : null,
+                  child: PetAvatar(
+                      imageUrl: p.avatarUrl, radius: 36, icon: Icons.person),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(p.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      Text('@${p.username}', style: TextStyle(color: Colors.grey.shade700)),
-                      Text(p.email, style: TextStyle(color: Colors.grey.shade700, fontSize: 13)),
+                      Text(p.title,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w600)),
+                      Text('@${p.username}',
+                          style: TextStyle(color: Colors.grey.shade700)),
+                      Text(p.email,
+                          style: TextStyle(
+                              color: Colors.grey.shade700, fontSize: 13)),
                     ],
                   ),
                 ),
@@ -114,10 +132,14 @@ class _ProfileHeader extends StatelessWidget {
               runSpacing: 4,
               children: [
                 if (p.pendingReportCount > 0)
-                  _Tag(text: 'ถูกรายงานรอตรวจ ${p.pendingReportCount} คน', color: AppColors.danger),
+                  _Tag(
+                      text: 'ถูกรายงานรอตรวจ ${p.pendingReportCount} คน',
+                      color: AppColors.danger),
                 if (p.isSuspended)
                   _Tag(
-                    text: p.suspendedUntil == null ? 'ถูกแบนถาวร' : 'ถูกแบนถึง ${formatDate(p.suspendedUntil)}',
+                    text: p.suspendedUntil == null
+                        ? 'ถูกแบนถาวร'
+                        : 'ถูกแบนถึง ${formatDate(p.suspendedUntil)}',
                     color: Colors.grey.shade800,
                   ),
               ],
@@ -126,10 +148,15 @@ class _ProfileHeader extends StatelessWidget {
             _InfoRow(label: 'จังหวัด', value: p.province),
             _InfoRow(label: 'ที่อยู่อาศัย', value: p.homeType),
             _InfoRow(label: 'สมัครเมื่อ', value: formatDate(p.createdAt)),
-            _InfoRow(label: 'เข้าสู่ระบบล่าสุด', value: p.lastLoginAt == null ? '-' : formatDateTime(p.lastLoginAt)),
+            _InfoRow(
+                label: 'เข้าสู่ระบบล่าสุด',
+                value: p.lastLoginAt == null
+                    ? '-'
+                    : formatDateTime(p.lastLoginAt)),
             if (p.bio.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text('แนะนำตัว', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+              Text('แนะนำตัว',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
               Text(p.bio),
             ],
           ],
@@ -152,7 +179,10 @@ class _InfoRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 120, child: Text(label, style: TextStyle(color: Colors.grey.shade600))),
+          SizedBox(
+              width: 120,
+              child:
+                  Text(label, style: TextStyle(color: Colors.grey.shade600))),
           Expanded(child: Text(value.isEmpty ? '-' : value)),
         ],
       ),
@@ -170,8 +200,12 @@ class _Tag extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
-      child: Text(text, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12)),
+      decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(AppRadius.control)),
+      child: Text(text,
+          style: TextStyle(
+              color: color, fontWeight: FontWeight.w600, fontSize: 12)),
     );
   }
 }
@@ -185,7 +219,7 @@ class _PetCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final muted = pet.deleted || pet.status == 'adopted';
     return Card(
-      elevation: 1,
+      elevation: 0,
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -194,9 +228,13 @@ class _PetCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(pet.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  child: Text(pet.name,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w600)),
                 ),
-                _Tag(text: pet.statusLabel, color: muted ? Colors.grey.shade700 : AppColors.success),
+                _Tag(
+                    text: pet.statusLabel,
+                    color: muted ? Colors.grey.shade700 : AppColors.success),
               ],
             ),
             if (pet.location.isNotEmpty)

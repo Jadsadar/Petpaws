@@ -14,6 +14,7 @@ const TOP_QUERIES = 15;
  * KEYS[1] = hash, ARGV = field ของ route, ms, slow (0/1)
  */
 const RECORD_SCRIPT = `
+if redis.call('EXISTS', KEYS[1]) == 0 then redis.call('HSET', KEYS[1], 'since', ARGV[4]) end
 redis.call('HINCRBY', KEYS[1], ARGV[1] .. '|count', 1)
 redis.call('HINCRBYFLOAT', KEYS[1], ARGV[1] .. '|totalMs', ARGV[2])
 if tonumber(ARGV[3]) == 1 then redis.call('HINCRBY', KEYS[1], ARGV[1] .. '|slow', 1) end
@@ -40,6 +41,7 @@ interface RouteCounters {
 export class MetricsService {
   private readonly logger = new Logger('Perf');
   private readonly local = new Map<string, RouteCounters>();
+  private localSince: string | null = null;
 
   constructor(
     @Inject(CACHE_REDIS) private readonly redis: Redis | null,
@@ -51,13 +53,14 @@ export class MetricsService {
     if (slow) this.logger.warn(`ช้า ${route} ${Math.round(ms)}ms`);
     const rounded = Math.round(ms * 10) / 10;
     if (this.redis) {
-      this.redis.eval(RECORD_SCRIPT, 1, STATS_KEY, route, rounded, slow ? 1 : 0).catch(() => this.recordLocal(route, rounded, slow));
+      this.redis.eval(RECORD_SCRIPT, 1, STATS_KEY, route, rounded, slow ? 1 : 0, new Date().toISOString()).catch(() => this.recordLocal(route, rounded, slow));
       return;
     }
     this.recordLocal(route, rounded, slow);
   }
 
   private recordLocal(route: string, ms: number, slow: boolean) {
+    this.localSince ??= new Date().toISOString();
     const c = this.local.get(route) ?? { count: 0, totalMs: 0, slow: 0, maxMs: 0 };
     c.count++;
     c.totalMs += ms;
@@ -66,29 +69,39 @@ export class MetricsService {
     this.local.set(route, c);
   }
 
-  private async counters(): Promise<Map<string, RouteCounters>> {
+  private async counters() {
     const merged = new Map<string, RouteCounters>();
     for (const [route, c] of this.local) merged.set(route, { ...c });
-    if (!this.redis) return merged;
+    if (!this.redis) return { counters: merged, since: this.localSince, scope: 'instance' as const };
     try {
       const raw = await this.redis.hgetall(STATS_KEY);
       for (const [field, value] of Object.entries(raw)) {
         const i = field.lastIndexOf('|');
+        if (i < 0) continue;
         const route = field.slice(0, i);
         const name = field.slice(i + 1) as keyof RouteCounters;
         const c = merged.get(route) ?? { count: 0, totalMs: 0, slow: 0, maxMs: 0 };
         c[name] = name === 'maxMs' ? Math.max(c.maxMs, Number(value)) : c[name] + Number(value);
         merged.set(route, c);
       }
+      const since = raw.since ?? null;
+      return {
+        counters: merged,
+        since: this.localSince && since ? [this.localSince, since].sort()[0] : since,
+        scope: this.local.size ? 'mixed' as const : 'shared' as const,
+      };
     } catch {
       // Redis ใช้ไม่ได้ — คืนเท่าที่มีในเครื่อง
     }
-    return merged;
+    return { counters: merged, since: this.localSince, scope: 'instance' as const };
   }
 
-  /** endpoint เรียงตามเวลารวม (ตัวที่ควรปรับก่อนอยู่บนสุด) + query ที่กินเวลา DB มากสุด */
+  /** endpoint เรียงตามจำนวนคำขอ + query ที่กินเวลา DB มากสุด */
   async stats() {
-    const routes = [...(await this.counters()).entries()]
+    const snapshot = await this.counters();
+    const routes = [...snapshot.counters.entries()]
+      // ไม่ให้การรีเฟรชหน้า Monitoring กลายเป็น endpoint ที่ถูกเรียกบ่อยที่สุด
+      .filter(([route]) => !/^[A-Z]+ \/admin\/(perf-stats|cache-stats)(\/|$)/.test(route))
       .map(([route, c]) => ({
         route,
         count: c.count,
@@ -97,8 +110,8 @@ export class MetricsService {
         totalMs: Math.round(c.totalMs),
         slowCount: c.slow,
       }))
-      .sort((a, b) => b.totalMs - a.totalMs);
-    return { slowThresholdMs: SLOW_REQUEST_MS, routes, queries: await this.topQueries() };
+      .sort((a, b) => b.count - a.count || b.totalMs - a.totalMs || a.route.localeCompare(b.route));
+    return { since: snapshot.since, scope: snapshot.scope, slowThresholdMs: SLOW_REQUEST_MS, routes, queries: await this.topQueries() };
   }
 
   /**
@@ -139,6 +152,7 @@ export class MetricsService {
   /** เริ่มนับใหม่ทั้งสองฝั่ง — ใช้ก่อน/หลังแก้ query เพื่อเทียบผล */
   async reset() {
     this.local.clear();
+    this.localSince = null;
     await this.redis?.del(STATS_KEY).catch(() => {});
     await this.pool.query('SELECT pg_stat_statements_reset()').catch(() => {});
     return { success: true };

@@ -29,7 +29,8 @@ class SpeciesField extends StatelessWidget {
           initialValue: species,
           decoration: InputDecoration(
             labelText: 'ชนิดสัตว์เลี้ยง *',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.control)),
           ),
           items: [
             for (final e in petSpeciesLabels.entries)
@@ -47,7 +48,8 @@ class SpeciesField extends StatelessWidget {
             decoration: InputDecoration(
               labelText: 'ระบุชนิดสัตว์ *',
               hintText: 'เช่น หนู เต่า งู',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.control)),
             ),
           ),
         ],

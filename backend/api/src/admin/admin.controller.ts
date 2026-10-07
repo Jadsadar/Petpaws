@@ -47,7 +47,7 @@ export class AdminController {
   }
 
   /**
-   * endpoint ไหนช้า/ถูกเรียกบ่อย (เรียงตามเวลารวม) + query ที่กินเวลา DB มากสุด (pg_stat_statements)
+   * endpoint ที่ถูกเรียกบ่อยที่สุด + query ที่กินเวลา DB มากสุด (pg_stat_statements)
    * ใช้เลือกว่าจะปรับ query ตัวไหนก่อน
    */
   @Get('perf-stats')

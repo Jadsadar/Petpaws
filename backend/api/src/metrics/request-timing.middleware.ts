@@ -17,7 +17,7 @@ export class RequestTimingMiddleware implements NestMiddleware {
     const started = performance.now();
     res.on('finish', () => {
       const path = (req.route as { path?: string } | undefined)?.path ?? req.path;
-      if (path.startsWith('/health')) return;
+      if (path.startsWith('/health') || /^\/admin\/(perf-stats|cache-stats)(\/|$)/.test(path)) return;
       this.metrics.record(`${req.method} ${path}`, performance.now() - started);
     });
     next();

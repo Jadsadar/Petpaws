@@ -15,10 +15,12 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:petpaws/data/mock_data.dart';
 import 'package:petpaws/screens/admin/admin_cache_stats_screen.dart';
+import 'package:petpaws/screens/admin/admin_monitoring_screen.dart';
 import 'package:petpaws/screens/admin/admin_screen.dart';
 import 'package:petpaws/screens/admin/admin_user_profile_screen.dart';
 import 'package:petpaws/screens/admin/admin_user_reports_screen.dart';
 import 'package:petpaws/screens/auth/create_profile_screen.dart';
+import 'package:petpaws/screens/auth/forgot_password_screen.dart';
 import 'package:petpaws/screens/auth/login_screen.dart';
 import 'package:petpaws/screens/auth/register_screen.dart';
 import 'package:petpaws/screens/auth/verify_email_screen.dart';
@@ -43,13 +45,16 @@ import 'package:petpaws/widgets/update_gate.dart';
 import 'package:petpaws/widgets/report_dialog.dart';
 
 http.Response _json(Object body, [int status = 200]) =>
-    http.Response(jsonEncode(body), status, headers: {'content-type': 'application/json; charset=utf-8'});
+    http.Response(jsonEncode(body), status,
+        headers: {'content-type': 'application/json; charset=utf-8'});
 
 const _longName = 'สมชาย ใจดีมากๆ เลยครับผมท่านผู้ชม';
 const _longStory =
     'น้องเป็นสุนัขที่น่ารักมาก เชื่องกับคนทุกคน กินเก่ง นอนเก่ง ชอบเล่นกับเด็กๆ ฉีดวัคซีนครบแล้ว ทำหมันแล้ว กำลังมองหาบ้านที่อบอุ่นและมีใจรักสัตว์จริงๆ ถ้าสนใจทักแชทมาคุยกันได้เลยนะคะ ไม่รีบร้อน อยากให้น้องได้บ้านที่ดีที่สุด';
 
-Map<String, dynamic> _dog(String id, {String status = 'ยังไม่ถูกรับเลี้ยง', String species = 'dog'}) => {
+Map<String, dynamic> _dog(String id,
+        {String status = 'ยังไม่ถูกรับเลี้ยง', String species = 'dog'}) =>
+    {
       'id': id,
       'ownerId': 'u2',
       'ownerName': _longName,
@@ -82,7 +87,9 @@ Map<String, dynamic> _chat(String id, {int unread = 0}) => {
       'status': 'active',
     };
 
-Map<String, dynamic> _msg(String id, String sender, String text, {String kind = 'text'}) => {
+Map<String, dynamic> _msg(String id, String sender, String text,
+        {String kind = 'text'}) =>
+    {
       'id': id,
       'senderId': sender,
       'text': text,
@@ -131,7 +138,8 @@ http.Response _handle(http.Request req) {
     return _json({
       'error': {
         'code': 'SERVER_ERROR',
-        'message': 'เซิร์ฟเวอร์ขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งในอีกสักครู่ ถ้ายังไม่หายให้ติดต่อผู้ดูแลระบบของ Petpaws'
+        'message':
+            'เซิร์ฟเวอร์ขัดข้องชั่วคราว กรุณาลองใหม่อีกครั้งในอีกสักครู่ ถ้ายังไม่หายให้ติดต่อผู้ดูแลระบบของ Petpaws'
       }
     }, 500);
   }
@@ -139,57 +147,139 @@ http.Response _handle(http.Request req) {
     return _json({
       'error': {
         'code': 'EMAIL_NOT_VERIFIED',
-        'message': 'กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ เราส่งลิงก์ยืนยันไปที่อีเมลของคุณแล้ว'
+        'message':
+            'กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ เราส่งลิงก์ยืนยันไปที่อีเมลของคุณแล้ว'
       }
     }, 403);
   }
   if (_mode == 'empty' && m == 'GET') {
-    if (p == '/pets/deck') return _json({'dogs': [], 'nextCursor': null, 'hasMore': false});
-    if (['/pets/mine', '/pets/likes', '/chats'].contains(p) || p.startsWith('/pets/by-owner/')) return _json([]);
+    if (p == '/pets/deck') {
+      return _json({'dogs': [], 'nextCursor': null, 'hasMore': false});
+    }
+    if (['/pets/mine', '/pets/likes', '/chats'].contains(p) ||
+        p.startsWith('/pets/by-owner/')) {
+      return _json([]);
+    }
     if (p == '/chats/c1/messages') {
       return _json({
         'messages': [],
-        'room': {'status': 'active', 'closedReason': null, 'blockedByMe': false},
+        'room': {
+          'status': 'active',
+          'closedReason': null,
+          'blockedByMe': false
+        },
       });
     }
-    if (p.startsWith('/admin/') && p != '/admin/summary' && p != '/admin/cache-stats' && !RegExp(r'^/admin/users/[^/]+$').hasMatch(p)) {
+    if (p.startsWith('/admin/') &&
+        p != '/admin/summary' &&
+        p != '/admin/cache-stats' &&
+        p != '/admin/perf-stats' &&
+        !RegExp(r'^/admin/users/[^/]+$').hasMatch(p)) {
       return _json({'items': [], 'total': 0, 'page': 1, 'pageSize': 20});
     }
   }
   if (m == 'GET') {
-    if (p == '/pets/deck') {
-      return _json({'dogs': [_dog('d1'), _dog('d2')], 'nextCursor': null, 'hasMore': false});
+    if (p == '/admin/perf-stats') {
+      return _json({
+        'scope': 'shared',
+        'since': '2026-10-07T00:00:00Z',
+        'slowThresholdMs': 500,
+        'routes': [
+          {
+            'route': 'GET /pets/deck',
+            'count': 12840,
+            'avgMs': 42.5,
+            'maxMs': 812,
+            'totalMs': 545700,
+            'slowCount': 12
+          }
+        ],
+        'queries': {
+          'available': true,
+          'items': [
+            {
+              'query':
+                  'SELECT id, name FROM pets WHERE status = \$1 ORDER BY created_at DESC LIMIT \$2',
+              'calls': 2400,
+              'totalMs': 8500,
+              'meanMs': 3.54,
+              'rows': 48000
+            }
+          ]
+        },
+      });
     }
-    if (p == '/pets/mine') return _json([_dog('d1'), _dog('d2', status: 'ถูกรับเลี้ยงแล้ว'), _dog('d3', status: 'ยกเลิกประกาศ')]);
+    if (p == '/pets/deck') {
+      return _json({
+        'dogs': [_dog('d1'), _dog('d2')],
+        'nextCursor': null,
+        'hasMore': false
+      });
+    }
+    if (p == '/pets/mine') {
+      return _json([
+        _dog('d1'),
+        _dog('d2', status: 'ถูกรับเลี้ยงแล้ว'),
+        _dog('d3', status: 'ยกเลิกประกาศ')
+      ]);
+    }
     if (p == '/pets/likes') return _json([_dog('d1'), _dog('d2')]);
-    if (p.startsWith('/pets/by-owner/')) return _json([_dog('d1'), _dog('d2', status: 'ถูกรับเลี้ยงแล้ว')]);
+    if (p.startsWith('/pets/by-owner/')) {
+      return _json([_dog('d1'), _dog('d2', status: 'ถูกรับเลี้ยงแล้ว')]);
+    }
     if (p.startsWith('/pets/')) return _json(_dog('d1'));
     if (p == '/chats/unread-count') return _json({'count': 7});
     if (p == '/chats/lookup') return _json({'chatId': 'c1'});
-    if (p == '/chats') return _json([_chat('c1', unread: 120), _chat('c2'), _chat('c3', unread: 3)]);
+    if (p == '/chats') {
+      return _json(
+          [_chat('c1', unread: 120), _chat('c2'), _chat('c3', unread: 3)]);
+    }
     if (p == '/chats/c1/messages') {
       return _json({
         'messages': [
           _msg('m1', 'u2', _longStory),
           _msg('m22', 'me', _longStory),
           _msg('m3', 'u2', 'สวัสดีครับ'),
-          _msg('m4', 'me', 'ห้อง https://example.com/very/long/link/that/should/not/overflow/the/bubble/at/all/ok'),
+          _msg('m4', 'me',
+              'ห้อง https://example.com/very/long/link/that/should/not/overflow/the/bubble/at/all/ok'),
           {
             ..._msg('m5', 'u2', ''),
             'kind': 'image',
-            'media': {'type': 'image', 'url': 'http://localhost/x.jpg', 'thumbnailUrl': 'http://localhost/t.jpg', 'width': 1600, 'height': 900},
+            'media': {
+              'type': 'image',
+              'url': 'http://localhost/x.jpg',
+              'thumbnailUrl': 'http://localhost/t.jpg',
+              'width': 1600,
+              'height': 900
+            },
           },
           {
             ..._msg('m66', 'me', ''),
             'kind': 'video',
-            'media': {'type': 'video', 'url': 'http://localhost/x.mp4', 'thumbnailUrl': 'http://localhost/t.jpg', 'width': 720, 'height': 1280, 'durationMs': 95000},
+            'media': {
+              'type': 'video',
+              'url': 'http://localhost/x.mp4',
+              'thumbnailUrl': 'http://localhost/t.jpg',
+              'width': 720,
+              'height': 1280,
+              'durationMs': 95000
+            },
           },
-          _msg('m7', 'system', 'มีคนรับเลี้ยงสัตว์ตัวนี้แล้ว ห้องแชทนี้ถูกปิดและไม่สามารถส่งข้อความได้อีก', kind: 'system'),
+          _msg('m7', 'system',
+              'มีคนรับเลี้ยงสัตว์ตัวนี้แล้ว ห้องแชทนี้ถูกปิดและไม่สามารถส่งข้อความได้อีก',
+              kind: 'system'),
         ],
-        'room': {'status': 'active', 'closedReason': null, 'blockedByMe': false},
+        'room': {
+          'status': 'active',
+          'closedReason': null,
+          'blockedByMe': false
+        },
       });
     }
-    if (p.startsWith('/chats/')) return _json({'status': 'active', 'closedReason': null, 'blockedByMe': false});
+    if (p.startsWith('/chats/')) {
+      return _json(
+          {'status': 'active', 'closedReason': null, 'blockedByMe': false});
+    }
     if (p == '/users/me') {
       return _json({
         'id': 'me',
@@ -200,7 +290,8 @@ http.Response _handle(http.Request req) {
         'province': 'นครศรีธรรมราช',
         'phone': '0812345678',
         'lineId': 'line_id_ที่ยาวมากมายก่ายกอง',
-        'fbLink': 'https://facebook.com/some.very.long.profile.name.that.goes.on',
+        'fbLink':
+            'https://facebook.com/some.very.long.profile.name.that.goes.on',
         'homeType': 'ทาวน์โฮม/ทาวน์เฮ้าส์',
         'traits': ['chill', 'foodie', 'playful'],
         'profileCompleted': true,
@@ -213,14 +304,22 @@ http.Response _handle(http.Request req) {
         'profileImageUrl': '',
         'province': 'นครศรีธรรมราช',
         'lineId': 'line_id_ที่ยาวมากมายก่ายกอง',
-        'fbLink': 'https://facebook.com/some.very.long.profile.name.that.goes.on',
+        'fbLink':
+            'https://facebook.com/some.very.long.profile.name.that.goes.on',
         'homeType': 'ทาวน์โฮม/ทาวน์เฮ้าส์',
         'traits': ['chill', 'foodie', 'playful'],
       });
     }
-    if (p == '/admin/summary') return _json({'reported': 128, 'temporary': 7, 'permanent': 1034});
+    if (p == '/admin/summary') {
+      return _json({'reported': 128, 'temporary': 7, 'permanent': 1034});
+    }
     if (p == '/admin/reported-users') {
-      return _json({'items': [_reportedUser(), _reportedUser()], 'total': 45, 'page': 1, 'pageSize': 20});
+      return _json({
+        'items': [_reportedUser(), _reportedUser()],
+        'total': 45,
+        'page': 1,
+        'pageSize': 20
+      });
     }
     if (p == '/admin/banned-users') {
       return _json({
@@ -245,7 +344,11 @@ http.Response _handle(http.Request req) {
             'reason': 'inappropriate',
             'detail': _longStory,
             'createdAt': '2026-10-01T10:00:00.000Z',
-            'reporter': {'id': 'u9', 'username': 'reporter_with_a_long_username_x', 'displayName': _longName},
+            'reporter': {
+              'id': 'u9',
+              'username': 'reporter_with_a_long_username_x',
+              'displayName': _longName
+            },
             'targetType': 'message',
             'messageBody': _longStory,
             'messageCreatedAt': '2026-10-01T10:00:00.000Z',
@@ -286,8 +389,20 @@ http.Response _handle(http.Request req) {
         'errors': 123456,
         'overall': {'hits': 1234567, 'misses': 234567, 'hitRatio': 0.8412},
         'namespaces': [
-          {'name': 'userPublic', 'ttlSeconds': 3600, 'hits': 123456, 'misses': 12345, 'hitRatio': 0.91},
-          {'name': 'petsByOwner', 'ttlSeconds': 60, 'hits': 0, 'misses': 0, 'hitRatio': null},
+          {
+            'name': 'userPublic',
+            'ttlSeconds': 3600,
+            'hits': 123456,
+            'misses': 12345,
+            'hitRatio': 0.91
+          },
+          {
+            'name': 'petsByOwner',
+            'ttlSeconds': 60,
+            'hits': 0,
+            'misses': 0,
+            'hitRatio': null
+          },
         ],
         'redis': {
           'keys': 123456,
@@ -306,10 +421,15 @@ http.Response _handle(http.Request req) {
   }
   if (m == 'POST' && p == '/auth/login') {
     return _json({
-      'error': {'code': 'INVALID_CREDENTIALS', 'message': 'ชื่อผู้ใช้/อีเมลหรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง'}
+      'error': {
+        'code': 'INVALID_CREDENTIALS',
+        'message': 'ชื่อผู้ใช้/อีเมลหรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง'
+      }
     }, 400);
   }
-  if (m == 'POST' && p == '/auth/resend-verification') return _json({'message': 'ส่งลิงก์ยืนยันแล้ว'});
+  if (m == 'POST' && p == '/auth/resend-verification') {
+    return _json({'message': 'ส่งลิงก์ยืนยันแล้ว'});
+  }
   return _json({});
 }
 
@@ -324,6 +444,8 @@ const _sizes = [
   _Size('360x640', Size(360, 640)),
   _Size('393x852', Size(393, 852)),
   _Size('411x915', Size(411, 915)),
+  _Size('768x1024', Size(768, 1024)), // tablet
+  _Size('1440x900', Size(1440, 900)), // desktop: keep forms/cards readable
 ];
 // 1.3 = ตัวอักษร "ใหญ่" ที่พบบ่อย, 2.0 = ใหญ่สุดของระบบ (แอปจำกัดไว้ที่ AppTheme.maxTextScale)
 const _scales = [1.0, 1.3, 2.0];
@@ -350,10 +472,12 @@ final _shotKey = GlobalKey();
 
 Future<void> _shot(WidgetTester tester, String label) async {
   await tester.runAsync(() async {
-    final boundary = tester.renderObject<RenderRepaintBoundary>(find.byKey(_shotKey));
+    final boundary =
+        tester.renderObject<RenderRepaintBoundary>(find.byKey(_shotKey));
     final image = await boundary.toImage();
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-    final safe = label.replaceAll(RegExp(r'[^\w฀-๿×.{} -]'), '_').replaceAll(' ', '_');
+    final safe =
+        label.replaceAll(RegExp(r'[^\w฀-๿×.{} -]'), '_').replaceAll(' ', '_');
     await Directory(_shotDir).create(recursive: true);
     await File('$_shotDir/$safe.png').writeAsBytes(bytes!.buffer.asUint8List());
   });
@@ -382,7 +506,8 @@ void _checkEdges(WidgetTester tester, String current, List<String> problems) {
     final span = (e.widget as RichText).text.toPlainText();
     if (span.trim().length < 6) continue;
     if (rect.left < 6 || rect.right > width - 6) {
-      final key = '$current → ข้อความชิดขอบจอ "${span.length > 24 ? span.substring(0, 24) : span}" (${rect.left.toStringAsFixed(0)}..${rect.right.toStringAsFixed(0)} จาก ${width.toStringAsFixed(0)})';
+      final key =
+          '$current → ข้อความชิดขอบจอ "${span.length > 24 ? span.substring(0, 24) : span}" (${rect.left.toStringAsFixed(0)}..${rect.right.toStringAsFixed(0)} จาก ${width.toStringAsFixed(0)})';
       if (!problems.contains(key)) problems.add(key);
     }
   }
@@ -395,7 +520,8 @@ Future<void> _settle(WidgetTester tester) async {
     await tester.pump(const Duration(milliseconds: 150));
   }
   try {
-    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 2));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100),
+        EnginePhase.sendSemanticsUpdate, const Duration(seconds: 2));
   } catch (_) {
     // มี animation วนไม่จบ (spinner) ก็ข้ามไป
   }
@@ -418,51 +544,74 @@ void _responsive(
     FlutterError.onError = (d) {
       iterErrors++;
       // error แรกของแต่ละรอบเท่านั้น (ตัวถัดไปมักเป็นผลต่อเนื่อง เช่น "was not laid out")
-      if (iterErrors > 1 && !d.exceptionAsString().contains('overflowed')) return;
+      if (iterErrors > 1 && !d.exceptionAsString().contains('overflowed')) {
+        return;
+      }
       final text = d.toString();
-      if (const bool.fromEnvironment('FULL') && problems.length < 2) debugPrint(text);
+      if (const bool.fromEnvironment('FULL') && problems.length < 2) {
+        debugPrint(text);
+      }
       final msg = d.exceptionAsString().split('\n').first;
-      final where = RegExp(r'(lib/[\w/]+\.dart:\d+:\d+)').firstMatch(text.replaceAll(r'\', '/'))?.group(1) ?? '';
+      final where = RegExp(r'(lib/[\w/]+\.dart:\d+:\d+)')
+              .firstMatch(text.replaceAll(r'\', '/'))
+              ?.group(1) ??
+          '';
       final key = '$current → $msg $where';
       if (!problems.contains(key)) problems.add(key);
     };
     try {
       await http.runWithClient(() async {
         for (final mode in modes) {
-        _mode = mode;
-        for (final s in _sizes) {
-          final landscape = s.size.width > s.size.height;
-          for (final scale in _scales) {
-            if (_shotDir.isNotEmpty && (scale > 1.5 || s.name.startsWith('360') || s.name.startsWith('411'))) continue;
-            // แนวนอนตรวจแค่ตัวอักษรปกติ/ใหญ่ (จอเตี้ยมากจนตัวอักษรใหญ่สุดไม่สมจริง)
-            if (landscape && scale > 1.5) continue;
-            for (final kb in [false, if (keyboard && !landscape && scale <= 1.5) true]) {
-              tester.view.physicalSize = s.size;
-              tester.view.devicePixelRatio = 1.0;
-              tester.platformDispatcher.textScaleFactorTestValue = scale;
-              // รอยบาก/แถบสถานะด้านบน และแถบ home ด้านล่าง เหมือนมือถือสมัยใหม่
-              final pad = FakeViewPadding(top: landscape ? 0 : 44, bottom: landscape ? 0 : 34);
-              tester.view.padding = pad;
-              tester.view.viewPadding = pad;
-              tester.view.viewInsets = kb ? const FakeViewPadding(bottom: 280) : FakeViewPadding.zero;
-              for (final entry in <String, _Step?>{'': null, ...steps}.entries) {
-                current = '${mode == 'normal' ? '' : '{$mode} '}${s.name} ×$scale${kb ? ' คีย์บอร์ด' : ''}${entry.key.isEmpty ? '' : ' [${entry.key}]'}';
-                iterErrors = 0;
-                await tester.pumpWidget(RepaintBoundary(key: _shotKey, child: _app(home())));
-                await _settle(tester);
-                if (entry.value != null) {
-                  await entry.value!(tester);
+          _mode = mode;
+          for (final s in _sizes) {
+            final landscape = s.size.width > s.size.height;
+            for (final scale in _scales) {
+              if (_shotDir.isNotEmpty &&
+                  (scale > 1.5 ||
+                      s.name.startsWith('360') ||
+                      s.name.startsWith('411'))) {
+                continue;
+              }
+              // แนวนอนตรวจแค่ตัวอักษรปกติ/ใหญ่ (จอเตี้ยมากจนตัวอักษรใหญ่สุดไม่สมจริง)
+              if (landscape && scale > 1.5) continue;
+              for (final kb in [
+                false,
+                if (keyboard && !landscape && scale <= 1.5) true
+              ]) {
+                tester.view.physicalSize = s.size;
+                tester.view.devicePixelRatio = 1.0;
+                tester.platformDispatcher.textScaleFactorTestValue = scale;
+                // รอยบาก/แถบสถานะด้านบน และแถบ home ด้านล่าง เหมือนมือถือสมัยใหม่
+                final pad = FakeViewPadding(
+                    top: landscape ? 0 : 44, bottom: landscape ? 0 : 34);
+                tester.view.padding = pad;
+                tester.view.viewPadding = pad;
+                tester.view.viewInsets = kb
+                    ? const FakeViewPadding(bottom: 280)
+                    : FakeViewPadding.zero;
+                for (final entry
+                    in <String, _Step?>{'': null, ...steps}.entries) {
+                  current =
+                      '${mode == 'normal' ? '' : '{$mode} '}${s.name} ×$scale${kb ? ' คีย์บอร์ด' : ''}${entry.key.isEmpty ? '' : ' [${entry.key}]'}';
+                  iterErrors = 0;
+                  await tester.pumpWidget(
+                      RepaintBoundary(key: _shotKey, child: _app(home())));
                   await _settle(tester);
+                  if (entry.value != null) {
+                    await entry.value!(tester);
+                    await _settle(tester);
+                  }
+                  _checkEdges(tester, current, problems);
+                  if (_shotDir.isNotEmpty) {
+                    await _shot(tester, '$name $current');
+                  }
+                  await tester.pumpWidget(const SizedBox());
+                  await tester.pump(const Duration(milliseconds: 300));
+                  ChatSocket.instance.disconnect();
                 }
-                _checkEdges(tester, current, problems);
-                if (_shotDir.isNotEmpty) await _shot(tester, '$name $current');
-                await tester.pumpWidget(const SizedBox());
-                await tester.pump(const Duration(milliseconds: 300));
-                ChatSocket.instance.disconnect();
               }
             }
           }
-        }
         }
       }, () => MockClient((req) async => _handle(req)));
     } finally {
@@ -486,7 +635,8 @@ Future<void> _tap(WidgetTester tester, Finder f) async {
 
 /// เลื่อนหน้าลงจนสุด เพื่อให้ ListView สร้างและวัดทุกส่วน (ไม่งั้นส่วนล่างที่อยู่นอกจอไม่ถูกตรวจ)
 Future<void> _scrollAll(WidgetTester t) async {
-  final vertical = find.byWidgetPredicate((w) => w is Scrollable && (w.axis == Axis.vertical));
+  final vertical = find
+      .byWidgetPredicate((w) => w is Scrollable && (w.axis == Axis.vertical));
   if (vertical.evaluate().isEmpty) return;
   for (var i = 0; i < 14; i++) {
     await t.drag(vertical.first, const Offset(0, -320), warnIfMissed: false);
@@ -498,13 +648,17 @@ class _Open extends StatelessWidget {
   const _Open(this.open);
   final Future<void> Function(BuildContext) open;
   @override
-  Widget build(BuildContext context) => Scaffold(body: Center(child: TextButton(onPressed: () => open(context), child: const Text('เปิด'))));
+  Widget build(BuildContext context) => Scaffold(
+      body: Center(
+          child: TextButton(
+              onPressed: () => open(context), child: const Text('เปิด'))));
 }
 
 /// เทสต์ใช้ฟอนต์สี่เหลี่ยม (Ahem) แทนฟอนต์ที่ฝังในแอป ทำให้ข้อความไทยกว้างเกินจริง 1-2 เท่า
 /// ต้องโหลด Sarabun/TitanOne จริงก่อน ไม่งั้นผลวัดล้นจอจะผิดจากเครื่องจริง
 Future<void> _loadFonts() async {
-  Future<ByteData> read(String f) async => ByteData.view((await File('assets/fonts/$f').readAsBytes()).buffer);
+  Future<ByteData> read(String f) async =>
+      ByteData.view((await File('assets/fonts/$f').readAsBytes()).buffer);
   final sarabun = FontLoader('Sarabun');
   for (final f in ['Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold']) {
     sarabun.addFont(read('Sarabun-$f.ttf'));
@@ -515,9 +669,11 @@ Future<void> _loadFonts() async {
   // ไอคอน Material (ไม่งั้นภาพหน้าจอเป็นสี่เหลี่ยมโล่ง) — ไฟล์อยู่ใน Flutter SDK
   final root = Platform.environment['FLUTTER_ROOT'];
   if (root != null) {
-    final f = File('$root/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf');
+    final f = File(
+        '$root/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf');
     if (f.existsSync()) {
-      final icons = FontLoader('MaterialIcons')..addFont(Future.value(ByteData.view(f.readAsBytesSync().buffer)));
+      final icons = FontLoader('MaterialIcons')
+        ..addFont(Future.value(ByteData.view(f.readAsBytesSync().buffer)));
       await icons.load();
     }
   }
@@ -528,41 +684,60 @@ void main() {
   setUp(() {
     FlutterSecureStorage.setMockInitialValues({});
     currentUserProfile['name'] = _longName;
-    currentUserProfile['email'] = 'somchai.jaidee.mak.mak@example-long-domain.co.th';
+    currentUserProfile['email'] =
+        'somchai.jaidee.mak.mak@example-long-domain.co.th';
   });
   tearDown(() => ChatSocket.instance.disconnect());
 
   // ---------- เข้าสู่ระบบ / สมัคร ----------
-  _responsive('LoginScreen', () => const LoginScreen(), keyboard: true, modes: ['normal', 'unverified'], steps: {
-    'กดเข้าสู่ระบบว่าง': (t) => _tap(t, find.byKey(const ValueKey('login-submit'))),
+  _responsive('LoginScreen', () => const LoginScreen(), keyboard: true, modes: [
+    'normal',
+    'unverified'
+  ], steps: {
+    'กดเข้าสู่ระบบว่าง': (t) =>
+        _tap(t, find.byKey(const ValueKey('login-submit'))),
     'ล็อกอิน (ถูกปฏิเสธ)': (t) async {
-      await t.enterText(find.byKey(const ValueKey('login-identifier')), 'somchai');
-      await t.enterText(find.byKey(const ValueKey('login-password')), 'Petpaws1!');
+      await t.enterText(
+          find.byKey(const ValueKey('login-identifier')), 'somchai');
+      await t.enterText(
+          find.byKey(const ValueKey('login-password')), 'Petpaws1!');
       await _tap(t, find.byKey(const ValueKey('login-submit')));
     },
   });
-  _responsive('RegisterScreen', () => const RegisterScreen(), keyboard: true, steps: {
-    'กดสมัครว่าง': (t) => _tap(t, find.byType(ElevatedButton)),
-    'พิมพ์ยาว': (t) async {
-      final fields = find.byType(TextField);
-      for (var i = 0; i < fields.evaluate().length; i++) {
-        await t.enterText(fields.at(i), 'ข้อความที่ยาวมากๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆ');
-      }
-      await _tap(t, find.byType(ElevatedButton));
-    },
-    'เลื่อนลงสุด': _scrollAll,
-  });
-  _responsive('VerifyEmailScreen',
-      () => const VerifyEmailScreen(email: 'somchai.jaidee.mak.mak.mak.mak@example-long-domain.co.th', identifier: 'somchai'),
+  _responsive('RegisterScreen', () => const RegisterScreen(),
+      keyboard: true,
+      steps: {
+        'กดสมัครว่าง': (t) => _tap(t, find.byType(ElevatedButton)),
+        'พิมพ์ยาว': (t) async {
+          final fields = find.byType(TextField);
+          for (var i = 0; i < fields.evaluate().length; i++) {
+            await t.enterText(fields.at(i),
+                'ข้อความที่ยาวมากๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆๆ');
+          }
+          await _tap(t, find.byType(ElevatedButton));
+        },
+        'เลื่อนลงสุด': _scrollAll,
+      });
+  _responsive(
+      'VerifyEmailScreen',
+      () => const VerifyEmailScreen(
+          email: 'somchai.jaidee.mak.mak.mak.mak@example-long-domain.co.th',
+          identifier: 'somchai'),
       steps: {'กดส่งซ้ำ': (t) => _tap(t, find.byType(ElevatedButton))});
-  _responsive('CreateProfileScreen', () => const CreateProfileScreen(), keyboard: true, steps: {
-    'กดบันทึกว่าง': (t) => _tap(t, find.byType(ElevatedButton)),
-    'เลื่อนลงสุด': _scrollAll,
-    'เลือกจังหวัด': (t) => _tap(t, find.byType(ProvinceField)),
-  });
+  _responsive('CreateProfileScreen', () => const CreateProfileScreen(),
+      keyboard: true,
+      steps: {
+        'กดบันทึกว่าง': (t) => _tap(t, find.byType(ElevatedButton)),
+        'เลื่อนลงสุด': _scrollAll,
+        'เลือกจังหวัด': (t) => _tap(t, find.byType(ProvinceField)),
+      });
 
   // ---------- หน้าหลัก + แท็บ ----------
-  _responsive('MainScreen', () => const MainScreen(), modes: ['normal', 'empty', 'fail'], steps: {
+  _responsive('MainScreen', () => const MainScreen(), modes: [
+    'normal',
+    'empty',
+    'fail'
+  ], steps: {
     'แท็บถูกใจ': (t) => _tap(t, find.text('ถูกใจ')),
     'แท็บแชท': (t) => _tap(t, find.text('แชท')),
     'แท็บลงประกาศ': (t) async {
@@ -609,26 +784,37 @@ void main() {
       onSpeciesFilterChanged: (_) {},
     ),
   );
-  _responsive('FavoritesScreen', () => FavoritesScreen(likedDogs: [_dog('d1'), _dog('d2'), _dog('d3')], onToggleFavorite: (_) {}), steps: {
-    'เลื่อนลงสุด': _scrollAll,
-    'โหมดเลือก': (t) => _tap(t, find.byKey(const ValueKey('fav-select'))),
-    'เลือก → เลิกถูกใจ': (t) async {
-      await _tap(t, find.byKey(const ValueKey('fav-select')));
-      await t.pump(const Duration(milliseconds: 300));
-      await _tap(t, find.byKey(const ValueKey('fav-select-all')));
-      await t.pump(const Duration(milliseconds: 300));
-      await _tap(t, find.byKey(const ValueKey('fav-unlike')));
-    },
-  });
-  _responsive('FavoritesScreen ว่าง', () => FavoritesScreen(likedDogs: const [], onToggleFavorite: (_) {}));
+  _responsive(
+      'FavoritesScreen',
+      () => FavoritesScreen(
+          likedDogs: [_dog('d1'), _dog('d2'), _dog('d3')],
+          onToggleFavorite: (_) {}),
+      steps: {
+        'เลื่อนลงสุด': _scrollAll,
+        'โหมดเลือก': (t) => _tap(t, find.byKey(const ValueKey('fav-select'))),
+        'เลือก → เลิกถูกใจ': (t) async {
+          await _tap(t, find.byKey(const ValueKey('fav-select')));
+          await t.pump(const Duration(milliseconds: 300));
+          await _tap(t, find.byKey(const ValueKey('fav-select-all')));
+          await t.pump(const Duration(milliseconds: 300));
+          await _tap(t, find.byKey(const ValueKey('fav-unlike')));
+        },
+      });
+  _responsive('FavoritesScreen ว่าง',
+      () => FavoritesScreen(likedDogs: const [], onToggleFavorite: (_) {}));
 
   // ---------- แชท ----------
-  _responsive('ChatInboxScreen', () => const ChatInboxScreen(), modes: ['normal', 'empty', 'fail'], steps: {
+  _responsive('ChatInboxScreen', () => const ChatInboxScreen(), modes: [
+    'normal',
+    'empty',
+    'fail'
+  ], steps: {
     'เลื่อนลงสุด': _scrollAll,
     'ค้นหา': (t) async {
       await _tap(t, find.byKey(const ValueKey('inbox-search-toggle')));
       await t.pump(const Duration(milliseconds: 300));
-      await t.enterText(find.byKey(const ValueKey('inbox-search')), 'ไม่มีข้อความนี้แน่นอนในกล่องข้อความทั้งหมดของฉันเลย');
+      await t.enterText(find.byKey(const ValueKey('inbox-search')),
+          'ไม่มีข้อความนี้แน่นอนในกล่องข้อความทั้งหมดของฉันเลย');
     },
     'โหมดเลือก': (t) async {
       await _tap(t, find.byKey(const ValueKey('inbox-select')));
@@ -640,7 +826,7 @@ void main() {
   });
   _responsive(
     'ChatScreen',
-    () => ChatScreen(
+    () => const ChatScreen(
       chatId: 'c1',
       petId: 'p1',
       dogName: 'มะม่วงทองคำขาวนวลน้อย',
@@ -654,7 +840,8 @@ void main() {
         final f = find.byType(TextField);
         if (f.evaluate().isNotEmpty) await t.enterText(f.first, _longStory * 3);
       },
-      'แนบไฟล์': (t) => _tap(t, find.byIcon(Icons.add_photo_alternate_outlined)),
+      'แนบไฟล์': (t) =>
+          _tap(t, find.byIcon(Icons.add_photo_alternate_outlined)),
       'เมนู ⋮': (t) => _tap(t, find.byType(PopupMenuButton<String>)),
       'เมนู → รายงาน': (t) async {
         await _tap(t, find.byType(PopupMenuButton<String>));
@@ -672,44 +859,71 @@ void main() {
         await _tap(t, find.text('ค้นหาข้อความ'));
         await t.pump(const Duration(milliseconds: 300));
         final f = find.byType(TextField);
-        if (f.evaluate().isNotEmpty) await t.enterText(f.first, 'ไม่มีข้อความนี้');
+        if (f.evaluate().isNotEmpty) {
+          await t.enterText(f.first, 'ไม่มีข้อความนี้');
+        }
       },
     },
   );
   _responsive(
     'ChatScreen ห้องใหม่',
-    () => const ChatScreen(petId: 'p1', dogName: 'มะม่วงทองคำขาวนวลน้อย', otherUserName: _longName, otherUserId: 'u9'),
+    () => const ChatScreen(
+        petId: 'p1',
+        dogName: 'มะม่วงทองคำขาวนวลน้อย',
+        otherUserName: _longName,
+        otherUserId: 'u9'),
     keyboard: true,
   );
 
   // ---------- รายละเอียด / โปรไฟล์ ----------
-  _responsive('PetDetailScreen',
-      () => PetDetailScreen(dog: _dog('d1'), isMyPost: false, isFavorited: false, onToggleFavorite: () {}),
+  _responsive(
+      'PetDetailScreen',
+      () => PetDetailScreen(
+          dog: _dog('d1'),
+          isMyPost: false,
+          isFavorited: false,
+          onToggleFavorite: () {}),
       steps: {'เลื่อนลงสุด': _scrollAll});
-  _responsive('PetDetailScreen โพสต์ตัวเอง',
-      () => PetDetailScreen(dog: _dog('d1'), isMyPost: true, isFavorited: true, onToggleFavorite: () {}),
+  _responsive(
+      'PetDetailScreen โพสต์ตัวเอง',
+      () => PetDetailScreen(
+          dog: _dog('d1'),
+          isMyPost: true,
+          isFavorited: true,
+          onToggleFavorite: () {}),
       steps: {'เลื่อนลงสุด': _scrollAll});
-  _responsive('UserProfileScreen', () => const UserProfileScreen(uid: 'u2', fallbackName: _longName),
+  _responsive('UserProfileScreen',
+      () => const UserProfileScreen(uid: 'u2', fallbackName: _longName),
       modes: ['normal', 'empty', 'fail'], steps: {'เลื่อนลงสุด': _scrollAll});
-  _responsive('ProfileScreen', () => const ProfileScreen(), keyboard: true, modes: ['normal', 'fail'], steps: {
-    'เลื่อนลงสุด': _scrollAll,
-    'กดแก้ไข': (t) async {
-      await _tap(t, find.byIcon(Icons.edit));
-      await t.pump(const Duration(milliseconds: 300));
-      await _scrollAll(t);
-    },
-    'ออกจากระบบ': (t) async {
-      await _scrollAll(t);
-      await _tap(t, find.textContaining('ออกจากระบบ'));
-    },
-  });
+  _responsive('ProfileScreen', () => const ProfileScreen(),
+      keyboard: true,
+      modes: [
+        'normal',
+        'fail'
+      ],
+      steps: {
+        'เลื่อนลงสุด': _scrollAll,
+        'กดแก้ไข': (t) async {
+          await _tap(t, find.byIcon(Icons.edit));
+          await t.pump(const Duration(milliseconds: 300));
+          await _scrollAll(t);
+        },
+        'ออกจากระบบ': (t) async {
+          await _scrollAll(t);
+          await _tap(t, find.textContaining('ออกจากระบบ'));
+        },
+      });
 
   // ---------- ลงประกาศ ----------
   _responsive(
     'UploadScreen',
     () => UploadScreen(
       onAddDog: (_) {},
-      myPostedDogs: [_dog('d1'), _dog('d2', status: 'ถูกรับเลี้ยงแล้ว'), _dog('d3', status: 'ยกเลิกประกาศ')],
+      myPostedDogs: [
+        _dog('d1'),
+        _dog('d2', status: 'ถูกรับเลี้ยงแล้ว'),
+        _dog('d3', status: 'ยกเลิกประกาศ')
+      ],
       onDeleteDog: (_) {},
       onChangeStatus: (_, __) {},
       onEditDog: (_) {},
@@ -747,10 +961,13 @@ void main() {
     ),
     steps: {'เลื่อนลงสุด': _scrollAll},
   );
-  _responsive('EditDogScreen', () => EditDogScreen(dog: _dog('d1'), onSave: (_) {}), keyboard: true, steps: {
-    'เลื่อนลงสุด': _scrollAll,
-    'เลือกจังหวัด': (t) => _tap(t, find.byType(ProvinceField)),
-  });
+  _responsive(
+      'EditDogScreen', () => EditDogScreen(dog: _dog('d1'), onSave: (_) {}),
+      keyboard: true,
+      steps: {
+        'เลื่อนลงสุด': _scrollAll,
+        'เลือกจังหวัด': (t) => _tap(t, find.byType(ProvinceField)),
+      });
   _responsive(
     'PetPostPreviewScreen',
     () => PetPostPreviewScreen(
@@ -761,17 +978,37 @@ void main() {
   );
 
   // ---------- แอดมิน ----------
-  _responsive('AdminScreen', () => const AdminScreen(), modes: ['normal', 'empty', 'fail'], steps: {
+  _responsive('AdminScreen', () => const AdminScreen(), modes: [
+    'normal',
+    'empty',
+    'fail'
+  ], steps: {
     'แท็บที่ 2': (t) => _tap(t, find.byType(Tab).last),
     'เลื่อนลงสุด': _scrollAll,
     'เปิดผู้ใช้ที่ถูกรายงาน': (t) => _tap(t, find.textContaining('somchai')),
   });
-  _responsive('AdminCacheStatsScreen', () => const AdminCacheStatsScreen(), modes: ['normal', 'fail'], steps: {
-    'เลื่อนลงสุด': _scrollAll,
-    'กดรีเซ็ต': (t) => _tap(t, find.byIcon(Icons.restart_alt)),
-  });
-  _responsive('AdminUserProfileScreen', () => const AdminUserProfileScreen(userId: 'u2', fallbackTitle: _longName),
-      modes: ['normal', 'fail'], steps: {'เลื่อนลงสุด': _scrollAll});
+  _responsive('ForgotPasswordScreen', () => const ForgotPasswordScreen(),
+      keyboard: true);
+  _responsive('AdminMonitoringScreen', () => const AdminMonitoringScreen(),
+      steps: {
+        'SQL': (t) => _tap(t, find.text('SQL')),
+        'Cache': (t) => _tap(t, find.text('Cache')),
+      });
+  _responsive('AdminCacheStatsScreen', () => const AdminCacheStatsScreen(),
+      modes: [
+        'normal',
+        'fail'
+      ],
+      steps: {
+        'เลื่อนลงสุด': _scrollAll,
+        'กดรีเซ็ต': (t) => _tap(t, find.byIcon(Icons.restart_alt)),
+      });
+  _responsive(
+      'AdminUserProfileScreen',
+      () =>
+          const AdminUserProfileScreen(userId: 'u2', fallbackTitle: _longName),
+      modes: ['normal', 'fail'],
+      steps: {'เลื่อนลงสุด': _scrollAll});
   _responsive(
     'AdminUserReportsScreen',
     () => AdminUserReportsScreen(user: ReportedUser.fromJson(_reportedUser())),
@@ -786,21 +1023,29 @@ void main() {
   );
 
   // ---------- กล่องข้อความ ----------
-  _responsive('ReportDialog', () => _Open((c) async {
-        await showReportDialog(c, title: 'รายงานผู้ใช้ $_longName ที่ยาวมากๆ');
-      }), keyboard: true, steps: {
-    'เปิดกล่อง': (t) => _tap(t, find.text('เปิด')),
-    'เปิดกล่อง → เลือกเหตุผล': (t) async {
-      await _tap(t, find.text('เปิด'));
-      await t.pump(const Duration(milliseconds: 400));
-      await _tap(t, find.byType(RadioListTile<String>));
-    },
-  });
+  _responsive(
+      'ReportDialog',
+      () => _Open((c) async {
+            await showReportDialog(c,
+                title: 'รายงานผู้ใช้ $_longName ที่ยาวมากๆ');
+          }),
+      keyboard: true,
+      steps: {
+        'เปิดกล่อง': (t) => _tap(t, find.text('เปิด')),
+        'เปิดกล่อง → เลือกเหตุผล': (t) async {
+          await _tap(t, find.text('เปิด'));
+          await t.pump(const Duration(milliseconds: 400));
+          await _tap(t, find.byType(RadioListTile<String>));
+        },
+      });
   _responsive(
     'UpdateGate กล่องอัพเดต',
     () => UpdateGate(
       enabled: true,
-      check: () async => const UpdateInfo(buildNumber: 99, versionName: '1.0.99', apkUrl: 'https://example.com/app.apk'),
+      check: () async => const UpdateInfo(
+          buildNumber: 99,
+          versionName: '1.0.99',
+          apkUrl: 'https://example.com/app.apk'),
       child: const Scaffold(body: Center(child: Text('หน้าแรก'))),
     ),
   );

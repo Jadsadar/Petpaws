@@ -43,13 +43,16 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     final ownerId = widget.dog['ownerId'] as String?;
     final myUid = AuthService.instance.currentUser?.uid;
     if (ownerId == null || ownerId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(duration: AppTheme.snackDuration, 
-          content: Text('สัตว์เลี้ยงตัวอย่างนี้ยังไม่มีเจ้าของจริงในระบบให้แชทด้วย')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          duration: AppTheme.snackDuration,
+          content: Text(
+              'สัตว์เลี้ยงตัวอย่างนี้ยังไม่มีเจ้าของจริงในระบบให้แชทด้วย')));
       return;
     }
     if (ownerId == myUid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(duration: AppTheme.snackDuration, content: Text('นี่คือประกาศของคุณเอง')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          duration: AppTheme.snackDuration,
+          content: Text('นี่คือประกาศของคุณเอง')));
       return;
     }
 
@@ -88,208 +91,222 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
-          backgroundColor: Colors.transparent,
+          title: const Text('รายละเอียดสัตว์เลี้ยง'),
+          backgroundColor: AppColors.appBar,
           elevation: 0,
-          iconTheme: const IconThemeData(color: Colors.white)),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // แตะรูปหรือปุ่มแว่นขยาย → ดูรูปเต็มจอ ซูม/เลื่อนได้
-            Stack(
+          iconTheme: const IconThemeData(color: AppColors.textDark)),
+      body: AppPageFrame(
+          maxWidth: AppLayout.contentWidth,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                GestureDetector(
-                  onTap: _openFullImage,
-                  child: PetNetworkImage(
-                    imageUrl: widget.dog['imageUrl'],
-                    width: double.infinity,
-                    // จอเตี้ย/จอเล็ก: รูปไม่กินเกือบทั้งจอ
-                    height: (MediaQuery.sizeOf(context).height * 0.45).clamp(220.0, 400.0).toDouble(),
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                if ((widget.dog['imageUrl'] as String?)?.isNotEmpty ?? false)
-                  Positioned(
-                    right: 16,
-                    bottom: 16,
-                    child: Material(
-                      color: Colors.white.withValues(alpha: 0.92),
-                      shape: const CircleBorder(),
-                      elevation: 3,
-                      child: IconButton(
-                        key: const ValueKey('detail-zoom'),
-                        tooltip: 'ดูรูปเต็ม',
-                        icon: const Icon(Icons.zoom_in, color: AppColors.textDark),
-                        onPressed: _openFullImage,
+                // แตะรูปหรือปุ่มแว่นขยาย → ดูรูปเต็มจอ ซูม/เลื่อนได้
+                Stack(
+                  children: [
+                    GestureDetector(
+                      onTap: _openFullImage,
+                      child: PetNetworkImage(
+                        imageUrl: widget.dog['imageUrl'],
+                        width: double.infinity,
+                        // จอเตี้ย/จอเล็ก: รูปไม่กินเกือบทั้งจอ
+                        height: (MediaQuery.sizeOf(context).height * 0.45)
+                            .clamp(220.0, 400.0)
+                            .toDouble(),
+                        fit: BoxFit.cover,
                       ),
                     ),
-                  ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(widget.dog['name'],
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 32,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textDark)),
-                      ),
-                      Icon(
-                          widget.dog['gender'] == 'ผู้'
-                              ? Icons.male
-                              : Icons.female,
-                          size: 32,
-                          color: widget.dog['gender'] == 'ผู้'
-                              ? Colors.blue.shade300
-                              : Colors.pink.shade300),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(Icons.location_on,
-                          color: AppColors.primarySoft),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(widget.dog['province'],
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                                fontSize: 18, color: Colors.grey[700])),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _ownerRow(),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      _buildInfoCard(Icons.pets, petSpeciesLabel(widget.dog),
-                          widget.dog['breed'] ?? 'ไม่ระบุ'),
-                      const SizedBox(width: 16),
-                      _buildInfoCard(Icons.cake, 'อายุ', widget.dog['age']),
-                      const SizedBox(width: 16),
-                      _buildInfoCard(Icons.monitor_weight, 'น้ำหนัก',
-                          '${widget.dog['weight'] ?? '-'} กก.'),
-                    ],
-                  ),
-                  const SizedBox(height: 32),
-                  const Text('ลักษณะนิสัย',
-                      style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87)),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8.0,
-                    runSpacing: 8.0,
-                    children: (petTagIds(widget.dog).isEmpty
-                            ? ['ไม่ระบุ']
-                            : tagLabels(petTagIds(widget.dog)))
-                        .map((temp) {
-                      return Chip(
-                        label: Text(temp,
-                            style: const TextStyle(
-                                color: AppColors.textDark,
-                                fontWeight: FontWeight.bold)),
-                        backgroundColor: AppColors.background,
-                        side: BorderSide.none,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(AppRadius.card)),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 32),
-                  const Text('เกี่ยวกับฉัน',
-                      style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87)),
-                  const SizedBox(height: 12),
-                  Text(widget.dog['story'] ?? 'ยังไม่มีข้อมูลเพิ่มเติม',
-                      style: const TextStyle(
-                          fontSize: 16, height: 1.5, color: Colors.black87)),
-                  const SizedBox(height: 40),
-
-                  // ===== ปุ่มด้านล่าง =====
-                  if (widget.isMyPost)
-                    // เจ้าของโพสต์ → กดดู inbox แชท
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                ChatInboxScreen(dogName: widget.dog['name']),
+                    if ((widget.dog['imageUrl'] as String?)?.isNotEmpty ??
+                        false)
+                      Positioned(
+                        right: 16,
+                        bottom: 16,
+                        child: Material(
+                          color: Colors.white.withValues(alpha: 0.92),
+                          shape: const CircleBorder(),
+                          elevation: 0,
+                          child: IconButton(
+                            key: const ValueKey('detail-zoom'),
+                            tooltip: 'ดูรูปเต็ม',
+                            icon: const Icon(Icons.zoom_in,
+                                color: AppColors.textDark),
+                            onPressed: _openFullImage,
                           ),
                         ),
-                        icon: const Icon(Icons.forum),
-                        label: const Text(
-                          'ดูแชทจากผู้สนใจรับเลี้ยง',
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: AppColors.onPrimary,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30)),
-                          elevation: 2,
-                        ),
                       ),
-                    )
-                  else
-                    // คนอื่น → กดสนใจรับเลี้ยง + ทักแชท
-                    Row(
-                      children: [
-                        // ปุ่ม สนใจ (Favorite)
-                        AnimatedHeartButton(
-                          isFavorited: _isFavorited,
-                          onPressed: _handleToggleFavorite,
-                        ),
-                        const SizedBox(width: 16),
-                        // ปุ่ม ทักแชท
-                        Expanded(
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(widget.dog['name'],
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textDark)),
+                          ),
+                          Icon(
+                              widget.dog['gender'] == 'ผู้'
+                                  ? Icons.male
+                                  : Icons.female,
+                              size: 32,
+                              color: widget.dog['gender'] == 'ผู้'
+                                  ? Colors.blue.shade300
+                                  : Colors.pink.shade300),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.location_on,
+                              color: AppColors.primarySoft),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(widget.dog['province'],
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                    fontSize: 16, color: Colors.grey[700])),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _ownerRow(),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          _buildInfoCard(
+                              Icons.pets,
+                              petSpeciesLabel(widget.dog),
+                              widget.dog['breed'] ?? 'ไม่ระบุ'),
+                          const SizedBox(width: 16),
+                          _buildInfoCard(Icons.cake, 'อายุ', widget.dog['age']),
+                          const SizedBox(width: 16),
+                          _buildInfoCard(Icons.monitor_weight, 'น้ำหนัก',
+                              '${widget.dog['weight'] ?? '-'} กก.'),
+                        ],
+                      ),
+                      const SizedBox(height: 32),
+                      const Text('ลักษณะนิสัย',
+                          style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87)),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8.0,
+                        runSpacing: 8.0,
+                        children: (petTagIds(widget.dog).isEmpty
+                                ? ['ไม่ระบุ']
+                                : tagLabels(petTagIds(widget.dog)))
+                            .map((temp) {
+                          return Chip(
+                            label: Text(temp,
+                                style: const TextStyle(
+                                    color: AppColors.textDark,
+                                    fontWeight: FontWeight.w600)),
+                            backgroundColor: AppColors.background,
+                            side: BorderSide.none,
+                            shape: RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.card)),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 32),
+                      const Text('เกี่ยวกับฉัน',
+                          style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87)),
+                      const SizedBox(height: 12),
+                      Text(widget.dog['story'] ?? 'ยังไม่มีข้อมูลเพิ่มเติม',
+                          style: const TextStyle(
+                              fontSize: 16,
+                              height: 1.5,
+                              color: Colors.black87)),
+                      const SizedBox(height: 40),
+
+                      // ===== ปุ่มด้านล่าง =====
+                      if (widget.isMyPost)
+                        // เจ้าของโพสต์ → กดดู inbox แชท
+                        SizedBox(
+                          width: double.infinity,
                           child: ElevatedButton.icon(
-                            onPressed: _handleChatWithOwner,
-                            icon: const Icon(Icons.chat),
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ChatInboxScreen(
+                                    dogName: widget.dog['name']),
+                              ),
+                            ),
+                            icon: const Icon(Icons.forum),
                             label: const Text(
-                              'ทักแชทเจ้าของ',
+                              'ดูแชทจากผู้สนใจรับเลี้ยง',
                               style: TextStyle(
-                                  fontSize: 18, fontWeight: FontWeight.bold),
+                                  fontSize: 16, fontWeight: FontWeight.w600),
                             ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primary,
                               foregroundColor: AppColors.onPrimary,
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 16),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(30)),
-                              elevation: 2,
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadius.control)),
+                              elevation: 0,
                             ),
                           ),
+                        )
+                      else
+                        // คนอื่น → กดสนใจรับเลี้ยง + ทักแชท
+                        Row(
+                          children: [
+                            // ปุ่ม สนใจ (Favorite)
+                            AnimatedHeartButton(
+                              isFavorited: _isFavorited,
+                              onPressed: _handleToggleFavorite,
+                            ),
+                            const SizedBox(width: 16),
+                            // ปุ่ม ทักแชท
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: _handleChatWithOwner,
+                                icon: const Icon(Icons.chat),
+                                label: const Text(
+                                  'ทักแชทเจ้าของ',
+                                  style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primary,
+                                  foregroundColor: AppColors.onPrimary,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 16),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(
+                                          AppRadius.control)),
+                                  elevation: 0,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                ],
-              ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          )),
     );
   }
 
@@ -327,14 +344,15 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                       style: TextStyle(fontSize: 12, color: Colors.black54)),
                   Text(ownerName,
                       style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold)),
+                          fontSize: 16, fontWeight: FontWeight.w600)),
                 ],
               ),
             ),
-            if (MediaQuery.sizeOf(context).width >= 400 && MediaQuery.textScalerOf(context).scale(1) < 1.4)
+            if (MediaQuery.sizeOf(context).width >= 400 &&
+                MediaQuery.textScalerOf(context).scale(1) < 1.4)
               const Text('ดูโปรไฟล์',
                   style: TextStyle(
-                      color: AppColors.textDark, fontWeight: FontWeight.bold)),
+                      color: AppColors.textDark, fontWeight: FontWeight.w600)),
             const Icon(Icons.chevron_right, color: AppColors.primary),
           ],
         ),
@@ -359,7 +377,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
             const SizedBox(height: 4),
             Text(value,
                 style: const TextStyle(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
                     fontSize: 14,
                     color: AppColors.textDark),
                 textAlign: TextAlign.center,

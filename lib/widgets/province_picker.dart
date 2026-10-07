@@ -13,9 +13,10 @@ Future<String?> showProvincePicker(
     isScrollControlled: true,
     backgroundColor: Colors.white,
     shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.card)),
     ),
-    builder: (context) => _ProvincePickerSheet(selectedProvince: selectedProvince),
+    builder: (context) =>
+        _ProvincePickerSheet(selectedProvince: selectedProvince),
   );
 }
 
@@ -78,8 +79,8 @@ class _ProvincePickerSheetState extends State<_ProvincePickerSheet> {
               const Text('เลือกจังหวัด',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
                       color: AppColors.textDark)),
               const SizedBox(height: 12),
               TextField(
@@ -115,7 +116,7 @@ class _ProvincePickerSheetState extends State<_ProvincePickerSheet> {
                             title: Text(province,
                                 style: TextStyle(
                                     fontWeight: isSelected
-                                        ? FontWeight.bold
+                                        ? FontWeight.w600
                                         : FontWeight.normal,
                                     color: isSelected
                                         ? AppColors.textDark
@@ -124,8 +125,7 @@ class _ProvincePickerSheetState extends State<_ProvincePickerSheet> {
                                 ? const Icon(Icons.check,
                                     color: AppColors.primary)
                                 : null,
-                            tileColor:
-                                isSelected ? AppColors.background : null,
+                            tileColor: isSelected ? AppColors.background : null,
                             onTap: () => Navigator.pop(context, province),
                           );
                         },
@@ -155,8 +155,7 @@ class ProvinceField extends StatelessWidget {
   });
 
   Future<void> _openPicker(BuildContext context) async {
-    final result =
-        await showProvincePicker(context, selectedProvince: value);
+    final result = await showProvincePicker(context, selectedProvince: value);
     if (result != null) onChanged(result);
   }
 
@@ -164,16 +163,19 @@ class ProvinceField extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: enabled ? () => _openPicker(context) : null,
-      borderRadius: BorderRadius.circular(AppRadius.card),
+      borderRadius: BorderRadius.circular(AppRadius.control),
       child: InputDecorator(
         decoration: InputDecoration(
           enabled: enabled,
           labelText: labelText,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
+          border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppRadius.control)),
           suffixIcon: const Icon(Icons.arrow_drop_down),
         ),
         child: Text(value,
-            style: enabled ? null : TextStyle(color: Theme.of(context).disabledColor)),
+            style: enabled
+                ? null
+                : TextStyle(color: Theme.of(context).disabledColor)),
       ),
     );
   }

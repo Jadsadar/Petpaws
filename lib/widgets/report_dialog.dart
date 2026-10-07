@@ -14,7 +14,8 @@ class ReportChoice {
 
 /// ถามเหตุผล (+ รายละเอียดไม่บังคับ ≤500 ตามที่ backend จำกัด) แล้วคืนค่าที่เลือก
 /// คืน null ถ้าผู้ใช้กดยกเลิก
-Future<ReportChoice?> showReportDialog(BuildContext context, {required String title}) {
+Future<ReportChoice?> showReportDialog(BuildContext context,
+    {required String title}) {
   return showDialog<ReportChoice>(
     context: context,
     builder: (_) => _ReportDialog(title: title),
@@ -39,17 +40,22 @@ Future<void> reportWithDialog(
   final messenger = ScaffoldMessenger.of(context);
   try {
     await send(choice.reason, choice.detail);
-    messenger.showSnackBar(const SnackBar(shape: AppTheme.snackSuccessShape, duration: AppTheme.snackDuration, 
-        content: Text('ส่งรายงานเรียบร้อยแล้ว ขอบคุณที่ช่วยดูแลชุมชนของเรา', style: AppTheme.snackSuccessText)));
+    messenger.showSnackBar(const SnackBar(
+        shape: AppTheme.snackSuccessShape,
+        duration: AppTheme.snackDuration,
+        content: Text('ส่งรายงานเรียบร้อยแล้ว ขอบคุณที่ช่วยดูแลชุมชนของเรา',
+            style: AppTheme.snackSuccessText)));
     if (blockUserId != null && context.mounted) {
-      await _offerBlock(context, messenger, blockUserId, blockUserName, onBlocked);
+      await _offerBlock(
+          context, messenger, blockUserId, blockUserName, onBlocked);
     }
     return;
   } catch (e) {
     final text = e is ApiException
         ? (e.statusCode == 409 ? 'คุณรายงานเรื่องนี้ไปแล้ว' : e.message)
         : 'ส่งรายงานไม่สำเร็จ กรุณาลองใหม่อีกครั้ง';
-    messenger.showSnackBar(SnackBar(duration: AppTheme.snackDuration, content: Text(text)));
+    messenger.showSnackBar(
+        SnackBar(duration: AppTheme.snackDuration, content: Text(text)));
   }
 }
 
@@ -64,7 +70,8 @@ Future<void> _offerBlock(
     context: context,
     builder: (ctx) => AlertDialog(
       title: Text('บล็อก $userName ด้วยไหม?'),
-      content: const Text('คุณจะไม่เห็นประกาศของเขาอีก และแชทระหว่างกันจะถูกปิด ปลดบล็อกได้ภายหลัง'),
+      content: const Text(
+          'คุณจะไม่เห็นประกาศของเขาอีก และแชทระหว่างกันจะถูกปิด ปลดบล็อกได้ภายหลัง'),
       actions: [
         TextButton(
             key: const ValueKey('block-no'),
@@ -81,9 +88,15 @@ Future<void> _offerBlock(
   try {
     await ReportService.instance.blockUser(userId);
     onBlocked?.call();
-    messenger.showSnackBar(SnackBar(shape: AppTheme.snackSuccessShape, duration: AppTheme.snackDuration, content: Text('บล็อก $userName แล้ว', style: AppTheme.snackSuccessText)));
+    messenger.showSnackBar(SnackBar(
+        shape: AppTheme.snackSuccessShape,
+        duration: AppTheme.snackDuration,
+        content:
+            Text('บล็อก $userName แล้ว', style: AppTheme.snackSuccessText)));
   } catch (_) {
-    messenger.showSnackBar(const SnackBar(duration: AppTheme.snackDuration, content: Text('บล็อกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+    messenger.showSnackBar(const SnackBar(
+        duration: AppTheme.snackDuration,
+        content: Text('บล็อกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
   }
 }
 
@@ -115,55 +128,64 @@ class _ReportDialogState extends State<_ReportDialog> {
       content: SizedBox(
         width: 420,
         child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RadioGroup<String>(
-              groupValue: _reason,
-              onChanged: (v) => setState(() => _reason = v),
-              child: Column(
-                children: [
-                  for (final entry in reportReasonLabels.entries)
-                    RadioListTile<String>(
-                      key: ValueKey('reason-${entry.key}'),
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      value: entry.key,
-                      title: Text(entry.value),
-                    ),
-                ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RadioGroup<String>(
+                groupValue: _reason,
+                onChanged: (v) => setState(() => _reason = v),
+                child: Column(
+                  children: [
+                    for (final entry in reportReasonLabels.entries)
+                      RadioListTile<String>(
+                        key: ValueKey('reason-${entry.key}'),
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        value: entry.key,
+                        title: Text(entry.value),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            TextField(
-              key: const ValueKey('report-detail'),
-              controller: _detail,
-              maxLength: 500,
-              // พิมพ์ยาวแล้วขึ้นบรรทัดใหม่เอง (สูงสุด 5 บรรทัด เกินนั้นเลื่อนในช่อง)
-              minLines: 3,
-              maxLines: 5,
-              keyboardType: TextInputType.multiline,
-              decoration: const InputDecoration(
-                labelText: 'รายละเอียดเพิ่มเติม (ไม่บังคับ)',
-                alignLabelWithHint: true,
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(16))),
-                enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(16)),
-                    borderSide: BorderSide(color: AppColors.mocha, width: 1.6)),
-                focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(16)),
-                    borderSide: BorderSide(color: AppColors.brown, width: 2.2)),
+              TextField(
+                key: const ValueKey('report-detail'),
+                controller: _detail,
+                maxLength: 500,
+                // พิมพ์ยาวแล้วขึ้นบรรทัดใหม่เอง (สูงสุด 5 บรรทัด เกินนั้นเลื่อนในช่อง)
+                minLines: 3,
+                maxLines: 5,
+                keyboardType: TextInputType.multiline,
+                decoration: const InputDecoration(
+                  labelText: 'รายละเอียดเพิ่มเติม (ไม่บังคับ)',
+                  alignLabelWithHint: true,
+                  border: OutlineInputBorder(
+                      borderRadius:
+                          BorderRadius.all(Radius.circular(AppRadius.control))),
+                  enabledBorder: OutlineInputBorder(
+                      borderRadius:
+                          BorderRadius.all(Radius.circular(AppRadius.control)),
+                      borderSide: BorderSide(color: AppColors.mocha, width: 1)),
+                  focusedBorder: OutlineInputBorder(
+                      borderRadius:
+                          BorderRadius.all(Radius.circular(AppRadius.control)),
+                      borderSide:
+                          BorderSide(color: AppColors.brown, width: 1.5)),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-      ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('ยกเลิก')),
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('ยกเลิก')),
         TextButton(
           key: const ValueKey('report-submit'),
-          onPressed: _reason == null ? null : () => Navigator.pop(context, ReportChoice(_reason!, _detail.text)),
+          onPressed: _reason == null
+              ? null
+              : () =>
+                  Navigator.pop(context, ReportChoice(_reason!, _detail.text)),
           child: const Text('ส่งรายงาน'),
         ),
       ],

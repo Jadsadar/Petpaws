@@ -51,7 +51,7 @@ class _PetImagePickerState extends State<PetImagePicker> {
         // สีและความหนาเดียวกับขอบช่องกรอกข้อความ
         foregroundDecoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppRadius.card),
-          border: Border.all(color: AppColors.mocha, width: 1.6),
+          border: Border.all(color: AppColors.mocha, width: 1),
         ),
         clipBehavior: Clip.antiAlias,
         child: Stack(
