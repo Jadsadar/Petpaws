@@ -35,7 +35,10 @@ class PetPostPreviewScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Image.memory(imageBytes, width: double.infinity, height: 360, fit: BoxFit.cover),
+            Image.memory(imageBytes,
+                width: double.infinity,
+                height: (MediaQuery.sizeOf(context).height * 0.42).clamp(200.0, 360.0).toDouble(),
+                fit: BoxFit.cover),
             Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
@@ -59,8 +62,12 @@ class PetPostPreviewScreen extends StatelessWidget {
                     children: [
                       const Icon(Icons.location_on, color: AppColors.primarySoft),
                       const SizedBox(width: 8),
-                      Text('${dog['province']}',
-                          style: TextStyle(fontSize: 18, color: Colors.grey[700])),
+                      Expanded(
+                        child: Text('${dog['province']}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 18, color: Colors.grey[700])),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),

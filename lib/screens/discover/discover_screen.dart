@@ -157,9 +157,12 @@ class DiscoverScreen extends StatelessWidget {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 24.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  padding: const EdgeInsets.only(bottom: 24.0, left: 8, right: 8),
+                  // ปุ่มรวมกว้าง ~330px: จอ 320 ย่อทั้งแถวลงเล็กน้อยแทนล้น
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       FloatingActionButton(
                         heroTag: "btn_report",
@@ -215,6 +218,7 @@ class DiscoverScreen extends StatelessWidget {
                       ),
                     ],
                   ),
+                  ),
                 )
               ],
             );
@@ -242,7 +246,8 @@ class SpeciesFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, constraints) {
+    // ช่องมีความสูงตายตัว ตัวอักษรขยายได้ไม่เกิน 1.3 เท่า ไม่งั้นป้ายชื่อล้นช่อง
+    return MediaQuery.withClampedTextScaling(maxScaleFactor: 1.3, child: LayoutBuilder(builder: (context, constraints) {
       // ทุกช่องกว้างเท่ากัน เต็มความกว้างบนมือถือ แต่บนจอกว้าง (เว็บ) จำกัดแถบไม่เกิน
       // 760px แล้วจัดกลาง ไม่ให้ช่องใหญ่เกินไป ไอคอน/ตัวอักษร/ความสูงปรับตามขนาดช่อง
       final width = constraints.maxWidth.clamp(0.0, 760.0);
@@ -266,7 +271,7 @@ class SpeciesFilterBar extends StatelessWidget {
         ),
         ),
       );
-    });
+    }));
   }
 
   Widget _tile((String, String, Widget) item, double width, double scale) {

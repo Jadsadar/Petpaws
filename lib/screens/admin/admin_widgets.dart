@@ -1,3 +1,4 @@
+import '../../widgets/centered_scroll.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -30,7 +31,7 @@ class AdminErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return CenteredScroll(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -59,7 +60,7 @@ class AdminEmptyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return CenteredScroll(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(

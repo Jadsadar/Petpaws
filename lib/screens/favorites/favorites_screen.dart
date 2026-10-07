@@ -202,16 +202,28 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                             activeColor: AppColors.primary,
                             onChanged: (_) => _toggleSelected(id),
                           )
-                        : ElevatedButton.icon(
-                            onPressed: () => _chatWithOwner(context, dog),
-                            icon: const Icon(Icons.chat, size: 18),
-                            label: const Text('ทักแชท'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primarySoft,
-                              foregroundColor: AppColors.onPrimary,
-                              elevation: 0,
-                            ),
-                          ),
+                        : (MediaQuery.sizeOf(context).width < 400
+                            // จอแคบ: ปุ่มเหลือแค่ไอคอน ไม่งั้นแย่งที่ชื่อสัตว์จนตกบรรทัดทีละตัวอักษร
+                            ? IconButton.filled(
+                                key: ValueKey('fav-chat-$id'),
+                                tooltip: 'ทักแชท',
+                                onPressed: () => _chatWithOwner(context, dog),
+                                icon: const Icon(Icons.chat, size: 20),
+                                style: IconButton.styleFrom(
+                                  backgroundColor: AppColors.primarySoft,
+                                  foregroundColor: AppColors.onPrimary,
+                                ),
+                              )
+                            : ElevatedButton.icon(
+                                onPressed: () => _chatWithOwner(context, dog),
+                                icon: const Icon(Icons.chat, size: 18),
+                                label: const Text('ทักแชท'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primarySoft,
+                                  foregroundColor: AppColors.onPrimary,
+                                  elevation: 0,
+                                ),
+                              )),
                     onTap: _selecting
                         ? () => _toggleSelected(id)
                         : () => Navigator.push(

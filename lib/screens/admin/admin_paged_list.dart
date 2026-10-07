@@ -112,27 +112,33 @@ class AdminPagedListState<T> extends State<AdminPagedList<T>> {
         if (snap.hasError) return AdminErrorView(error: snap.error!, onRetry: reload);
         final page = snap.data!;
         if (page.items.isEmpty) return AdminEmptyView(message: widget.emptyMessage);
-        return Column(
-          children: [
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: () async {
-                  reload();
-                  try {
-                    await _future;
-                  } catch (_) {}
-                },
-                child: ListView.separated(
-                  padding: widget.padding,
-                  itemCount: page.items.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (context, i) => widget.itemBuilder(context, page.items[i]),
+        // พื้นที่เตี้ยมาก (มือถือแนวนอน/ตัวอักษรใหญ่): แถบเลื่อนหน้าไปอยู่ท้ายรายการ แทนที่จะแย่งที่จนล้นจอ
+        return LayoutBuilder(builder: (context, box) {
+          final pagerInList = box.maxHeight < 160;
+          final pager = AdminPager(page: page, onPageChanged: (p) => reload(page: p));
+          return Column(
+            children: [
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: () async {
+                    reload();
+                    try {
+                      await _future;
+                    } catch (_) {}
+                  },
+                  child: ListView.separated(
+                    padding: widget.padding,
+                    itemCount: page.items.length + (pagerInList ? 1 : 0),
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, i) =>
+                        i == page.items.length ? pager : widget.itemBuilder(context, page.items[i]),
+                  ),
                 ),
               ),
-            ),
-            AdminPager(page: page, onPageChanged: (p) => reload(page: p)),
-          ],
-        );
+              if (!pagerInList) pager,
+            ],
+          );
+        });
       },
     );
   }
