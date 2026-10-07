@@ -176,6 +176,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const Text(
                       'หาบ้านใหม่ให้สัตว์เลี้ยงแสนรัก',
+                      textAlign: TextAlign.center,
                       style: TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w600,

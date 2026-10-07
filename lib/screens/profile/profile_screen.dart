@@ -87,7 +87,13 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
   /// ตอนยังไม่กดแก้ไข ช่องพวกนี้จะกดไม่ได้ ถ้าผู้ใช้แตะจะนึกว่าแอปค้าง
   /// เลยดักการแตะไว้แล้วบอกให้กดปุ่มแก้ไขก่อน
   Widget _lockedHint(Widget child, String key) {
-    if (_isEditing) return child;
+    if (_isEditing) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [child, InlineError(fieldError(key))],
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -105,6 +111,12 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
 
   void toggleTrait(String tagId) {
     if (!_isEditing) return;
+    // ตอนสร้างโปรไฟล์บังคับอย่างน้อย 1 แท็ก — ตอนแก้ไขก็ต้องเอาออกจนหมดไม่ได้
+    if (selectedTraitIds.length == 1 && selectedTraitIds.contains(tagId)) {
+      showFieldError('traits', _minTraitMessage);
+      return;
+    }
+    clearFieldErrors();
     setState(() {
       if (selectedTraitIds.contains(tagId)) {
         selectedTraitIds.remove(tagId);
@@ -114,8 +126,16 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
     });
   }
 
+  static const _minTraitMessage =
+      'ต้องเลือกไลฟ์สไตล์ / นิสัยของคุณไว้อย่างน้อย 1 แท็ก';
+
   Future<void> saveProfileData() async {
     clearFieldErrors();
+    // บัญชีเก่าที่ยังไม่มีแท็กเลย ต้องเลือกก่อนถึงจะบันทึกได้
+    if (selectedTraitIds.isEmpty) {
+      showFieldError('traits', _minTraitMessage);
+      return;
+    }
     setState(() => _isSaving = true);
     try {
       final updated = await UsersService.instance.updateMe({
@@ -225,8 +245,7 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
           centerTitle: true,
         ),
         body: const AppPageFrame(
-            maxWidth: AppLayout.formWidth,
-            child: Center(child: PawLoader())),
+            maxWidth: AppLayout.formWidth, child: Center(child: PawLoader())),
       );
     }
     return Scaffold(

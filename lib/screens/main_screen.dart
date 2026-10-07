@@ -25,6 +25,20 @@ class _MainScreenState extends State<MainScreen> {
   final _petService = PetService.instance;
 
   int _selectedIndex = 0;
+
+  /// รุ่นของแต่ละแท็บ — เพิ่มทุกครั้งที่สลับเข้าแท็บนั้น ให้ได้หน้าใหม่สะอาด ๆ
+  /// (ค้นหา/โหมดเลือก/ฟอร์มที่กรอกค้าง/ข้อความเตือน/โหมดแก้ไข ไม่ค้างจากรอบก่อน)
+  /// ข้อมูลจริง (สัตว์ ถูกใจ ประกาศของฉัน) อยู่ที่หน้านี้ จึงไม่หายไปด้วย
+  final List<int> _tabGeneration = List.filled(5, 0);
+
+  void _selectTab(int index) {
+    if (index == _selectedIndex) return;
+    setState(() {
+      _tabGeneration[index]++;
+      _selectedIndex = index;
+    });
+  }
+
   bool _isLoading = true;
   String? _loadError;
 
@@ -318,7 +332,7 @@ class _MainScreenState extends State<MainScreen> {
                         maxWidth: AppLayout.dashboardWidth),
                     child: BottomNavigationBar(
                       currentIndex: _selectedIndex,
-                      onTap: (index) => setState(() => _selectedIndex = index),
+                      onTap: _selectTab,
                       type: BottomNavigationBarType.fixed,
                       // แท็บที่เลือก: ชมพู + ไอคอน/ตัวอักษรใหญ่ขึ้น  แท็บอื่น: เทา ขนาดปกติ
                       selectedItemColor: AppColors.primary,
@@ -414,39 +428,44 @@ class _MainScreenState extends State<MainScreen> {
       );
     }
 
-    // ใช้ IndexedStack ไม่ใช่ list สลับ widget ตรง ๆ เพื่อให้แต่ละแท็บคง state
-    // ของตัวเองไว้ (เช่น scroll position) ตอนสลับไปมา แทนที่จะ rebuild ใหม่ทุกครั้ง
+    // IndexedStack คงทุกแท็บไว้ในหน่วยความจำ แต่ key ที่ผูกกับ _tabGeneration
+    // เปลี่ยนทุกครั้งที่สลับเข้าแท็บ → แท็บนั้นสร้าง state ใหม่ เหมือนเพิ่งเปิดครั้งแรก
+    final tabs = <Widget>[
+      DiscoverScreen(
+        dogs: allDogs,
+        onLike: onLike,
+        onPass: onPass,
+        onUndoPass: onUndoPass,
+        canUndo: passedDogs.isNotEmpty,
+        likedDogs: likedDogs,
+        onToggleFavorite: onToggleFavoriteDog,
+        speciesFilter: _speciesFilter,
+        onSpeciesFilterChanged: onSpeciesFilterChanged,
+        loading: _loadingSpecies,
+      ),
+      FavoritesScreen(
+        likedDogs: likedDogs,
+        onToggleFavorite: onToggleFavoriteDog,
+        active: _selectedIndex == 1,
+      ),
+      ChatInboxScreen(active: _selectedIndex == 2),
+      UploadScreen(
+        onAddDog: onAddDog,
+        myPostedDogs: myPostedDogs,
+        onDeleteDog: onDeleteDog,
+        onEditDog: onEditDog,
+        onChangeStatus: onChangeStatus,
+        likedDogs: likedDogs,
+        onToggleFavorite: onToggleFavoriteDog,
+      ),
+      ProfileScreen(active: _selectedIndex == 4),
+    ];
     return IndexedStack(
       index: _selectedIndex,
       children: [
-        DiscoverScreen(
-          dogs: allDogs,
-          onLike: onLike,
-          onPass: onPass,
-          onUndoPass: onUndoPass,
-          canUndo: passedDogs.isNotEmpty,
-          likedDogs: likedDogs,
-          onToggleFavorite: onToggleFavoriteDog,
-          speciesFilter: _speciesFilter,
-          onSpeciesFilterChanged: onSpeciesFilterChanged,
-          loading: _loadingSpecies,
-        ),
-        FavoritesScreen(
-          likedDogs: likedDogs,
-          onToggleFavorite: onToggleFavoriteDog,
-          active: _selectedIndex == 1,
-        ),
-        ChatInboxScreen(active: _selectedIndex == 2),
-        UploadScreen(
-          onAddDog: onAddDog,
-          myPostedDogs: myPostedDogs,
-          onDeleteDog: onDeleteDog,
-          onEditDog: onEditDog,
-          onChangeStatus: onChangeStatus,
-          likedDogs: likedDogs,
-          onToggleFavorite: onToggleFavoriteDog,
-        ),
-        ProfileScreen(active: _selectedIndex == 4),
+        for (var i = 0; i < tabs.length; i++)
+          KeyedSubtree(
+              key: ValueKey('tab-$i-${_tabGeneration[i]}'), child: tabs[i]),
       ],
     );
   }
