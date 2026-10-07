@@ -35,6 +35,7 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^3.0.0
   video_player_platform_interface: ^6.9.0
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
@@ -60,3 +61,17 @@ flutter:
           weight: 700
         - asset: assets/fonts/Sarabun-ExtraBold.ttf
           weight: 800
+
+# ไอคอนแอป: แก้รูปใน assets/icon/ แล้วรัน `dart run flutter_launcher_icons`
+flutter_launcher_icons:
+  image_path: assets/icon/app_icon.png
+  android: true
+  ios: false
+  min_sdk_android: 21
+  adaptive_icon_background: "#FDF7E9"
+  adaptive_icon_foreground: assets/icon/app_icon_foreground.png
+  web:
+    generate: true
+    image_path: assets/icon/app_icon.png
+    background_color: "#FDF7E9"
+    theme_color: "#F48EB8"
