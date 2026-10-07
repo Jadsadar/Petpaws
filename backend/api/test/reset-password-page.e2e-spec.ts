@@ -63,7 +63,8 @@ describe('หน้าเว็บตั้งรหัสผ่านใหม�
       expect(res.headers['content-type']).toContain('text/html');
       expect(res.headers['cache-control']).toBe('no-store');
       expect(res.headers['referrer-policy']).toBe('no-referrer');
-      expect(res.text).toContain('<form method="post" action="/auth/reset-password/form">');
+      expect(res.text).toMatch(/<form\b[^>]*\bmethod="post"[^>]*>/);
+      expect(res.text).toMatch(/<form\b[^>]*\baction="\/auth\/reset-password\/form"[^>]*>/);
       expect(res.text).toContain(`name="token" value="${token}"`);
     }
   });
