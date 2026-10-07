@@ -16,7 +16,6 @@ import { JwtAuthGuard } from './common/jwt-auth.guard.js';
 import { AppConfigModule } from './config/app-config.module.js';
 import { CacheModule } from './cache/cache.module.js';
 import { MetricsModule } from './metrics/metrics.module.js';
-import { AccountStatusModule } from './common/account-status.js';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AppThrottlerGuard, DEFAULT_RATE_LIMIT } from './common/rate-limit.js';
 import { RedisThrottlerStorage } from './common/redis-throttler.storage.js';
@@ -30,7 +29,6 @@ import type { Redis } from 'ioredis';
     DatabaseModule,
     CacheModule,
     MetricsModule,
-    AccountStatusModule,
     // ตัวนับเก็บใน Redis ตัว cache — API ทุกตัวหลัง load balancer นับรวมกัน (ไม่ตั้ง/ล่ม = นับในหน่วยความจำ)
     ThrottlerModule.forRootAsync({
       inject: [CACHE_REDIS],
