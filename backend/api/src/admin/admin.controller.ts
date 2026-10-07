@@ -17,6 +17,7 @@ import { PaginationQueryDto, resolvePaging } from './dto/pagination.dto.js';
 import { DEFAULT_MIN_REPORTS, ReportedUsersQueryDto } from './dto/reported-users-query.dto.js';
 import { CurrentUser, type AuthUser } from '../common/current-user.decorator.js';
 import { CacheService } from '../cache/cache.service.js';
+import { MetricsService } from '../metrics/metrics.service.js';
 
 @Controller('admin')
 @UseGuards(AdminGuard)
@@ -24,6 +25,7 @@ export class AdminController {
   constructor(
     private readonly adminService: AdminService,
     private readonly cache: CacheService,
+    private readonly metrics: MetricsService,
   ) {}
 
   @Get('summary')
@@ -42,6 +44,22 @@ export class AdminController {
   @Post('cache-stats/reset')
   resetCacheStats() {
     return this.cache.resetStats();
+  }
+
+  /**
+   * endpoint ไหนช้า/ถูกเรียกบ่อย (เรียงตามเวลารวม) + query ที่กินเวลา DB มากสุด (pg_stat_statements)
+   * ใช้เลือกว่าจะปรับ query ตัวไหนก่อน
+   */
+  @Get('perf-stats')
+  perfStats() {
+    return this.metrics.stats();
+  }
+
+  /** เริ่มนับใหม่ (ทั้งเวลาต่อ endpoint และ pg_stat_statements) — ใช้ก่อน/หลังแก้เพื่อเทียบผล */
+  @HttpCode(HttpStatus.OK)
+  @Post('perf-stats/reset')
+  resetPerfStats() {
+    return this.metrics.reset();
   }
 
   /** ?minReports=&page=&pageSize= → { items, total, page, pageSize } */
