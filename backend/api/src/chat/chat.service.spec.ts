@@ -36,17 +36,25 @@ const inboxRow = (userId: string, unreadCount: number, unreadTotal: number) => (
   pet_name: 'ข้าวตัง',
 });
 
-/** ตอบ query ตามข้อความ SQL — แต่ละ test ใส่เฉพาะที่ใช้ */
-function setup(answers: Array<[RegExp, unknown[] | Error]>) {
-  const query = vi.fn(async (sql: string) => {
-    const hit = answers.find(([re]) => re.test(sql));
+type Answer = unknown[] | Error | (() => unknown[] | Error);
+
+/**
+ * ตอบ query ตามข้อความ SQL — แต่ละ test ใส่เฉพาะที่ใช้ (คำตอบเป็นฟังก์ชันได้ ถ้าต้องตอบต่างกันแต่ละครั้ง)
+ * ใช้ query ตัวเดียวกันทั้ง pool.query และ client.query ใน transaction
+ */
+function setup(answers: Array<[RegExp, Answer]>) {
+  const all: Array<[RegExp, Answer]> = [...answers, [/^(BEGIN|COMMIT|ROLLBACK)$/, []]];
+  const query = vi.fn(async (sql: string, _params?: unknown[]) => {
+    const hit = all.find(([re]) => re.test(sql));
     if (!hit) throw new Error(`ไม่ได้เตรียมคำตอบให้ SQL: ${sql.slice(0, 80)}`);
-    if (hit[1] instanceof Error) throw hit[1];
-    return { rows: hit[1], rowCount: hit[1].length };
+    const answer = typeof hit[1] === 'function' ? hit[1]() : hit[1];
+    if (answer instanceof Error) throw answer;
+    return { rows: answer, rowCount: answer.length };
   });
+  const pool = { query, connect: vi.fn(async () => ({ query, release: vi.fn() })) };
   const gateway = { emitNewMessage: vi.fn(), emitRead: vi.fn(), notifyUsers: vi.fn() };
   const service = new ChatService(
-    { query } as unknown as Pool,
+    pool as unknown as Pool,
     gateway as unknown as ChatGateway,
     {} as ChatMediaService,
     { add: vi.fn().mockResolvedValue(undefined) } as unknown as Queue,
@@ -179,5 +187,87 @@ describe('ChatService notification (กล่องข้อความ)', () =
 
     await expect(service.hide(ME, CHAT)).resolves.toEqual({ success: true });
     expect(gateway.notifyUsers).toHaveBeenCalledWith([ME], { type: 'hidden', conversationId: CHAT });
+  });
+});
+
+describe('ส่งซ้ำด้วย clientId เดิม (idempotency) — กันข้อความซ้ำตอนคำตอบหาย/กดลองใหม่', () => {
+  const CLIENT_ID = '55555555-5555-5555-5555-555555555555';
+  const SENT = /WHERE sender_id = \$1 AND client_id = \$2/;
+  const INSERT = /INSERT INTO messages/;
+  const savedRow = { ...messageRow, id: 'm-saved', sender_id: ME, client_id: CLIENT_ID };
+  const uniqueViolation = (constraint: string) => Object.assign(new Error('duplicate key'), { code: '23505', constraint });
+
+  it('เคยบันทึกแล้ว: คืนข้อความเดิม ไม่บันทึกซ้ำ ไม่แจ้งเตือนซ้ำ', async () => {
+    const { service, query, gateway } = setup([
+      [PARTICIPANT, [conversation]],
+      [SENT, [savedRow]],
+    ]);
+
+    const out = await service.sendMessage(ME, CHAT, { text: 'สวัสดี', clientId: CLIENT_ID });
+
+    expect(out.message).toMatchObject({ id: 'm-saved', clientId: CLIENT_ID });
+    expect(query.mock.calls.some(([sql]) => INSERT.test(sql))).toBe(false);
+    expect(gateway.emitNewMessage).not.toHaveBeenCalled();
+  });
+
+  it('ข้อความใหม่: บันทึก clientId และแนบไปกับ event ให้แอปจับคู่กับข้อความที่รอส่ง', async () => {
+    const { service, query, gateway } = setup([
+      [PARTICIPANT, [conversation]],
+      [SENT, []],
+      [INSERT, [{ id: 'm-new', created_at: new Date() }]],
+      [INBOX, []],
+    ]);
+
+    const out = await service.sendMessage(ME, CHAT, { text: 'สวัสดี', clientId: CLIENT_ID });
+
+    expect(out.message).toMatchObject({ id: 'm-new', clientId: CLIENT_ID });
+    const insert = query.mock.calls.find(([sql]) => INSERT.test(sql))!;
+    expect(insert[1]).toContain(CLIENT_ID);
+    expect(gateway.emitNewMessage).toHaveBeenCalledWith(CHAT, expect.objectContaining({ clientId: CLIENT_ID }));
+  });
+
+  it('คำขอซ้ำมาถึงพร้อมกัน: ตัวที่ชน unique index ได้ข้อความของตัวแรกกลับไป', async () => {
+    let lookups = 0;
+    const { service, gateway } = setup([
+      [PARTICIPANT, [conversation]],
+      // ตรวจก่อนบันทึก: ยังไม่มี / หลังชน: เจอของตัวแรก
+      [SENT, () => (lookups++ === 0 ? [] : [savedRow])],
+      [INSERT, uniqueViolation('messages_sender_client_id_key')],
+    ]);
+
+    const out = await service.sendMessage(ME, CHAT, { text: 'สวัสดี', clientId: CLIENT_ID });
+
+    expect(out.message).toMatchObject({ id: 'm-saved' });
+    expect(gateway.emitNewMessage).not.toHaveBeenCalled();
+  });
+
+  it('ไม่ส่ง clientId (แอปรุ่นก่อน): ทำงานแบบเดิม ไม่ค้นหาข้อความเก่า', async () => {
+    const { service, query } = setup([
+      [PARTICIPANT, [conversation]],
+      [INSERT, [{ id: 'm-old-app', created_at: new Date() }]],
+      [INBOX, []],
+    ]);
+
+    const out = await service.sendMessage(ME, CHAT, { text: 'สวัสดี' });
+
+    expect(out.message).toMatchObject({ id: 'm-old-app', clientId: null });
+    expect(query.mock.calls.some(([sql]) => SENT.test(sql))).toBe(false);
+  });
+
+  it('ข้อความแรก: อีกคำขอสร้างห้องไปก่อนเสี้ยววินาที → ส่งเข้าห้องนั้นแทนการตอบ error', async () => {
+    let roomLookups = 0;
+    const { service } = setup([
+      [/SELECT owner_id FROM pets/, [{ owner_id: OTHER }]],
+      [/FROM blocks\s+WHERE \(blocker_id/, []],
+      // ตรวจครั้งแรก: ยังไม่มีห้อง / หลังชน: เจอห้องที่อีกคำขอสร้าง
+      [/SELECT id FROM conversations WHERE pet_id/, () => (roomLookups++ === 0 ? [] : [{ id: CHAT }])],
+      [/INSERT INTO conversations/, uniqueViolation('conversations_pet_initiator_key')],
+      [PARTICIPANT, [conversation]],
+      [SENT, [savedRow]],
+    ]);
+
+    await expect(
+      service.createOrSend(ME, { petId: PET, message: 'สวัสดี', clientId: CLIENT_ID }),
+    ).resolves.toEqual({ chatId: CHAT });
   });
 });

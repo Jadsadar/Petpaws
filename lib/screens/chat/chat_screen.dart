@@ -19,15 +19,23 @@ import '../../theme/app_theme.dart';
 import '../../widgets/paw_loader.dart';
 import 'media_send_preview_screen.dart';
 
-/// รูป/วิดีโอที่กำลังอัป — โชว์เป็น bubble ท้ายห้องพร้อมความคืบหน้าจนกว่าจะส่งสำเร็จ
-class _PendingMedia {
-  _PendingMedia(this.media) : id = 'pending_${_seq++}';
-  // นับเลขแทนเวลา — เลือกหลายรูปทีเดียวสร้างหลายตัวในไมโครวินาทีเดียวกันได้ id จะชนกัน
-  static int _seq = 0;
-  final PreparedMedia media;
-  final String id;
+/// ข้อความของเราที่ยังไม่ได้รับการยืนยันจาก server — โชว์เป็น bubble ท้ายห้องทันทีที่กดส่ง
+/// (ตัวหนังสือ "กำลังส่ง" หรือรูป/วิดีโอพร้อมความคืบหน้า) จนกว่า server จะบันทึกสำเร็จ
+///
+/// [clientId] ส่งไปกับข้อความและใช้ค่าเดิมทุกครั้งที่ลองใหม่ — server จะไม่บันทึกซ้ำถ้าเคยได้แล้ว
+/// และใช้ซ่อน bubble นี้ทันทีที่ข้อความจริง (ที่มี clientId เดียวกัน) มาถึงทาง socket
+class _Pending {
+  _Pending.text(this.text) : media = null;
+  _Pending.media(PreparedMedia this.media) : text = '';
+
+  final String clientId = newMessageClientId();
+  final String text;
+  final PreparedMedia? media;
   double progress = 0;
   bool failed = false;
+
+  String get id => 'pending_$clientId';
+  bool get isText => media == null;
 }
 
 class ChatScreen extends StatefulWidget {
@@ -67,7 +75,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
   String? _chatId;
   final FocusNode _msgFocus = FocusNode();
-  bool _sending = false;
 
   /// สถานะห้องจาก server — closed = อ่านย้อนหลังได้แต่พิมพ์ไม่ได้ (สัตว์ได้บ้าน/ยกเลิกประกาศ/บล็อก)
   bool _closed = false;
@@ -96,7 +103,14 @@ class _ChatScreenState extends State<ChatScreen> {
   MessageFeed? _feed;
   Stream<List<Map<String, dynamic>>>? _messagesStream;
 
-  final List<_PendingMedia> _pending = [];
+  final List<_Pending> _pending = [];
+
+  /// คิวส่งตัวหนังสือกำลังทำงานอยู่ (ส่งทีละข้อความตามลำดับ)
+  bool _pumpingText = false;
+
+  /// ข้อความแรกกำลังสร้างห้องอยู่ — ข้อความอื่นที่ส่งตามมาต้องรอแล้วเข้าห้องเดียวกัน
+  /// ไม่งั้นสองคำขอจะแย่งกันสร้างห้องเดียวกัน
+  Future<String>? _creatingRoom;
 
   /// กำลังเลือก/ย่อรูป/บีบวิดีโอ (ก่อนมี bubble ให้เห็น) — วิดีโออาจใช้หลายวินาที
   bool _preparingMedia = false;
@@ -236,36 +250,86 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  Future<void> _sendMessage() async {
+  /// กดส่ง: ข้อความขึ้นในห้องทันที (สถานะ "กำลังส่ง") แล้วเข้าคิวส่งเบื้องหลัง —
+  /// ไม่ล็อกช่องพิมพ์และไม่ปิดคีย์บอร์ด พิมพ์และส่งต่อได้เรื่อย ๆ แม้เน็ตช้า
+  void _sendMessage() {
     final text = _msgController.text.trim();
-    if (text.isEmpty || _sending) return;
-    setState(() => _sending = true);
+    if (text.isEmpty) return;
     _msgController.clear();
     _stopTyping();
-    FocusScope.of(context).unfocus();
+    setState(() => _pending.add(_Pending.text(text)));
+    _pumpTextQueue();
+  }
 
+  /// ส่งตัวหนังสือที่รออยู่ทีละข้อความตามลำดับที่กด (ยิงพร้อมกันอาจถึง server สลับลำดับ)
+  ///
+  /// ส่งไม่สำเร็จ: ข้อความนั้นและที่รอต่อจากมันถูกพักเป็น "ส่งไม่สำเร็จ" ทั้งหมด (คงลำดับไว้
+  /// และไม่ต้องรอ timeout ทีละข้อความตอนเน็ตหลุด) แตะข้อความไหนก็ได้เพื่อส่งที่ค้างทั้งหมดอีกรอบ
+  ///
+  /// ทำต่อแม้ปิดหน้าจอไปแล้ว — ข้อความที่กดส่งไปแล้วต้องไม่หายเงียบ ๆ
+  Future<void> _pumpTextQueue() async {
+    if (_pumpingText) return;
+    _pumpingText = true;
     try {
-      await _deliver(text: text);
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(duration: AppTheme.snackDuration, content: Text('ส่งข้อความไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+      while (true) {
+        final next = _pending.where((p) => p.isText && !p.failed).firstOrNull;
+        if (next == null) return;
+        try {
+          await _deliver(text: next.text, clientId: next.clientId);
+          if (mounted) {
+            setState(() => _pending.remove(next));
+          } else {
+            _pending.remove(next);
+          }
+        } catch (e) {
+          final from = _pending.indexOf(next);
+          void markFailed() {
+            for (final p in _pending.skip(from)) {
+              if (p.isText) p.failed = true;
+            }
+          }
+          mounted ? setState(markFailed) : markFailed();
+          _showError(e, 'ส่งข้อความไม่สำเร็จ แตะที่ข้อความเพื่อลองใหม่');
+          return;
+        }
+      }
     } finally {
-      if (mounted) setState(() => _sending = false);
+      _pumpingText = false;
     }
   }
 
   /// ส่งข้อความ (ตัวหนังสือ หรือสื่อที่อัปแล้ว) เข้าห้อง — ถ้ายังไม่มีห้อง ข้อความนี้คือ
   /// ข้อความแรก ต้องสร้างห้องพร้อมกันในธุรกรรมเดียว
-  Future<void> _deliver({String text = '', Map<String, dynamic>? media}) async {
-    if (_chatId == null) {
-      final newChatId = await ChatService.instance
-          .createOrSend(petId: widget.petId, message: text, media: media);
-      if (!mounted) return;
-      // ประวัติ (รวมข้อความนี้) มาจากการโหลดครั้งแรกของ feed
-      setState(() => _openRoom(newChatId));
+  Future<void> _deliver({String text = '', Map<String, dynamic>? media, required String clientId}) async {
+    // ข้อความแรกจากอีกคิว (รูป/ตัวหนังสือ) กำลังสร้างห้อง — รอให้เสร็จแล้วส่งเข้าห้องนั้น
+    final creating = _creatingRoom;
+    if (_chatId == null && creating != null) {
+      try {
+        await creating;
+      } catch (_) {
+        // ข้อความนั้นสร้างห้องไม่สำเร็จ ข้อความนี้ลองสร้างเอง
+      }
+    }
+
+    final chatId = _chatId;
+    if (chatId == null) {
+      final create = ChatService.instance
+          .createOrSend(petId: widget.petId, message: text, media: media, clientId: clientId);
+      _creatingRoom = create;
+      try {
+        final newChatId = await create;
+        // ประวัติ (รวมข้อความนี้) มาจากการโหลดครั้งแรกของ feed
+        if (mounted) {
+          setState(() => _openRoom(newChatId));
+        } else {
+          _chatId = newChatId;
+        }
+      } finally {
+        if (identical(_creatingRoom, create)) _creatingRoom = null;
+      }
     } else {
-      final sent = await ChatService.instance.sendMessage(_chatId!, text: text, media: media);
+      final sent =
+          await ChatService.instance.sendMessage(chatId, text: text, media: media, clientId: clientId);
       // ใส่ลง feed เลยจากผลของ POST ไม่ต้องรอ event จาก socket
       _feed?.upsert(sent);
     }
@@ -275,8 +339,7 @@ class _ChatScreenState extends State<ChatScreen> {
   // รูป / วิดีโอ
   // ---------------------------------------------------------------------------
 
-  /// ห้องยังไม่เกิด: ให้ส่งได้ทีละชิ้น ไม่งั้นสองคำขอจะแย่งกันสร้างห้องเดียวกัน
-  bool get _canAttach => !_preparingMedia && !(_chatId == null && _pending.isNotEmpty);
+  bool get _canAttach => !_preparingMedia;
 
   Future<void> _showAttachSheet() async {
     final media = ChatMediaService.instance;
@@ -355,7 +418,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (confirmed == null || confirmed.isEmpty || !mounted) return;
     picked = confirmed;
 
-    final batch = [for (final m in picked) _PendingMedia(m)];
+    final batch = [for (final m in picked) _Pending.media(m)];
     setState(() => _pending.addAll(batch));
     await _sendPending(batch);
   }
@@ -368,7 +431,7 @@ class _ChatScreenState extends State<ChatScreen> {
   ///
   /// ส่งทีละข้อความจึงปลอดภัยตอนห้องยังไม่เกิด: ข้อความแรกสร้างห้อง ที่เหลือเข้าห้องนั้นต่อ
   /// ชิ้นที่ล้มเหลวค้างเป็น bubble ให้แตะลองใหม่ ชิ้นถัดไปส่งต่อได้เลยไม่ต้องรอ
-  Future<void> _sendPending(List<_PendingMedia> batch) async {
+  Future<void> _sendPending(List<_Pending> batch) async {
     setState(() {
       for (final p in batch) {
         p.failed = false;
@@ -388,7 +451,7 @@ class _ChatScreenState extends State<ChatScreen> {
         final pending = batch[i];
         try {
           final media = await ChatMediaService.instance.upload(
-            pending.media,
+            pending.media!,
             onProgress: (v) {
               if (mounted) setState(() => pending.progress = v);
             },
@@ -411,7 +474,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final result = await uploads[i].future;
       try {
         if (result.error != null) throw result.error!;
-        await _deliver(media: result.media);
+        await _deliver(media: result.media, clientId: pending.clientId);
         if (mounted) setState(() => _pending.remove(pending));
       } catch (e) {
         failed++;
@@ -430,7 +493,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _onPendingTap(_PendingMedia pending) async {
+  Future<void> _onPendingTap(_Pending pending) async {
     if (!pending.failed) return;
     final retry = await showModalBottomSheet<bool>(
       context: context,
@@ -453,10 +516,18 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
     if (retry == null || !mounted) return;
-    if (retry) {
-      await _sendPending([pending]);
-    } else {
+    if (!retry) {
       setState(() => _pending.remove(pending));
+    } else if (pending.isText) {
+      // ส่งตัวหนังสือที่ค้างทั้งหมดตามลำดับเดิม (ไม่ใช่แค่ข้อความที่แตะ) ลำดับในห้องจะได้ไม่สลับ
+      setState(() {
+        for (final p in _pending) {
+          if (p.isText) p.failed = false;
+        }
+      });
+      unawaited(_pumpTextQueue());
+    } else {
+      await _sendPending([pending]);
     }
   }
 
@@ -756,7 +827,12 @@ class _ChatScreenState extends State<ChatScreen> {
         if (messages.isEmpty && query.isNotEmpty) {
           return const Center(child: Text('ไม่พบข้อความที่ค้นหา', style: TextStyle(color: Colors.black38)));
         }
-        if (messages.isEmpty && _pending.isEmpty) {
+        // ข้อความจริงมาถึงทาง socket ก่อนคำตอบของ POST — ซ่อน bubble รอส่งตัวเดียวกันทันที
+        // ไม่งั้นจะเห็นข้อความเดียวกันสองอันชั่วครู่
+        final delivered = {for (final m in serverMessages) m['clientId']};
+        final pending = [for (final p in _pending) if (!delivered.contains(p.clientId)) p];
+
+        if (messages.isEmpty && pending.isEmpty) {
           return Center(
             child: Text('ทักทายเรื่องสัตว์เลี้ยง ${widget.dogName} กันเลย!',
                 style: const TextStyle(color: Colors.black38)),
@@ -764,8 +840,8 @@ class _ChatScreenState extends State<ChatScreen> {
         }
 
         final readIndex = _lastReadByOther(messages, myUid);
-        final latestId = _pending.isNotEmpty
-            ? _pending.last.id
+        final latestId = pending.isNotEmpty
+            ? pending.last.id
             : (messages.isEmpty ? null : messages.last['id'] as String?);
         if (latestId != _lastScrolledId) {
           _lastScrolledId = latestId;
@@ -779,12 +855,12 @@ class _ChatScreenState extends State<ChatScreen> {
         return ListView.builder(
           controller: _scrollController,
           padding: const EdgeInsets.all(16),
-          itemCount: offset + messages.length + _pending.length,
+          itemCount: offset + messages.length + pending.length,
           itemBuilder: (context, i) {
             if (showLoadOlder && i == 0) return _buildLoadOlder(feed);
             final index = i - offset;
             if (index >= messages.length) {
-              return _buildPending(_pending[index - messages.length]);
+              return _buildPending(pending[index - messages.length]);
             }
 
             final data = messages[index];
@@ -873,47 +949,77 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _buildPending(_PendingMedia pending) {
+  Widget _buildPending(_Pending pending) {
+    final media = pending.media;
     return Align(
       alignment: Alignment.centerRight,
       child: Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: GestureDetector(
+          key: ValueKey('pending-${pending.clientId}'),
           onTap: () => _onPendingTap(pending),
-          child: ChatMediaBubble(
-            type: pending.media.type,
-            width: pending.media.width,
-            height: pending.media.height,
-            localThumbnail: pending.media.thumbnail,
-            progress: pending.progress,
-            failed: pending.failed,
-          ),
+          child: media != null
+              ? ChatMediaBubble(
+                  type: media.type,
+                  width: media.width,
+                  height: media.height,
+                  localThumbnail: media.thumbnail,
+                  progress: pending.progress,
+                  failed: pending.failed,
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    // จางไว้ระหว่างรอ server ยืนยัน
+                    Opacity(opacity: pending.failed ? 1 : 0.6, child: _textBubble(pending.text, true)),
+                    const SizedBox(height: 2),
+                    pending.failed
+                        ? const Row(
+                            key: ValueKey('pending-failed'),
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.error_outline, size: 14, color: AppColors.danger),
+                              SizedBox(width: 4),
+                              Text('ส่งไม่สำเร็จ แตะเพื่อลองใหม่',
+                                  style: TextStyle(fontSize: 11, color: AppColors.danger)),
+                            ],
+                          )
+                        : const Row(
+                            key: ValueKey('pending-sending'),
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.schedule, size: 12, color: Colors.black38),
+                              SizedBox(width: 4),
+                              Text('กำลังส่ง', style: TextStyle(fontSize: 11, color: Colors.black38)),
+                            ],
+                          ),
+                  ],
+                ),
         ),
       ),
     );
   }
 
+  Widget _textBubble(String text, bool isMe) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+        decoration: BoxDecoration(
+          color: isMe ? AppColors.primary : Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(20),
+            topRight: const Radius.circular(20),
+            bottomLeft: Radius.circular(isMe ? 20 : 0),
+            bottomRight: Radius.circular(isMe ? 0 : 20),
+          ),
+          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
+        ),
+        child: Text(text, style: TextStyle(color: isMe ? Colors.white : Colors.black87, fontSize: 16)),
+      );
+
   Widget _buildMessage(Map<String, dynamic> data, bool isMe) {
     final text = data['text'] as String? ?? '';
     final media = data['media'] is Map ? Map<String, dynamic>.from(data['media'] as Map) : null;
-    final textBubble = text.isEmpty
-        ? null
-        : Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-            decoration: BoxDecoration(
-              color: isMe ? AppColors.primary : Colors.white,
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(20),
-                topRight: const Radius.circular(20),
-                bottomLeft: Radius.circular(isMe ? 20 : 0),
-                bottomRight: Radius.circular(isMe ? 0 : 20),
-              ),
-              boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
-            ),
-            child: Text(text,
-                style: TextStyle(color: isMe ? Colors.white : Colors.black87, fontSize: 16)),
-          );
+    final textBubble = text.isEmpty ? null : _textBubble(text, isMe);
 
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -963,8 +1069,6 @@ class _ChatScreenState extends State<ChatScreen> {
             child: TextField(
               controller: _msgController,
               focusNode: _msgFocus,
-              // readOnly แทน enabled:false — ถ้า disable ช่องจะเสียโฟกัส กด Enter ส่งต่อรอบถัดไปไม่ได้
-              readOnly: _sending,
               decoration: InputDecoration(
                 hintText: 'พิมพ์ข้อความ...',
                 border: OutlineInputBorder(
@@ -975,24 +1079,20 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
               onChanged: _onTextChanged,
               textInputAction: TextInputAction.send,
-              onSubmitted: (_) {
-                _sendMessage();
-                _msgFocus.requestFocus(); // ให้พิมพ์/Enter ต่อได้เลย
-              },
+              // ใส่ onEditingComplete เอง = ไม่ให้ช่องหลุดโฟกัสตอนกดส่ง คีย์บอร์ดค้างไว้พิมพ์ต่อได้เลย
+              onEditingComplete: () {},
+              onSubmitted: (_) => _sendMessage(),
             ),
           ),
           const SizedBox(width: 8),
+          // กดได้ตลอด สถานะการส่งอยู่ที่ bubble ของแต่ละข้อความแทน
           GestureDetector(
-            onTap: _sending ? null : _sendMessage,
+            key: const ValueKey('chat-send'),
+            onTap: _sendMessage,
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-              child: _sending
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: PawSpinner(color: Colors.white))
-                  : const Icon(Icons.send, color: Colors.white),
+              child: const Icon(Icons.send, color: Colors.white),
             ),
           ),
         ],
