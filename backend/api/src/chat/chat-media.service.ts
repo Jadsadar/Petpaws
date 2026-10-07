@@ -1,8 +1,9 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Pool, PoolClient } from 'pg';
+import { InjectRepository } from '@nestjs/typeorm';
+import { In, IsNull, type EntityManager, type Repository } from 'typeorm';
 import { randomUUID } from 'node:crypto';
-import { PG_POOL } from '../database/database.module.js';
+import { MediaUpload } from '../database/entities/index.js';
 import { AppException } from '../common/app-exception.js';
 import { MediaService } from '../media/media.service.js';
 import type { CreateMediaUploadDto } from './dto/create-media-upload.dto.js';
@@ -55,7 +56,7 @@ export class ChatMediaService {
   private readonly ttlSeconds: number;
 
   constructor(
-    @Inject(PG_POOL) private readonly pool: Pool,
+    @InjectRepository(MediaUpload) private readonly uploads: Repository<MediaUpload>,
     private readonly media: MediaService,
     config: ConfigService,
   ) {
@@ -73,11 +74,10 @@ export class ChatMediaService {
     const thumbnailKey = `${CHAT_MEDIA_PREFIX}${id}_thumb.jpg`;
     const expiresAt = new Date(Date.now() + this.ttlSeconds * 1000);
 
-    await this.pool.query(
-      `INSERT INTO media_uploads (user_id, storage_key, content_type, expires_at)
-       VALUES ($1, $2, $3, $5), ($1, $4, '${THUMBNAIL_CONTENT_TYPE}', $5)`,
-      [userId, key, dto.contentType, thumbnailKey, expiresAt],
-    );
+    await this.uploads.insert([
+      { userId, storageKey: key, contentType: dto.contentType, expiresAt },
+      { userId, storageKey: thumbnailKey, contentType: THUMBNAIL_CONTENT_TYPE, expiresAt },
+    ]);
 
     const [upload, thumbnailUpload] = await Promise.all([
       this.media.presignPost(key, dto.contentType, MAX_BYTES[dto.type], this.ttlSeconds),
@@ -104,12 +104,12 @@ export class ChatMediaService {
       throw new AppException('INVALID_MEDIA', 'วิดีโอต้องระบุความยาว');
     }
 
-    const res = await this.pool.query<{ storage_key: string; content_type: string }>(
-      `SELECT storage_key, content_type FROM media_uploads
-       WHERE user_id = $1 AND storage_key = ANY($2) AND claimed_at IS NULL`,
-      [userId, [dto.key, dto.thumbnailKey]],
-    );
-    const contentTypes = new Map(res.rows.map((r) => [r.storage_key, r.content_type]));
+    // เฉพาะไฟล์ของผู้ส่งที่ยังไม่ถูกใช้ — กันเอา key ของคนอื่น/ของเก่ามาส่งซ้ำ
+    const rows = await this.uploads.find({
+      select: { storageKey: true, contentType: true },
+      where: { userId, storageKey: In([dto.key, dto.thumbnailKey]), claimedAt: IsNull() },
+    });
+    const contentTypes = new Map(rows.map((r) => [r.storageKey, r.contentType]));
     const mediaType = contentTypes.get(dto.key);
     const thumbnailType = contentTypes.get(dto.thumbnailKey);
     // ไม่บอกว่าผิดเพราะอะไร (ไม่ใช่ของเรา / ใช้ไปแล้ว / ไม่มีอยู่) — ไม่ให้ไล่เดา key คนอื่น
@@ -140,13 +140,13 @@ export class ChatMediaService {
    * เรียกใน transaction เดียวกับ INSERT ข้อความ — ส่งข้อความเดียวกันซ้ำพร้อมกัน 2 request
    * ตัวที่สองจะ claim ไม่ได้ (rowCount < 2) แล้ว rollback ไม่เกิดข้อความซ้ำที่ชี้ไฟล์เดียวกัน
    */
-  async claim(client: PoolClient, userId: string, keys: [string, string]) {
-    const res = await client.query(
-      `UPDATE media_uploads SET claimed_at = now()
-       WHERE user_id = $1 AND storage_key = ANY($2) AND claimed_at IS NULL`,
-      [userId, keys],
+  async claim(em: EntityManager, userId: string, keys: [string, string]) {
+    const res = await em.update(
+      MediaUpload,
+      { userId, storageKey: In(keys), claimedAt: IsNull() },
+      { claimedAt: () => 'now()' },
     );
-    if (res.rowCount !== keys.length) throw this.invalid();
+    if (res.affected !== keys.length) throw this.invalid();
   }
 
   private invalid() {

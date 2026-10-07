@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { Pool } from 'pg';
+import type { DataSource } from 'typeorm';
 import { AdminService } from './admin.service.js';
 import { resolvePaging } from './dto/pagination.dto.js';
 import { CacheService } from '../cache/cache.service.js';
@@ -7,11 +7,12 @@ import { CacheService } from '../cache/cache.service.js';
 // ไม่ต่อ Redis = อ่าน DB ตรงทุกครั้ง (พฤติกรรม cache ทดสอบแยกใน cache.service.spec.ts)
 const noCache = new CacheService(null);
 
-// สร้าง pool ปลอมที่คืน rows ตามลำดับคำสั่ง query ที่ถูกเรียก (ไม่ต่อ DB จริง)
+// DataSource ปลอมที่คืน rows ตามลำดับคำสั่ง query ที่ถูกเรียก (ไม่ต่อ DB จริง)
+// ตัว SQL ของรายงานทดสอบกับ DB จริงใน test/modules-db.e2e-spec.ts
 function poolWith(...results: { rows: unknown[] }[]) {
   const query = vi.fn();
-  for (const r of results) query.mockResolvedValueOnce(r);
-  return { pool: { query } as unknown as Pool, query };
+  for (const r of results) query.mockResolvedValueOnce(r.rows);
+  return { pool: { query } as unknown as DataSource, query };
 }
 
 const paging = (page: number, pageSize: number) => resolvePaging({ page, pageSize });

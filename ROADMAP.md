@@ -348,6 +348,6 @@ Phase 4.1-4.6  Flutter: ถอด Firebase + ต่อ API ใหม่
 
 **2. `docker-entrypoint-initdb.d` ใช้บน production ไม่ได้** — ตอนนี้แก้ไฟล์ migration แล้วต้อง `docker compose down -v` (ล้างข้อมูลทิ้ง) ถึงจะมีผล ต้องเปลี่ยนเป็น migration runner จริงใน Phase 1.5
 
-**3. ORM ยังไม่ได้เลือก** — schema ใช้ partial index, composite FK, deferrable trigger ที่ ORM ส่วนใหญ่ประกาศไม่ได้ ถ้าเลือก TypeORM/Prisma ให้ตั้ง `synchronize: false` แล้วใช้ SQL ดิบเป็นแหล่งความจริง อย่าให้ ORM สร้างตารางเอง
+**3. ORM: TypeORM** — ใช้แล้ว (`synchronize: false`) schema ยังมาจาก migration SQL เป็นแหล่งความจริงเดียว ดูกติกาใน `backend/db/README.md` หัวข้อ "ORM: TypeORM"
 
 **4. Flutter เป็น web-only ตอนนี้** — ไม่มีโฟลเดอร์ `android/` `ios/` ถ้าจะลงมือถือต้อง `flutter create --platforms=android .` ก่อน

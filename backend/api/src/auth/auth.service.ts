@@ -1,26 +1,22 @@
-import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, IsNull, type Repository } from 'typeorm';
 import * as argon2 from 'argon2';
 import { randomBytes, randomUUID, createHash } from 'node:crypto';
-import type { Pool } from 'pg';
-import { PG_POOL } from '../database/database.module.js';
 import { AppException } from '../common/app-exception.js';
 import { firstPasswordError } from './password-policy.js';
 import { MailService } from '../mail/mail.service.js';
 import { verificationEmail, type VerifyOutcome } from './email-templates.js';
+import {
+  EmailVerificationToken,
+  PasswordResetToken,
+  RefreshToken,
+  User,
+} from '../database/entities/index.js';
 import type { RegisterDto } from './dto/register.dto.js';
 import type { LoginDto } from './dto/login.dto.js';
-
-interface UserRow {
-  id: string;
-  username: string;
-  email: string;
-  display_name: string;
-  avatar_url: string | null;
-  location: string | null;
-  profile_completed_at: Date | null;
-}
 
 export interface TokenPair {
   accessToken: string;
@@ -36,12 +32,23 @@ const VERIFY_TOKEN_TTL_HOURS = 24;
 const VERIFY_RESEND_COOLDOWN_SECONDS = 60;
 const VERIFY_RESEND_MESSAGE = 'ถ้าบัญชีนี้ยังไม่ได้ยืนยัน ระบบส่งลิงก์ยืนยันไปที่อีเมลแล้ว';
 
+/** วันหมดอายุคิดจากนาฬิกาของ DB (ไม่ใช่ของ API) — เครื่อง API หลายตัวเวลาเพี้ยนกันได้ */
+const dbNowPlusSeconds = (seconds: number) => () => `now() + make_interval(secs => ${Math.trunc(seconds)})`;
+
+/** ค้นผู้ใช้ด้วยอีเมลหรือ username (citext — ไม่สนตัวพิมพ์ใหญ่เล็ก) ตามที่ผู้ใช้กรอกมา */
+const byIdentifier = (identifier: string) =>
+  identifier.includes('@') ? { email: identifier.trim() } : { username: identifier.trim() };
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger('AuthService');
 
   constructor(
-    @Inject(PG_POOL) private readonly pool: Pool,
+    @InjectDataSource() private readonly dataSource: DataSource,
+    @InjectRepository(User) private readonly users: Repository<User>,
+    @InjectRepository(RefreshToken) private readonly refreshTokens: Repository<RefreshToken>,
+    @InjectRepository(PasswordResetToken) private readonly resetTokens: Repository<PasswordResetToken>,
+    @InjectRepository(EmailVerificationToken) private readonly verifyTokens: Repository<EmailVerificationToken>,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly mail: MailService,
@@ -51,16 +58,16 @@ export class AuthService {
     return createHash('sha256').update(input).digest('hex');
   }
 
-  private toUserResponse(row: UserRow) {
+  private toUserResponse(user: User) {
     return {
-      id: row.id,
-      username: row.username,
-      email: row.email,
-      displayName: row.display_name,
-      avatarUrl: row.avatar_url,
-      profileCompleted: row.profile_completed_at !== null,
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      displayName: user.displayName,
+      avatarUrl: user.avatarUrl,
+      profileCompleted: user.profileCompletedAt !== null,
       // แอปเก็บไว้เติมจังหวัดเริ่มต้นตอนลงประกาศ ไม่ต้องยิง GET /users/me เพิ่ม
-      province: row.location,
+      province: user.location,
     };
   }
 
@@ -87,30 +94,24 @@ export class AuthService {
     return value * multiplier;
   }
 
-  /** ออก refresh token ใหม่ผูกกับ family เดิม (หรือ family ใหม่ถ้าเป็นการล็อกอินครั้งแรก) */
-  private async issueRefreshToken(
-    userId: string,
-    familyId: string,
-  ): Promise<string> {
+  /** ออก refresh token ใหม่ผูกกับ family เดิม (หรือ family ใหม่ถ้าเป็นการล็อกอินครั้งแรก) — คืน token และ id ของแถว */
+  private async issueRefreshToken(userId: string, familyId: string) {
     const token = randomBytes(REFRESH_TOKEN_BYTES).toString('base64url');
-    const tokenHash = this.sha256(token);
-    const ttlSeconds = this.ttlToSeconds(
-      this.config.getOrThrow<string>('JWT_REFRESH_TTL'),
-    );
-
-    await this.pool.query(
-      `INSERT INTO refresh_tokens (user_id, token_hash, family_id, expires_at)
-       VALUES ($1, $2, $3, now() + ($4 || ' seconds')::interval)`,
-      [userId, tokenHash, familyId, ttlSeconds],
-    );
-
-    return token;
+    const ttlSeconds = this.ttlToSeconds(this.config.getOrThrow<string>('JWT_REFRESH_TTL'));
+    const result = await this.refreshTokens.insert({
+      userId,
+      tokenHash: this.sha256(token),
+      familyId,
+      expiresAt: dbNowPlusSeconds(ttlSeconds),
+    });
+    return { token, id: result.identifiers[0].id as string };
   }
 
-  private async issueTokenPair(userId: string, familyId: string): Promise<TokenPair> {
+  private async issueTokenPair(userId: string, familyId: string) {
+    const refresh = await this.issueRefreshToken(userId, familyId);
     return {
-      accessToken: this.signAccessToken(userId),
-      refreshToken: await this.issueRefreshToken(userId, familyId),
+      tokens: { accessToken: this.signAccessToken(userId), refreshToken: refresh.token } as TokenPair,
+      refreshId: refresh.id,
     };
   }
 
@@ -129,40 +130,35 @@ export class AuthService {
     // ไปก่อน แล้วให้ profile_completed_at เป็น NULL เป็นตัวบอกว่ายังไม่ได้กรอกโปรไฟล์จริง
     // (ดูเหตุผลเต็มใน migration 011_profile_completed.sql)
     const username = dto.username.trim();
-    // ส่ง username แยกเป็น $1 กับ $4 คนละตัว (แม้ค่าจะเหมือนกัน) เพราะ username กับ
-    // display_name เป็นคอลัมน์คนละชนิด (citext vs varchar) — ใช้ $1 ซ้ำสองคอลัมน์ทำให้
-    // Postgres infer type ของ parameter ไม่ได้ ("inconsistent types deduced for parameter $1")
-    const result = await this.pool.query<{ id: string }>(
-      `INSERT INTO users (username, email, password_hash, display_name)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id`,
-      [username, dto.email.trim(), passwordHash, username],
-    );
+    const result = await this.users.insert({
+      username,
+      email: dto.email.trim(),
+      passwordHash,
+      displayName: username,
+    });
+    const userId = result.identifiers[0].id as string;
 
     // ส่งลิงก์ยืนยันแบบไม่รอ (ผู้ใช้ไม่ต้องรอ API ของผู้ให้บริการอีเมล) — ส่งไม่สำเร็จก็ไม่ทำให้สมัครล้ม
     // ผู้ใช้กด "ส่งลิงก์อีกครั้ง" ได้เอง
     if (this.mail.enabled) {
-      void this.issueVerification(result.rows[0].id, dto.email.trim(), username).catch((err: Error) =>
-        this.logger.error(`ส่งอีเมลยืนยันไม่สำเร็จ user=${result.rows[0].id}: ${err.message}`),
+      void this.issueVerification(userId, dto.email.trim(), username).catch((err: Error) =>
+        this.logger.error(`ส่งอีเมลยืนยันไม่สำเร็จ user=${userId}: ${err.message}`),
       );
     }
 
     // แอปใช้ค่านี้เลือกว่าจะขึ้นหน้า "ตรวจอีเมลของคุณ" หรือกลับไปหน้าล็อกอินตามเดิม
-    return { id: result.rows[0].id, verificationRequired: this.mail.enabled };
+    return { id: userId, verificationRequired: this.mail.enabled };
   }
 
-  /** สร้างลิงก์ยืนยันใหม่ (ลิงก์เก่าที่ยังไม่ถูกใช้ใช้ไม่ได้อีก) แล้วส่งอีเมล */
+  /** สร้างลิงก์ยืนยันใหม่ (ลิงก์เก่าที่ยังไม่ถูกใช้ใช้ไม่ได้อีก) แล้วส่งอีเมล — DB เก็บแค่ hash ของ token */
   private async issueVerification(userId: string, email: string, username: string): Promise<void> {
     const token = randomBytes(VERIFY_TOKEN_BYTES).toString('base64url');
-    await this.pool.query(
-      `UPDATE email_verification_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL`,
-      [userId],
-    );
-    await this.pool.query(
-      `INSERT INTO email_verification_tokens (user_id, token_hash, expires_at)
-       VALUES ($1, $2, now() + ($3 || ' hours')::interval)`,
-      [userId, this.sha256(token), VERIFY_TOKEN_TTL_HOURS],
-    );
+    await this.verifyTokens.update({ userId, usedAt: IsNull() }, { usedAt: () => 'now()' });
+    await this.verifyTokens.insert({
+      userId,
+      tokenHash: this.sha256(token),
+      expiresAt: dbNowPlusSeconds(VERIFY_TOKEN_TTL_HOURS * 3600),
+    });
 
     const base = (this.config.get<string>('APP_PUBLIC_URL') || `http://localhost:${this.config.get<string>('API_PORT') ?? '3000'}`)
       .replace(/\/+$/, '');
@@ -173,40 +169,28 @@ export class AuthService {
 
   /** กดลิงก์ในอีเมล — คืนผลให้ controller วาดหน้าเว็บ (ใช้ซ้ำหลังยืนยันแล้วถือว่าสำเร็จ กันโปรแกรมสแกนลิงก์กดซ้ำ) */
   async verifyEmail(token: string): Promise<VerifyOutcome> {
-    const res = await this.pool.query<{
-      id: string;
-      user_id: string;
-      used_at: Date | null;
-      expires_at: Date;
-      email_verified_at: Date | null;
-    }>(
-      `SELECT t.id, t.user_id, t.used_at, t.expires_at, u.email_verified_at
-       FROM email_verification_tokens t
-       JOIN users u ON u.id = t.user_id AND u.deleted_at IS NULL
-       WHERE t.token_hash = $1`,
-      [this.sha256(token)],
-    );
-    if (res.rows.length === 0) return 'invalid';
-    const row = res.rows[0];
+    const row = await this.dataSource
+      .createQueryBuilder(EmailVerificationToken, 't')
+      .innerJoin(User, 'u', 'u.id = t.user_id AND u.deleted_at IS NULL')
+      .select([
+        't.id AS id',
+        't.user_id AS user_id',
+        't.used_at AS used_at',
+        't.expires_at AS expires_at',
+        'u.email_verified_at AS email_verified_at',
+      ])
+      .where('t.token_hash = :hash', { hash: this.sha256(token) })
+      .getRawOne<{ id: string; user_id: string; used_at: Date | null; expires_at: Date; email_verified_at: Date | null }>();
+    if (!row) return 'invalid';
 
     if (row.email_verified_at) return 'ok';
     if (row.used_at !== null) return 'used';
     if (row.expires_at < new Date()) return 'expired';
 
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
-      await client.query(`UPDATE users SET email_verified_at = now() WHERE id = $1 AND email_verified_at IS NULL`, [
-        row.user_id,
-      ]);
-      await client.query(`UPDATE email_verification_tokens SET used_at = now() WHERE id = $1`, [row.id]);
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+    await this.dataSource.transaction(async (em) => {
+      await em.update(User, { id: row.user_id, emailVerifiedAt: IsNull() }, { emailVerifiedAt: () => 'now()' });
+      await em.update(EmailVerificationToken, { id: row.id }, { usedAt: () => 'now()' });
+    });
     return 'ok';
   }
 
@@ -217,23 +201,18 @@ export class AuthService {
   async resendVerification(identifier: string) {
     if (!this.mail.enabled) return { message: VERIFY_RESEND_MESSAGE };
 
-    const isEmail = identifier.includes('@');
-    const res = await this.pool.query<{
-      id: string;
-      email: string;
-      username: string;
-      email_verified_at: Date | null;
-      last_sent: Date | null;
-    }>(
-      `SELECT u.id, u.email, u.username, u.email_verified_at,
-              (SELECT max(created_at) FROM email_verification_tokens WHERE user_id = u.id) AS last_sent
-       FROM users u
-       WHERE u.deleted_at IS NULL AND ${isEmail ? 'u.email' : 'u.username'} = $1`,
-      [identifier.trim()],
-    );
-    const u = res.rows[0];
-    if (!u || u.email_verified_at) return { message: VERIFY_RESEND_MESSAGE };
-    if (u.last_sent && Date.now() - u.last_sent.getTime() < VERIFY_RESEND_COOLDOWN_SECONDS * 1000) {
+    const u = await this.users.findOne({
+      select: { id: true, email: true, username: true, emailVerifiedAt: true },
+      where: { ...byIdentifier(identifier), deletedAt: IsNull() },
+    });
+    if (!u || u.emailVerifiedAt) return { message: VERIFY_RESEND_MESSAGE };
+
+    const last = await this.verifyTokens.findOne({
+      select: { createdAt: true },
+      where: { userId: u.id },
+      order: { createdAt: 'DESC' },
+    });
+    if (last && Date.now() - last.createdAt.getTime() < VERIFY_RESEND_COOLDOWN_SECONDS * 1000) {
       return { message: VERIFY_RESEND_MESSAGE };
     }
 
@@ -246,45 +225,27 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const isEmail = dto.identifier.includes('@');
-    const result = await this.pool.query<
-      UserRow & {
-        password_hash: string;
-        is_suspended: boolean;
-        suspended_until: Date | null;
-        email_verified_at: Date | null;
-      }
-    >(
-      `SELECT id, username, email, display_name, avatar_url, location, profile_completed_at,
-              password_hash, is_suspended, suspended_until, email_verified_at
-       FROM users
-       WHERE deleted_at IS NULL AND ${isEmail ? 'email' : 'username'} = $1`,
-      [dto.identifier.trim()],
-    );
+    const user = await this.users.findOneBy({ ...byIdentifier(dto.identifier), deletedAt: IsNull() });
 
     // ข้อความ error เดียวกันไม่ว่า identifier ผิดหรือรหัสผ่านผิด
     // กันไม่ให้เดาได้ว่ามี username/email นี้ในระบบไหม
     const genericError = 'ชื่อผู้ใช้/อีเมล หรือรหัสผ่านไม่ถูกต้อง';
 
-    if (result.rows.length === 0) {
+    if (!user) {
       throw AppException.unauthorized(genericError);
     }
-    const user = result.rows[0];
 
-    const passwordOk = await argon2.verify(user.password_hash, dto.password);
+    const passwordOk = await argon2.verify(user.passwordHash, dto.password);
     if (!passwordOk) {
       throw AppException.unauthorized(genericError);
     }
 
     // เช็กหลังรหัสผ่านถูกเท่านั้น — ถ้าเช็กก่อน คนเดารหัสจะรู้ได้ว่ามีบัญชีนี้อยู่จริง
-    if (user.is_suspended) {
-      const until = user.suspended_until;
+    if (user.isSuspended) {
+      const until = user.suspendedUntil;
       if (until && until <= new Date()) {
         // แบนหมดเวลาแล้ว ปลดให้เองตอนล็อกอินครั้งถัดไป ไม่ต้องรอแอดมิน
-        await this.pool.query(
-          `UPDATE users SET is_suspended = false, suspended_until = NULL WHERE id = $1`,
-          [user.id],
-        );
+        await this.users.update({ id: user.id }, { isSuspended: false, suspendedUntil: null });
       } else if (until) {
         const when = until.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' });
         throw AppException.unauthorized(`บัญชีนี้ถูกระงับการใช้งานถึง ${when}`);
@@ -295,7 +256,7 @@ export class AuthService {
 
     // ต้องยืนยันอีเมลก่อนถึงเข้าได้ (เฉพาะเมื่อมีระบบอีเมลพร้อมส่งจริง) — เช็กหลังรหัสผ่านถูกและไม่ถูกแบนเท่านั้น
     // ไม่งั้นคนเดารหัสจะรู้ว่ามีบัญชีนี้อยู่จริง
-    if (this.mail.enabled && !user.email_verified_at) {
+    if (this.mail.enabled && !user.emailVerifiedAt) {
       throw new AppException(
         'EMAIL_NOT_VERIFIED',
         'ยังไม่ได้ยืนยันอีเมล กรุณากดลิงก์ยืนยันที่ส่งไปทางอีเมลก่อนเข้าสู่ระบบ',
@@ -303,78 +264,48 @@ export class AuthService {
       );
     }
 
-    await this.pool.query('UPDATE users SET last_login_at = now() WHERE id = $1', [
-      user.id,
-    ]);
+    await this.users.update({ id: user.id }, { lastLoginAt: () => 'now()' });
 
-    const familyId = randomUUID();
-    const tokens = await this.issueTokenPair(user.id, familyId);
-
+    const { tokens } = await this.issueTokenPair(user.id, randomUUID());
     return { ...tokens, user: this.toUserResponse(user) };
   }
 
   async refresh(refreshToken: string) {
-    const tokenHash = this.sha256(refreshToken);
+    const row = await this.refreshTokens.findOneBy({ tokenHash: this.sha256(refreshToken) });
 
-    const result = await this.pool.query<{
-      id: string;
-      user_id: string;
-      family_id: string;
-      used_at: Date | null;
-      revoked_at: Date | null;
-      expires_at: Date;
-    }>(
-      `SELECT id, user_id, family_id, used_at, revoked_at, expires_at
-       FROM refresh_tokens WHERE token_hash = $1`,
-      [tokenHash],
-    );
-
-    if (result.rows.length === 0) {
+    if (!row) {
       throw AppException.unauthorized('refresh token ไม่ถูกต้อง');
     }
-    const row = result.rows[0];
 
     // token เดิมที่เคยถูกใช้ไปแล้วถูกเอามาใช้ซ้ำ = มีสำเนาหลุดออกไป
     // เพิกถอนทั้งสาย (family) ทันที บังคับให้ทุกอุปกรณ์ต้องล็อกอินใหม่
-    if (row.used_at !== null) {
-      await this.pool.query(
-        `UPDATE refresh_tokens SET revoked_at = now(), revoked_reason = 'reuse_detected'
-         WHERE family_id = $1 AND revoked_at IS NULL`,
-        [row.family_id],
+    if (row.usedAt !== null) {
+      await this.refreshTokens.update(
+        { familyId: row.familyId, revokedAt: IsNull() },
+        { revokedAt: () => 'now()', revokedReason: 'reuse_detected' },
       );
       throw AppException.unauthorized(
         'ตรวจพบการใช้ refresh token ซ้ำ ระบบได้เพิกถอน session ทั้งหมดเพื่อความปลอดภัย กรุณาเข้าสู่ระบบใหม่',
       );
     }
 
-    if (row.revoked_at !== null || row.expires_at < new Date()) {
+    if (row.revokedAt !== null || row.expiresAt < new Date()) {
       throw AppException.unauthorized('refresh token หมดอายุหรือถูกเพิกถอนแล้ว');
     }
 
-    const tokens = await this.issueTokenPair(row.user_id, row.family_id);
-    const newTokenHash = this.sha256(tokens.refreshToken);
-
-    const newRow = await this.pool.query<{ id: string }>(
-      `SELECT id FROM refresh_tokens WHERE token_hash = $1`,
-      [newTokenHash],
-    );
-
-    await this.pool.query(
-      `UPDATE refresh_tokens
-       SET used_at = now(), revoked_at = now(), revoked_reason = 'rotated', replaced_by_id = $2
-       WHERE id = $1`,
-      [row.id, newRow.rows[0].id],
+    const { tokens, refreshId } = await this.issueTokenPair(row.userId, row.familyId);
+    await this.refreshTokens.update(
+      { id: row.id },
+      { usedAt: () => 'now()', revokedAt: () => 'now()', revokedReason: 'rotated', replacedById: refreshId },
     );
 
     return tokens;
   }
 
   async logout(refreshToken: string) {
-    const tokenHash = this.sha256(refreshToken);
-    await this.pool.query(
-      `UPDATE refresh_tokens SET revoked_at = now(), revoked_reason = 'logout'
-       WHERE token_hash = $1 AND revoked_at IS NULL`,
-      [tokenHash],
+    await this.refreshTokens.update(
+      { tokenHash: this.sha256(refreshToken), revokedAt: IsNull() },
+      { revokedAt: () => 'now()', revokedReason: 'logout' },
     );
     return { success: true };
   }
@@ -391,49 +322,39 @@ export class AuthService {
   async forgotPassword(email: string) {
     const message = 'ถ้ามีบัญชีนี้อยู่ในระบบ ระบบได้ออกลิงก์รีเซ็ตรหัสผ่านแล้ว';
 
-    const userRes = await this.pool.query<{ id: string }>(
-      `SELECT id FROM users WHERE email = $1 AND deleted_at IS NULL`,
-      [email.trim()],
-    );
-    if (userRes.rows.length === 0) {
+    const user = await this.users.findOne({ select: { id: true }, where: { email: email.trim(), deletedAt: IsNull() } });
+    if (!user) {
       return { message };
     }
-    const userId = userRes.rows[0].id;
 
     const token = randomBytes(RESET_TOKEN_BYTES).toString('base64url');
-    const tokenHash = this.sha256(token);
-
-    await this.pool.query(
-      `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
-       VALUES ($1, $2, now() + ($3 || ' seconds')::interval)`,
-      [userId, tokenHash, RESET_TOKEN_TTL_SECONDS],
-    );
+    await this.resetTokens.insert({
+      userId: user.id,
+      tokenHash: this.sha256(token),
+      expiresAt: dbNowPlusSeconds(RESET_TOKEN_TTL_SECONDS),
+    });
 
     return { message, resetToken: token };
   }
 
   async resetPassword(token: string, newPassword: string) {
-    const tokenHash = this.sha256(token);
+    const row = await this.dataSource
+      .createQueryBuilder(PasswordResetToken, 'prt')
+      .innerJoin(User, 'u', 'u.id = prt.user_id')
+      .select([
+        'prt.id AS id',
+        'prt.user_id AS user_id',
+        'prt.used_at AS used_at',
+        'prt.expires_at AS expires_at',
+        'u.username AS username',
+        'u.email AS email',
+      ])
+      .where('prt.token_hash = :hash', { hash: this.sha256(token) })
+      .getRawOne<{ id: string; user_id: string; used_at: Date | null; expires_at: Date; username: string; email: string }>();
 
-    const result = await this.pool.query<{
-      id: string;
-      user_id: string;
-      used_at: Date | null;
-      expires_at: Date;
-      username: string;
-      email: string;
-    }>(
-      `SELECT prt.id, prt.user_id, prt.used_at, prt.expires_at, u.username, u.email
-       FROM password_reset_tokens prt
-       JOIN users u ON u.id = prt.user_id
-       WHERE prt.token_hash = $1`,
-      [tokenHash],
-    );
-
-    if (result.rows.length === 0) {
+    if (!row) {
       throw AppException.unauthorized('ลิงก์รีเซ็ตรหัสผ่านไม่ถูกต้อง');
     }
-    const row = result.rows[0];
 
     if (row.used_at !== null || row.expires_at < new Date()) {
       throw AppException.unauthorized('ลิงก์รีเซ็ตรหัสผ่านหมดอายุหรือถูกใช้ไปแล้ว');
@@ -449,41 +370,24 @@ export class AuthService {
 
     const passwordHash = await argon2.hash(newPassword);
 
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
-      await client.query('UPDATE users SET password_hash = $1 WHERE id = $2', [
-        passwordHash,
-        row.user_id,
-      ]);
-      await client.query('UPDATE password_reset_tokens SET used_at = now() WHERE id = $1', [
-        row.id,
-      ]);
+    await this.dataSource.transaction(async (em) => {
+      await em.update(User, { id: row.user_id }, { passwordHash });
+      await em.update(PasswordResetToken, { id: row.id }, { usedAt: () => 'now()' });
       // เปลี่ยนรหัสผ่านแล้ว = ทุกอุปกรณ์ที่ล็อกอินค้างอยู่ต้องถูกบังคับให้ล็อกอินใหม่
       // (revoked_reason นี้เตรียมไว้แล้วใน migration 002 ตั้งแต่ตอนออกแบบ refresh_tokens)
-      await client.query(
-        `UPDATE refresh_tokens SET revoked_at = now(), revoked_reason = 'password_changed'
-         WHERE user_id = $1 AND revoked_at IS NULL`,
-        [row.user_id],
+      await em.update(
+        RefreshToken,
+        { userId: row.user_id, revokedAt: IsNull() },
+        { revokedAt: () => 'now()', revokedReason: 'password_changed' },
       );
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
+    });
 
     return { success: true };
   }
 
   async me(userId: string) {
-    const result = await this.pool.query<UserRow>(
-      `SELECT id, username, email, display_name, avatar_url, location, profile_completed_at
-       FROM users WHERE id = $1 AND deleted_at IS NULL`,
-      [userId],
-    );
-    if (result.rows.length === 0) throw AppException.notFound('ไม่พบบัญชีผู้ใช้');
-    return this.toUserResponse(result.rows[0]);
+    const user = await this.users.findOneBy({ id: userId, deletedAt: IsNull() });
+    if (!user) throw AppException.notFound('ไม่พบบัญชีผู้ใช้');
+    return this.toUserResponse(user);
   }
 }
