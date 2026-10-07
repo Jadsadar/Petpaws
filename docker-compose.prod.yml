@@ -110,6 +110,12 @@ services:
       # ไม่ใช่ใน secrets/production.env.enc ถ้ามีโดเมนแล้วตั้ง S3_PUBLIC_ENDPOINT ใน .env ทับได้
       # (S3_ENDPOINT=http://minio:9000 ยังเป็นที่อยู่ภายในที่ API ใช้เรียก MinIO เอง)
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://43.211.6.248}
+      # อีเมลยืนยันตอนสมัคร (ลิงก์ในอีเมลชี้มาที่ API นี้) — ค่าที่ไม่ลับตั้งไว้ที่นี่
+      # คีย์จริง BREVO_API_KEY + MAIL_FROM_EMAIL ต้องใส่ใน .env (secrets/production.env.enc ผ่าน SOPS) ถึงจะเปิดใช้:
+      # ยังไม่ใส่ = ระบบอีเมลปิด ไม่บังคับยืนยันอีเมล ผู้ใช้ล็อกอินได้ตามเดิม
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://43.211.6.248}
+      MAIL_PROVIDER: ${MAIL_PROVIDER:-brevo}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Petpaws}
       # ที่อยู่ภายในเครือข่าย docker ไม่ใช่ความลับ — worker ไม่ใช้ cache จึงไม่ตั้งให้
       REDIS_CACHE_URL: ${REDIS_CACHE_URL:-redis://redis-cache:6379}
     depends_on:

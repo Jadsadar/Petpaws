@@ -1,10 +1,14 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, Get, Header, HttpCode, HttpStatus, Post, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { AuthService } from './auth.service.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { RefreshDto } from './dto/refresh.dto.js';
 import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
 import { ResetPasswordDto } from './dto/reset-password.dto.js';
+import { ResendVerificationDto } from './dto/resend-verification.dto.js';
+import { VerifyEmailQueryDto } from './dto/verify-email-query.dto.js';
+import { verifyResultPage } from './email-templates.js';
 import { Public } from '../common/public.decorator.js';
 import { Throttle } from '@nestjs/throttler';
 import { AUTH_RATE_LIMITS } from '../common/rate-limit.js';
@@ -26,6 +30,27 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  /** ลิงก์ที่ผู้ใช้กดจากอีเมล (เปิดในเบราว์เซอร์) — คืนหน้า HTML ผลการยืนยัน */
+  @Public()
+  @Throttle({ default: AUTH_RATE_LIMITS.verifyEmail })
+  @Get('verify-email')
+  @Header('Cache-Control', 'no-store')
+  @Header('Referrer-Policy', 'no-referrer')
+  async verifyEmail(@Query() query: VerifyEmailQueryDto, @Res({ passthrough: true }) res: Response) {
+    const outcome = await this.authService.verifyEmail(query.token);
+    res.status(outcome === 'ok' ? HttpStatus.OK : HttpStatus.BAD_REQUEST);
+    res.type('html');
+    return verifyResultPage(outcome);
+  }
+
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: AUTH_RATE_LIMITS.resendVerification })
+  @Post('resend-verification')
+  resendVerification(@Body() dto: ResendVerificationDto) {
+    return this.authService.resendVerification(dto.identifier);
   }
 
   @Public()

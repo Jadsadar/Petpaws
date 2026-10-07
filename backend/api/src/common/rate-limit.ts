@@ -15,6 +15,10 @@ const emailOf = (req: Record<string, any>) =>
 
 const ipOf = (req: Record<string, any>) => normalizeIp(req.ip ?? '', 64);
 
+/** resend-verification รับ identifier (อีเมลหรือชื่อผู้ใช้) — นับต่อ IP + identifier */
+const identifierOf = (req: Record<string, any>) =>
+  typeof req.body?.identifier === 'string' ? req.body.identifier.trim().toLowerCase() : '';
+
 /**
  * นับ "IP + อีเมล" ไม่ใช่ IP อย่างเดียว: กันเดารหัสผ่านของบัญชีเดียว แต่ไม่ล็อกทั้งห้องเรียน
  * ที่ล็อกอินพร้อมกันผ่าน Wi-Fi วงเดียว (ทุกคนออกเน็ตด้วย IP เดียวกัน)
@@ -28,6 +32,14 @@ export const AUTH_RATE_LIMITS = {
   // ส่งอีเมลรีเซ็ตได้ 3 ครั้งต่อ 15 นาทีต่อบัญชี กันใช้เราเป็นเครื่องยิงสแปมใส่กล่องคนอื่น
   forgotPassword: { ttl: minutes(15), limit: 3, getTracker: byIpAndEmail },
   register: { ttl: minutes(10), limit: 20 },
+  // กดลิงก์ในอีเมล (GET) — กันการสุ่มเดา token
+  verifyEmail: { ttl: minutes(1), limit: 20 },
+  // ส่งลิงก์ยืนยันซ้ำ: 5 ครั้งต่อ 15 นาทีต่อบัญชี (นอกจากนี้ตัว service ยังพัก 60 วินาทีต่อบัญชี)
+  resendVerification: {
+    ttl: minutes(15),
+    limit: 5,
+    getTracker: (req: Record<string, any>) => `ip:${ipOf(req)}|id:${identifierOf(req)}`,
+  },
   resetPassword: { ttl: minutes(15), limit: 10 },
 };
 

@@ -87,6 +87,28 @@ class EnvVars {
   @IsOptional()
   @IsString()
   FCM_PRIVATE_KEY?: string;
+
+  // ---------- อีเมล (ยืนยันอีเมลตอนสมัคร) — ไม่ตั้ง MAIL_PROVIDER = ปิดระบบอีเมล ไม่บังคับยืนยัน ----------
+  @IsOptional()
+  @IsIn(['brevo', 'log'])
+  MAIL_PROVIDER?: string;
+
+  @IsOptional()
+  @IsString()
+  BREVO_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  MAIL_FROM_EMAIL?: string;
+
+  @IsOptional()
+  @IsString()
+  MAIL_FROM_NAME?: string;
+
+  // ที่อยู่ของ API ที่ผู้ใช้เปิดได้จากอีเมล (ใช้ประกอบลิงก์ยืนยัน) เช่น http://43.211.6.248
+  @IsOptional()
+  @IsString()
+  APP_PUBLIC_URL?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {
