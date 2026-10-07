@@ -89,25 +89,44 @@ class AuthService {
       ChatSocket.instance.connect();
       _controller.add(_currentUser);
     } on ApiException catch (e) {
-      throw AuthFailure(e.message);
+      throw AuthFailure(e.message, code: e.code);
     }
   }
 
   /// สมัครสมาชิกด้วย username + email + password เท่านั้น ยังไม่มีชื่อเล่น
   /// (ตรงกับ POST /auth/register ที่ไม่ auto sign-in ให้ — ต้องไปกด login เอง)
-  Future<void> register({
+  ///
+  /// คืน true = backend ส่งลิงก์ยืนยันไปทางอีเมลแล้ว ผู้ใช้ต้องกดลิงก์ก่อนล็อกอินได้
+  /// คืน false = ระบบอีเมลยังปิดอยู่ (ไม่บังคับยืนยัน) ล็อกอินได้เลย
+  Future<bool> register({
     required String email,
     required String password,
     required String username,
   }) async {
     try {
-      await _api.post(
+      final res = await _api.post(
         '/auth/register',
         body: {'username': username, 'email': email, 'password': password},
         auth: false,
       );
+      return res is Map && res['verificationRequired'] == true;
     } on ApiException catch (e) {
-      throw AuthFailure(e.message);
+      throw AuthFailure(e.message, code: e.code);
+    }
+  }
+
+  /// ส่งลิงก์ยืนยันอีเมลอีกครั้ง — [identifier] เป็นอีเมลหรือชื่อผู้ใช้ก็ได้
+  /// backend ตอบข้อความเดียวกันเสมอ (ไม่บอกว่ามีบัญชีนี้ไหม) และพักส่งซ้ำ 60 วินาทีต่อบัญชี
+  Future<String> resendVerification(String identifier) async {
+    try {
+      final res = await _api.post(
+        '/auth/resend-verification',
+        body: {'identifier': identifier},
+        auth: false,
+      ) as Map<String, dynamic>;
+      return (res['message'] as String?) ?? 'ส่งลิงก์ยืนยันแล้ว';
+    } on ApiException catch (e) {
+      throw AuthFailure(e.message, code: e.code);
     }
   }
 
@@ -181,8 +200,11 @@ class AuthService {
 }
 
 class AuthFailure implements Exception {
-  AuthFailure(this.message);
+  AuthFailure(this.message, {this.code});
   final String message;
+
+  /// รหัสจาก backend เช่น EMAIL_NOT_VERIFIED (หน้าล็อกอินใช้เสนอปุ่ม "ส่งลิงก์ยืนยันอีกครั้ง")
+  final String? code;
 
   @override
   String toString() => message;

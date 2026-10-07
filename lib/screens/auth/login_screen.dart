@@ -82,10 +82,47 @@ class _LoginScreenState extends State<LoginScreen> {
       // AuthGate จะสลับหน้าไปยัง MainScreen ให้อัตโนมัติเมื่อสถานะล็อกอินเปลี่ยน
     } on AuthFailure catch (e) {
       if (!mounted) return;
-      _showFieldError(password: e.message);
+      if (e.code == 'EMAIL_NOT_VERIFIED') {
+        // ยังไม่ได้กดลิงก์ในอีเมล — เสนอส่งลิงก์ใหม่แทนการโชว์ error ใต้ช่องรหัสผ่านเฉยๆ
+        // หยุดหมุนโหลดก่อนเปิดกล่อง ไม่งั้นปุ่มล็อกอินหมุนค้างอยู่ข้างหลังกล่องจนกว่าจะปิด
+        setState(() => _isLoading = false);
+        await _offerResend(identifier, e.message);
+      } else {
+        _showFieldError(password: e.message);
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  /// ล็อกอินไม่ผ่านเพราะยังไม่ได้ยืนยันอีเมล — เสนอส่งลิงก์ยืนยันอีกครั้ง
+  Future<void> _offerResend(String identifier, String message) async {
+    final resend = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ยังไม่ได้ยืนยันอีเมล'),
+        content: Text(message),
+        actions: [
+          TextButton(
+              key: const ValueKey('verify-close'),
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('ปิด')),
+          TextButton(
+              key: const ValueKey('verify-resend'),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('ส่งลิงก์ยืนยันอีกครั้ง')),
+        ],
+      ),
+    );
+    if (resend != true || !mounted) return;
+    String text;
+    try {
+      text = await AuthService.instance.resendVerification(identifier);
+    } on AuthFailure catch (e) {
+      text = e.message;
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
   @override
@@ -130,6 +167,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 48),
               TextField(
+                key: const ValueKey('login-identifier'),
                 controller: identifierController,
                 onChanged: (_) => _clearFieldErrors(),
                 enabled: !_isLoading,
@@ -148,6 +186,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
               TextField(
+                key: const ValueKey('login-password'),
                 controller: passwordController,
                 onChanged: (_) => _clearFieldErrors(),
                 obscureText: _obscurePassword,
@@ -182,6 +221,7 @@ class _LoginScreenState extends State<LoginScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
+                  key: const ValueKey('login-submit'),
                   onPressed: _isLoading ? null : login,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
@@ -214,6 +254,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           fontWeight: FontWeight.w600,
                           color: AppColors.textDark)),
                   GestureDetector(
+                    key: const ValueKey('login-register-link'),
                     onTap: _isLoading ? null : _goToRegister,
                     child: const Text(
                       'สมัครเลย',

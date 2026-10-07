@@ -35,7 +35,21 @@ export interface SentMessage {
   text: string;
   media: MessageMedia | null;
   createdAt: Date;
+  /** id ที่แอปของผู้ส่งสร้างเอง — แอปใช้จับคู่ข้อความที่รอส่งกับข้อความจริง (null = แอปรุ่นก่อน) */
+  clientId: string | null;
 }
+
+/** unique index ของ (sender_id, client_id) — ชนแปลว่าข้อความนี้ถูกบันทึกไปแล้วจากคำขอก่อนหน้า */
+const CLIENT_ID_CONSTRAINT = 'messages_sender_client_id_key';
+/** unique (pet_id, initiator_id) — ชนแปลว่ามีคำขออื่นสร้างห้องนี้ไปก่อนหน้าเสี้ยววินาที */
+const CONVERSATION_CONSTRAINT = 'conversations_pet_initiator_key';
+
+const isUniqueViolation = (err: unknown, constraint: string) =>
+  (err as { code?: string; constraint?: string })?.code === '23505' &&
+  (err as { constraint?: string }).constraint === constraint;
+
+const MESSAGE_COLUMNS = `id, sender_id, body, kind, media_type, media_url, thumbnail_url,
+              media_width, media_height, media_duration_ms, created_at, read_at, client_id`;
 
 interface MessageRow {
   id: string;
@@ -50,6 +64,7 @@ interface MessageRow {
   created_at: Date;
   read_at: Date | null;
   kind: string;
+  client_id: string | null;
 }
 
 /** สิ่งที่ผู้ใช้ส่งมา 1 ข้อความ — ตรวจแล้วว่าไม่ว่างและสื่อเป็นของผู้ส่งจริง */
@@ -202,7 +217,17 @@ export class ChatService {
       createdAt: row.created_at,
       // ผู้รับอ่านแล้วเมื่อไหร่ (null = ยังไม่อ่าน) — ให้ "อ่านแล้ว" อยู่ถาวร ไม่ใช่เห็นแค่ตอน event สด
       readAt: row.read_at,
+      clientId: row.client_id,
     };
+  }
+
+  /** ข้อความที่ผู้ส่งคนนี้เคยบันทึกด้วย clientId นี้แล้ว (ส่งซ้ำหลังคำตอบหาย) */
+  private async findSent(userId: string, clientId: string) {
+    const res = await this.pool.query<MessageRow>(
+      `SELECT ${MESSAGE_COLUMNS} FROM messages WHERE sender_id = $1 AND client_id = $2`,
+      [userId, clientId],
+    );
+    return res.rows[0] ? this.toMessage(res.rows[0]) : null;
   }
 
   /** ข้อความต้องมีตัวหนังสือหรือสื่ออย่างน้อยหนึ่งอย่าง สื่อต้องเป็นของผู้ส่งและอัปเสร็จแล้ว */
@@ -227,17 +252,19 @@ export class ChatService {
     chatId: string,
     userId: string,
     content: MessageContent,
+    clientId: string | null,
   ): Promise<SentMessage> {
     const m = content.media;
     const res = await client.query<{ id: string; created_at: Date }>(
       `INSERT INTO messages (conversation_id, sender_id, body, created_at,
-         media_type, media_url, thumbnail_url, media_width, media_height, media_duration_ms)
-       VALUES ($1, $2, $3, now(), $4, $5, $6, $7, $8, $9)
+         media_type, media_url, thumbnail_url, media_width, media_height, media_duration_ms, client_id)
+       VALUES ($1, $2, $3, now(), $4, $5, $6, $7, $8, $9, $10)
        RETURNING id, created_at`,
       [
         chatId, userId, content.text,
         m?.type ?? null, m?.url ?? null, m?.thumbnailUrl ?? null,
         m?.width ?? null, m?.height ?? null, m?.durationMs ?? null,
+        clientId,
       ],
     );
     if (m) await this.chatMedia.claim(client, userId, m.keys);
@@ -256,6 +283,7 @@ export class ChatService {
           }
         : null,
       createdAt: res.rows[0].created_at,
+      clientId,
     };
   }
 
@@ -308,23 +336,38 @@ export class ChatService {
     );
 
     if (existing.rows.length > 0) {
-      const chatId = existing.rows[0].id;
-      await this.sendMessage(userId, chatId, { text: dto.message, media: dto.media });
-      return { chatId };
+      return this.sendIntoExisting(userId, existing.rows[0].id, dto);
     }
 
     const content = await this.resolveContent(userId, dto.message, dto.media);
-    const { chatId, message } = await this.inTransaction(async (client) => {
-      const convRes = await client.query<{ id: string }>(
-        `INSERT INTO conversations (pet_id, initiator_id, owner_id)
-         VALUES ($1, $2, $3) RETURNING id`,
-        [dto.petId, userId, ownerId],
+    let created: { chatId: string; message: SentMessage };
+    try {
+      created = await this.inTransaction(async (client) => {
+        const convRes = await client.query<{ id: string }>(
+          `INSERT INTO conversations (pet_id, initiator_id, owner_id)
+           VALUES ($1, $2, $3) RETURNING id`,
+          [dto.petId, userId, ownerId],
+        );
+        const id = convRes.rows[0].id;
+        return { chatId: id, message: await this.insertMessage(client, id, userId, content, dto.clientId ?? null) };
+      });
+    } catch (err) {
+      // อีกคำขอ (เช่น กดส่งซ้ำขณะคำขอแรกยังไม่เสร็จ) สร้างห้องไปก่อนเสี้ยววินาที —
+      // ห้องมีแล้ว ส่งเข้าห้องนั้นแทน ไม่ใช่ตอบ 409 ให้ผู้ใช้งง
+      if (!isUniqueViolation(err, CONVERSATION_CONSTRAINT)) throw err;
+      const room = await this.pool.query<{ id: string }>(
+        `SELECT id FROM conversations WHERE pet_id = $1 AND initiator_id = $2`,
+        [dto.petId, userId],
       );
-      const id = convRes.rows[0].id;
-      return { chatId: id, message: await this.insertMessage(client, id, userId, content) };
-    });
+      return this.sendIntoExisting(userId, room.rows[0].id, dto);
+    }
 
-    this.afterMessageSent(chatId, ownerId, message);
+    this.afterMessageSent(created.chatId, ownerId, created.message);
+    return { chatId: created.chatId };
+  }
+
+  private async sendIntoExisting(userId: string, chatId: string, dto: CreateChatDto) {
+    await this.sendMessage(userId, chatId, { text: dto.message, media: dto.media, clientId: dto.clientId });
     return { chatId };
   }
 
@@ -408,8 +451,7 @@ export class ChatService {
   async messages(userId: string, chatId: string, query: ListMessagesQueryDto = {}) {
     const conv = await this.assertParticipant(chatId, userId);
     const page = this.pool.query<MessageRow>(
-      `SELECT id, sender_id, body, kind, media_type, media_url, thumbnail_url,
-              media_width, media_height, media_duration_ms, created_at, read_at
+      `SELECT ${MESSAGE_COLUMNS}
        FROM messages
        WHERE conversation_id = $1 AND deleted_at IS NULL
          -- ข้อความก่อนเวลาที่ฉันลบแชทไม่โผล่กลับมา (ดู conversation_hides)
@@ -431,15 +473,38 @@ export class ChatService {
     return { messages: res.rows.reverse().map((r) => this.toMessage(r)), room };
   }
 
-  async sendMessage(userId: string, chatId: string, dto: { text?: string; media?: MessageMediaDto }) {
+  /**
+   * [dto.clientId] = ข้อความนี้เคยถูกส่งมาแล้วหรือยัง (แอปส่งซ้ำตอนคำตอบหาย/กดลองใหม่):
+   * เคยบันทึกแล้ว → คืนข้อความเดิมโดยไม่บันทึก/แจ้งเตือนซ้ำ ต้องเช็กก่อน resolveContent
+   * เพราะไฟล์แนบของข้อความเดิมถูก claim ไปแล้ว จะโดนปฏิเสธว่า "ถูกใช้ไปแล้ว"
+   */
+  async sendMessage(
+    userId: string,
+    chatId: string,
+    dto: { text?: string; media?: MessageMediaDto; clientId?: string },
+  ) {
     const conv = await this.assertParticipant(chatId, userId);
+    const clientId = dto.clientId ?? null;
+    if (clientId) {
+      const sent = await this.findSent(userId, clientId);
+      if (sent) return { success: true, message: sent };
+    }
     if (conv.status !== 'active') {
       throw AppException.forbidden('ห้องแชทนี้ถูกปิดแล้ว ส่งข้อความใหม่ไม่ได้');
     }
     const content = await this.resolveContent(userId, dto.text, dto.media);
-    const message = await this.inTransaction((client) =>
-      this.insertMessage(client, chatId, userId, content),
-    );
+    let message: SentMessage;
+    try {
+      message = await this.inTransaction((client) =>
+        this.insertMessage(client, chatId, userId, content, clientId),
+      );
+    } catch (err) {
+      // คำขอซ้ำสองอันมาถึงพร้อมกัน ตัวแรกบันทึกไปแล้ว — ตอบด้วยข้อความเดียวกัน
+      if (!clientId || !isUniqueViolation(err, CLIENT_ID_CONSTRAINT)) throw err;
+      const sent = await this.findSent(userId, clientId);
+      if (!sent) throw err;
+      return { success: true, message: sent };
+    }
     const recipientId = conv.initiator_id === userId ? conv.owner_id : conv.initiator_id;
     this.afterMessageSent(chatId, recipientId, message);
     return { success: true, message };

@@ -6,6 +6,7 @@ import '../../utils/password_policy.dart';
 import '../../widgets/password_checklist.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/field_error.dart';
+import 'verify_email_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -57,14 +58,24 @@ class _RegisterScreenState extends State<RegisterScreen> with FieldErrors {
 
     setState(() => _isLoading = true);
     try {
-      await AuthService.instance.register(
+      final needsVerification = await AuthService.instance.register(
         email: emailController.text.trim(),
         password: passwordController.text,
         username: username,
       );
       currentUserProfile['email'] = emailController.text.trim();
-      // POST /auth/register ไม่ได้ล็อกอินให้ — กลับไปหน้า login ให้ผู้ใช้เข้าเอง
       if (!mounted) return;
+      // ต้องยืนยันอีเมล: แสดงหน้า "ตรวจอีเมลของคุณ" ก่อน (ปิดหน้านั้นแล้วค่อยกลับไปหน้า login)
+      if (needsVerification) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => VerifyEmailScreen(email: emailController.text.trim(), identifier: username),
+          ),
+        );
+        if (!mounted) return;
+      }
+      // POST /auth/register ไม่ได้ล็อกอินให้ — กลับไปหน้า login ให้ผู้ใช้เข้าเอง
       Navigator.pop(context, true);
     } on AuthFailure catch (e) {
       if (!mounted) return;
@@ -104,6 +115,7 @@ class _RegisterScreenState extends State<RegisterScreen> with FieldErrors {
               title: 'ข้อมูลพื้นฐานบัญชีผู้ใช้',
               children: [
                 TextField(
+                    key: const ValueKey('register-username'),
                     controller: usernameController,
                     enabled: !_isLoading,
                     decoration: InputDecoration(
@@ -116,6 +128,7 @@ class _RegisterScreenState extends State<RegisterScreen> with FieldErrors {
                             borderRadius: BorderRadius.circular(AppRadius.card)))),
                 const SizedBox(height: 16),
                 TextField(
+                    key: const ValueKey('register-email'),
                     controller: emailController,
                     enabled: !_isLoading,
                     keyboardType: TextInputType.emailAddress,
@@ -126,6 +139,7 @@ class _RegisterScreenState extends State<RegisterScreen> with FieldErrors {
                             borderRadius: BorderRadius.circular(AppRadius.card)))),
                 const SizedBox(height: 16),
                 TextField(
+                    key: const ValueKey('register-password'),
                     controller: passwordController,
                     obscureText: _obscurePassword,
                     enabled: !_isLoading,
@@ -149,6 +163,7 @@ class _RegisterScreenState extends State<RegisterScreen> with FieldErrors {
                 ),
                 const SizedBox(height: 16),
                 TextField(
+                    key: const ValueKey('register-confirm'),
                     controller: confirmPasswordController,
                     obscureText: _obscureConfirmPassword,
                     enabled: !_isLoading,
@@ -172,6 +187,7 @@ class _RegisterScreenState extends State<RegisterScreen> with FieldErrors {
             ),
             const SizedBox(height: 32),
             ElevatedButton(
+              key: const ValueKey('register-submit'),
               onPressed: _isLoading ? null : handleRegister,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,

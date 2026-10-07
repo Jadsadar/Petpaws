@@ -193,6 +193,7 @@ class DiscoverScreen extends StatelessWidget {
                       ),
                       const SizedBox(width: 24),
                       FloatingActionButton(
+                        key: const ValueKey('discover-like'),
                         heroTag: "btn_like",
                         onPressed: () => onLike(dogs.first),
                         backgroundColor: Colors.white,
