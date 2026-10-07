@@ -41,6 +41,8 @@ export const AUTH_RATE_LIMITS = {
     getTracker: (req: Record<string, any>) => `ip:${ipOf(req)}|id:${identifierOf(req)}`,
   },
   resetPassword: { ttl: minutes(15), limit: 10 },
+  // เปิดหน้าฟอร์มจากลิงก์ในอีเมล (GET) — กันการสุ่มเดา token
+  resetPasswordPage: { ttl: minutes(1), limit: 20 },
 };
 
 /**

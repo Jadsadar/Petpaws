@@ -298,34 +298,192 @@ describe('auth (e2e กับ DB จริง)', () => {
     });
   });
 
-  describe('ลืมรหัสผ่าน / รีเซ็ต', () => {
-    it('รีเซ็ตสำเร็จ: รหัสใหม่ใช้ได้ รหัสเก่าใช้ไม่ได้ ทุกเครื่องที่ล็อกอินค้างถูกบังคับออก และลิงก์ใช้ซ้ำไม่ได้', async () => {
-      const { auth } = service(false);
-      const u = await register(auth);
-      const session = await auth.login({ identifier: u.username, password: PASSWORD });
-      const { resetToken } = await auth.forgotPassword(u.email);
-      const newPassword = 'An0ther!Passw0rd#2';
+  describe('ลืมรหัสผ่าน → ลิงก์ทางอีเมล → ตั้งรหัสใหม่', () => {
+    const NEW_PASSWORD = 'An0ther!Passw0rd#2';
 
-      await expect(auth.resetPassword(resetToken!, newPassword)).resolves.toEqual({ success: true });
+    /** ผู้ใช้ใหม่ + ระบบอีเมลเปิด (ล้างอีเมลยืนยันตอนสมัครออกจาก outbox แล้ว) */
+    const userWithMail = async () => {
+      const s = service(true);
+      const u = await register(s.auth);
+      await mailArrives(s.mail);
+      s.mail.outbox.length = 0;
+      return { ...s, u };
+    };
 
-      await expect(auth.login({ identifier: u.username, password: PASSWORD })).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
-      await expect(auth.login({ identifier: u.username, password: newPassword })).resolves.toBeDefined();
-      await expect(auth.refresh(session.refreshToken)).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
-      await expect(auth.resetPassword(resetToken!, 'Yet4nother!Pass#3')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+    /** ขอลิงก์แล้วคืน token ที่อยู่ในอีเมลฉบับล่าสุด */
+    const requestLink = async (s: { auth: AuthService; mail: MailService }, email: string) => {
+      const before = s.mail.outbox.length;
+      await s.auth.forgotPassword(email);
+      await mailArrives(s.mail, before + 1);
+      return tokenFrom(s.mail.outbox[s.mail.outbox.length - 1].text);
+    };
+
+    it('ขอลิงก์: ไม่คืน token ใน response, ส่งอีเมลหนึ่งฉบับมีลิงก์ /auth/reset-password และ DB เก็บเฉพาะ hash', async () => {
+      const { auth, mail, u } = await userWithMail();
+
+      const res = await auth.forgotPassword(u.email);
+      expect(res).toEqual({ message: 'ถ้ามีบัญชีที่ใช้อีเมลนี้ ระบบได้ส่งลิงก์ตั้งรหัสผ่านใหม่ไปที่อีเมลแล้ว' });
+      expect(res).not.toHaveProperty('resetToken');
+
+      await mailArrives(mail);
+      expect(mail.outbox).toHaveLength(1);
+      expect(mail.outbox[0].to).toBe(u.email);
+      expect(mail.outbox[0].text).toContain('https://api.example.test/auth/reset-password?token=');
+      expect(mail.outbox[0].html).toContain('ตั้งรหัสผ่านใหม่');
+
+      const token = tokenFrom(mail.outbox[0].text);
+      const row = await one<{ token_hash: string }>(
+        `SELECT token_hash FROM password_reset_tokens WHERE user_id = $1`,
+        [u.id],
+      );
+      expect(row.token_hash).toBe(sha256(token));
+      expect(row.token_hash).not.toContain(token);
     });
 
-    it('อีเมลที่ไม่มีในระบบ ได้ข้อความเดียวกัน ไม่มี token', async () => {
-      const res = await service(false).auth.forgotPassword(`nobody_${randomUUID()}@e2e.test`);
-      expect(res).toEqual({ message: 'ถ้ามีบัญชีนี้อยู่ในระบบ ระบบได้ออกลิงก์รีเซ็ตรหัสผ่านแล้ว' });
+    it('อีเมลที่ไม่มีในระบบ: ได้ข้อความเดียวกัน ไม่ส่งอีเมล ไม่สร้าง token', async () => {
+      const { auth, mail } = service(true);
+      const res = await auth.forgotPassword(`nobody_${randomUUID()}@e2e.test`);
+      await flush();
+      expect(res.message).toBe('ถ้ามีบัญชีที่ใช้อีเมลนี้ ระบบได้ส่งลิงก์ตั้งรหัสผ่านใหม่ไปที่อีเมลแล้ว');
+      expect(mail.outbox).toHaveLength(0);
+    });
+
+    it('ระบบอีเมลปิดอยู่: ตอบข้อความเดิม ไม่ error ไม่มี token รั่ว และไม่ส่งอะไร', async () => {
+      const { auth } = service(false);
+      const u = await register(auth);
+      const res = await auth.forgotPassword(u.email);
+      expect(res).not.toHaveProperty('resetToken');
+      expect(Object.keys(res)).toEqual(['message']);
+      const n = await one<{ n: string }>(`SELECT count(*)::text AS n FROM password_reset_tokens WHERE user_id = $1`, [u.id]);
+      expect(n.n).toBe('0');
+    });
+
+    it('ขอซ้ำภายใน 60 วินาที: ไม่ส่งฉบับที่สอง (กันยิงอีเมลใส่กล่องคนอื่น)', async () => {
+      const { auth, mail, u } = await userWithMail();
+      await auth.forgotPassword(u.email);
+      await mailArrives(mail);
+      await auth.forgotPassword(u.email);
+      await flush();
+      expect(mail.outbox).toHaveLength(1);
+    });
+
+    it('ขอลิงก์ใหม่หลังพัก: ลิงก์เก่าใช้ไม่ได้ ลิงก์ใหม่ใช้ได้', async () => {
+      const s = await userWithMail();
+      const oldToken = await requestLink(s, s.u.email);
+      await ds.query(`UPDATE password_reset_tokens SET created_at = now() - interval '5 minutes' WHERE user_id = $1`, [s.u.id]);
+      const newToken = await requestLink(s, s.u.email);
+
+      expect(newToken).not.toBe(oldToken);
+      await expect(s.auth.checkResetToken(oldToken)).resolves.toBe('used');
+      await expect(s.auth.checkResetToken(newToken)).resolves.toBe('ok');
+    });
+
+    it('ตั้งรหัสใหม่สำเร็จ: รหัสใหม่ใช้ได้ รหัสเก่าไม่ได้ ทุกเครื่องถูกเตะออก ลิงก์ใช้ซ้ำไม่ได้ และมีอีเมลแจ้งเตือน', async () => {
+      const s = await userWithMail();
+      // ระบบอีเมลเปิดอยู่ ต้องยืนยันอีเมลก่อนถึงล็อกอินได้
+      await ds.query(`UPDATE users SET email_verified_at = now() WHERE id = $1`, [s.u.id]);
+      const session = await s.auth.login({ identifier: s.u.username, password: PASSWORD });
+      const token = await requestLink(s, s.u.email);
+
+      await expect(s.auth.resetPassword(token, NEW_PASSWORD)).resolves.toEqual({ success: true });
+
+      await expect(s.auth.login({ identifier: s.u.username, password: PASSWORD })).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+      await expect(s.auth.login({ identifier: s.u.username, password: NEW_PASSWORD })).resolves.toBeDefined();
+      await expect(s.auth.refresh(session.refreshToken)).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+      await expect(s.auth.resetPassword(token, 'Yet4nother!Pass#3')).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+
+      await mailArrives(s.mail, 2);
+      const notice = s.mail.outbox[s.mail.outbox.length - 1];
+      expect(notice.to).toBe(s.u.email);
+      expect(notice.subject).toContain('ถูกเปลี่ยนแล้ว');
     });
 
     it('รหัสใหม่อ่อนเกิน → ปฏิเสธ และลิงก์ยังใช้ได้อยู่', async () => {
-      const { auth } = service(false);
-      const u = await register(auth);
-      const { resetToken } = await auth.forgotPassword(u.email);
+      const s = await userWithMail();
+      const token = await requestLink(s, s.u.email);
 
-      await expect(auth.resetPassword(resetToken!, '123')).rejects.toMatchObject({ code: 'WEAK_PASSWORD' });
-      await expect(auth.resetPassword(resetToken!, 'An0ther!Passw0rd#2')).resolves.toEqual({ success: true });
+      await expect(s.auth.resetPassword(token, '123')).rejects.toMatchObject({ code: 'WEAK_PASSWORD' });
+      await expect(s.auth.resetPassword(token, `${s.u.username}!Aa1xyz`)).rejects.toMatchObject({ code: 'WEAK_PASSWORD' });
+      await expect(s.auth.resetPassword(token, NEW_PASSWORD)).resolves.toEqual({ success: true });
+    });
+
+    it('token มั่ว / หมดอายุ → ใช้ไม่ได้', async () => {
+      const s = await userWithMail();
+      await expect(s.auth.resetPassword('ไม่ใช่-token-จริง-เลย-สักนิด-นะครับ', NEW_PASSWORD)).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+
+      const token = await requestLink(s, s.u.email);
+      await ds.query(`UPDATE password_reset_tokens SET expires_at = now() - interval '1 second' WHERE user_id = $1`, [s.u.id]);
+      await expect(s.auth.resetPassword(token, NEW_PASSWORD)).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+      await expect(s.auth.checkResetToken(token)).resolves.toBe('expired');
+    });
+
+    it('บัญชีที่ยังไม่ยืนยันอีเมล: รีเซ็ตผ่านลิงก์ในอีเมลแล้วถือว่ายืนยันอีเมลในตัว และล็อกอินได้', async () => {
+      const s = await userWithMail();
+      const before = await one<{ email_verified_at: Date | null }>(`SELECT email_verified_at FROM users WHERE id = $1`, [s.u.id]);
+      expect(before.email_verified_at).toBeNull();
+      await expect(s.auth.login({ identifier: s.u.username, password: PASSWORD })).rejects.toMatchObject({ code: 'EMAIL_NOT_VERIFIED' });
+
+      const token = await requestLink(s, s.u.email);
+      await s.auth.resetPassword(token, NEW_PASSWORD);
+
+      await expect(s.auth.login({ identifier: s.u.username, password: NEW_PASSWORD })).resolves.toBeDefined();
+    });
+
+    it('คนละบัญชี ลิงก์ของใครของมัน: ลิงก์ของ A เปลี่ยนรหัสของ B ไม่ได้', async () => {
+      const a = await userWithMail();
+      const b = await userWithMail();
+      const tokenA = await requestLink(a, a.u.email);
+
+      await a.auth.resetPassword(tokenA, NEW_PASSWORD);
+      await expect(b.auth.checkResetToken(tokenA)).resolves.toBe('used');
+      await expect(b.auth.login({ identifier: b.u.username, password: PASSWORD }).catch((e) => e.code)).resolves.toBe('EMAIL_NOT_VERIFIED');
+    });
+
+    describe('หน้าเว็บ (ลิงก์ในอีเมลเปิดในเบราว์เซอร์)', () => {
+      it('เปิดลิงก์ไม่ใช้ลิงก์ทิ้ง ส่งฟอร์มสำเร็จถึงใช้ แล้วเปิดซ้ำได้ "ถูกใช้ไปแล้ว"', async () => {
+        const s = await userWithMail();
+        const token = await requestLink(s, s.u.email);
+
+        await expect(s.auth.checkResetToken(token)).resolves.toBe('ok');
+        await expect(s.auth.checkResetToken(token)).resolves.toBe('ok');
+
+        await expect(s.auth.resetPasswordFromPage(token, NEW_PASSWORD, NEW_PASSWORD)).resolves.toEqual({ outcome: 'ok' });
+        await expect(s.auth.checkResetToken(token)).resolves.toBe('used');
+        await expect(s.auth.resetPasswordFromPage(token, 'Yet4nother!Pass#3', 'Yet4nother!Pass#3')).resolves.toEqual({ outcome: 'used' });
+      });
+
+      it('รหัสสองช่องไม่ตรง / รหัสอ่อน → กลับไปฟอร์มพร้อมข้อความ (ลิงก์ยังใช้ได้)', async () => {
+        const s = await userWithMail();
+        const token = await requestLink(s, s.u.email);
+
+        await expect(s.auth.resetPasswordFromPage(token, NEW_PASSWORD, 'ไม่ตรงกัน')).resolves.toEqual({
+          outcome: 'retry',
+          message: 'รหัสผ่านทั้งสองช่องไม่ตรงกัน',
+        });
+        const weak = await s.auth.resetPasswordFromPage(token, 'abc', 'abc');
+        expect(weak).toMatchObject({ outcome: 'retry' });
+        await expect(s.auth.checkResetToken(token)).resolves.toBe('ok');
+      });
+
+      it('ลิงก์มั่ว/หมดอายุ → บอกผลตรงๆ ไม่แสดงฟอร์ม', async () => {
+        const s = await userWithMail();
+        await expect(s.auth.resetPasswordFromPage('x'.repeat(43), NEW_PASSWORD, NEW_PASSWORD)).resolves.toEqual({ outcome: 'invalid' });
+
+        const token = await requestLink(s, s.u.email);
+        await ds.query(`UPDATE password_reset_tokens SET expires_at = now() - interval '1 second' WHERE user_id = $1`, [s.u.id]);
+        await expect(s.auth.resetPasswordFromPage(token, NEW_PASSWORD, NEW_PASSWORD)).resolves.toEqual({ outcome: 'expired' });
+      });
+
+      it('กดบันทึกพร้อมกันสองคำขอ: สำเร็จได้แค่ครั้งเดียว', async () => {
+        const s = await userWithMail();
+        const token = await requestLink(s, s.u.email);
+
+        const [r1, r2] = await Promise.all([
+          s.auth.resetPasswordFromPage(token, NEW_PASSWORD, NEW_PASSWORD),
+          s.auth.resetPasswordFromPage(token, 'Yet4nother!Pass#3', 'Yet4nother!Pass#3'),
+        ]);
+        expect([r1.outcome, r2.outcome].sort()).toEqual(['ok', 'used']);
+      });
     });
   });
 });

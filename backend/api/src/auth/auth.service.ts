@@ -8,7 +8,13 @@ import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import { AppException } from '../common/app-exception.js';
 import { firstPasswordError } from './password-policy.js';
 import { MailService } from '../mail/mail.service.js';
-import { verificationEmail, type VerifyOutcome } from './email-templates.js';
+import {
+  passwordChangedEmail,
+  passwordResetEmail,
+  verificationEmail,
+  type ResetOutcome,
+  type VerifyOutcome,
+} from './email-templates.js';
 import {
   EmailVerificationToken,
   PasswordResetToken,
@@ -26,6 +32,9 @@ export interface TokenPair {
 const REFRESH_TOKEN_BYTES = 32;
 const RESET_TOKEN_BYTES = 32;
 const RESET_TOKEN_TTL_SECONDS = 30 * 60;
+/** ขอลิงก์รีเซ็ตซ้ำถี่กว่านี้ไม่ได้ (ต่อบัญชี) */
+const RESET_RESEND_COOLDOWN_SECONDS = 60;
+const RESET_REQUEST_MESSAGE = 'ถ้ามีบัญชีที่ใช้อีเมลนี้ ระบบได้ส่งลิงก์ตั้งรหัสผ่านใหม่ไปที่อีเมลแล้ว';
 const VERIFY_TOKEN_BYTES = 32;
 const VERIFY_TOKEN_TTL_HOURS = 24;
 /** ส่งลิงก์ยืนยันซ้ำถี่กว่านี้ไม่ได้ (ต่อบัญชี) — กันใช้ระบบเป็นเครื่องยิงอีเมลใส่กล่องคนอื่น */
@@ -311,36 +320,63 @@ export class AuthService {
   }
 
   /**
-   * ยังไม่มี email provider ต่อไว้ (ดู .env.example) — endpoint นี้จึงคืน resetToken
-   * ตรง ๆ ใน response แทนการส่งอีเมลจริง เหมาะกับโปรเจกต์เรียน/dev เท่านั้น
-   * ก่อนขึ้น production ต้องเปลี่ยนเป็นส่งอีเมลแล้วเอา resetToken ออกจาก response
+   * ลืมรหัสผ่าน: ส่งลิงก์ตั้งรหัสใหม่ไปทางอีเมล (หน้าเว็บอยู่ที่ GET /auth/reset-password)
    *
-   * ไม่ตอบข้อความต่างกันระหว่าง "ไม่มีอีเมลนี้ในระบบ" กับ "มี" (ข้อความเหมือนกันเสมอ)
-   * แต่การมี/ไม่มี resetToken ในตอบกลับยังทำให้เดาได้อยู่ดี —ยอมรับ trade-off นี้
-   * เพราะไม่มีอีเมลจริงให้ส่ง ถ้าต่อ email provider แล้วต้องลบ resetToken ออกจาก response
+   * - ตอบข้อความเดียวกันเสมอ ไม่ว่าจะมีบัญชีนี้ไหม/ส่งได้ไหม — กันคนเดาว่าอีเมลไหนมีอยู่ในระบบ
+   *   (และ **ไม่คืน token ใน response** — ต้องได้จากกล่องอีเมลเท่านั้น จึงพิสูจน์ได้ว่าเป็นเจ้าของอีเมล)
+   * - ส่งอีเมลแบบไม่รอ (void) เพื่อให้เวลาตอบใกล้เคียงกันทั้งกรณีมี/ไม่มีบัญชี
+   * - พัก 60 วินาทีต่อบัญชี กันใช้ระบบเป็นเครื่องยิงอีเมลใส่กล่องคนอื่น (ยังมี rate limit ที่ controller อีกชั้น)
+   * - ระบบอีเมลปิดอยู่ (ไม่มี MAIL_PROVIDER) = ส่งไม่ได้จริง เขียน log เตือนและตอบข้อความเดิม
    */
   async forgotPassword(email: string) {
-    const message = 'ถ้ามีบัญชีนี้อยู่ในระบบ ระบบได้ออกลิงก์รีเซ็ตรหัสผ่านแล้ว';
+    const user = await this.users.findOne({
+      select: { id: true, username: true, email: true },
+      where: { email: email.trim(), deletedAt: IsNull() },
+    });
+    if (!user) return { message: RESET_REQUEST_MESSAGE };
 
-    const user = await this.users.findOne({ select: { id: true }, where: { email: email.trim(), deletedAt: IsNull() } });
-    if (!user) {
-      return { message };
+    if (!this.mail.enabled) {
+      this.logger.warn('มีคำขอลืมรหัสผ่านแต่ระบบอีเมลปิดอยู่ (ตั้ง MAIL_PROVIDER/BREVO_API_KEY/MAIL_FROM_EMAIL) — ไม่ได้ส่งลิงก์');
+      return { message: RESET_REQUEST_MESSAGE };
     }
 
+    const last = await this.resetTokens.findOne({
+      select: { createdAt: true },
+      where: { userId: user.id },
+      order: { createdAt: 'DESC' },
+    });
+    if (last && Date.now() - last.createdAt.getTime() < RESET_RESEND_COOLDOWN_SECONDS * 1000) {
+      return { message: RESET_REQUEST_MESSAGE };
+    }
+
+    void this.issueReset(user.id, user.email, user.username).catch((err: Error) =>
+      this.logger.error(`ส่งอีเมลรีเซ็ตรหัสผ่านไม่สำเร็จ user=${user.id}: ${err.message}`),
+    );
+    return { message: RESET_REQUEST_MESSAGE };
+  }
+
+  /** ออกลิงก์ใหม่ (ลิงก์เก่าที่ยังไม่ถูกใช้ใช้ไม่ได้อีก) แล้วส่งอีเมล — DB เก็บแค่ hash ของ token */
+  private async issueReset(userId: string, email: string, username: string): Promise<void> {
     const token = randomBytes(RESET_TOKEN_BYTES).toString('base64url');
+    await this.resetTokens.update({ userId, usedAt: IsNull() }, { usedAt: () => 'now()' });
     await this.resetTokens.insert({
-      userId: user.id,
+      userId,
       tokenHash: this.sha256(token),
       expiresAt: dbNowPlusSeconds(RESET_TOKEN_TTL_SECONDS),
     });
 
-    return { message, resetToken: token };
+    const base = (this.config.get<string>('APP_PUBLIC_URL') || `http://localhost:${this.config.get<string>('API_PORT') ?? '3000'}`)
+      .replace(/\/+$/, '');
+    const link = `${base}/auth/reset-password?token=${token}`;
+    const mail = passwordResetEmail({ username, link, ttlMinutes: RESET_TOKEN_TTL_SECONDS / 60 });
+    await this.mail.send({ to: email, ...mail });
   }
 
-  async resetPassword(token: string, newPassword: string) {
+  /** หา token + เจ้าของ แล้วบอกสถานะ (ไม่เปลี่ยนอะไรใน DB) */
+  private async findReset(token: string) {
     const row = await this.dataSource
       .createQueryBuilder(PasswordResetToken, 'prt')
-      .innerJoin(User, 'u', 'u.id = prt.user_id')
+      .innerJoin(User, 'u', 'u.id = prt.user_id AND u.deleted_at IS NULL')
       .select([
         'prt.id AS id',
         'prt.user_id AS user_id',
@@ -351,28 +387,29 @@ export class AuthService {
       ])
       .where('prt.token_hash = :hash', { hash: this.sha256(token) })
       .getRawOne<{ id: string; user_id: string; used_at: Date | null; expires_at: Date; username: string; email: string }>();
+    if (!row) return { status: 'invalid' as const };
+    if (row.used_at !== null) return { status: 'used' as const };
+    if (row.expires_at < new Date()) return { status: 'expired' as const };
+    return { status: 'ok' as const, row };
+  }
 
-    if (!row) {
-      throw AppException.unauthorized('ลิงก์รีเซ็ตรหัสผ่านไม่ถูกต้อง');
-    }
+  /** เปิดลิงก์ในอีเมล: ตรวจว่าลิงก์ยังใช้ได้ไหม (ไม่ใช้ลิงก์ทิ้ง — กันโปรแกรมสแกนลิงก์ในอีเมลกดแทน) */
+  async checkResetToken(token: string): Promise<ResetOutcome> {
+    return (await this.findReset(token)).status;
+  }
 
-    if (row.used_at !== null || row.expires_at < new Date()) {
-      throw AppException.unauthorized('ลิงก์รีเซ็ตรหัสผ่านหมดอายุหรือถูกใช้ไปแล้ว');
-    }
-
-    const passwordError = firstPasswordError(newPassword, {
-      username: row.username,
-      email: row.email,
-    });
-    if (passwordError) {
-      throw new AppException('WEAK_PASSWORD', passwordError);
-    }
-
+  /** ตั้งรหัสใหม่ + ปิดลิงก์ + เตะทุกอุปกรณ์ออก (ทำใน transaction เดียว) แล้วแจ้งเตือนทางอีเมล */
+  private async applyReset(row: { id: string; user_id: string; username: string; email: string }, newPassword: string) {
     const passwordHash = await argon2.hash(newPassword);
 
     await this.dataSource.transaction(async (em) => {
-      await em.update(User, { id: row.user_id }, { passwordHash });
-      await em.update(PasswordResetToken, { id: row.id }, { usedAt: () => 'now()' });
+      // ใช้ลิงก์ได้ครั้งเดียวจริง: อัปเดตเฉพาะแถวที่ยังไม่ used — สองคำขอพร้อมกัน คนที่สองจะได้ 0 แถวแล้วล้ม
+      const claimed = await em.update(PasswordResetToken, { id: row.id, usedAt: IsNull() }, { usedAt: () => 'now()' });
+      if (!claimed.affected) throw AppException.unauthorized('ลิงก์รีเซ็ตรหัสผ่านหมดอายุหรือถูกใช้ไปแล้ว');
+      // กดลิงก์จากอีเมลได้ = พิสูจน์แล้วว่าเป็นเจ้าของอีเมลนี้ ถือว่ายืนยันอีเมลไปในตัว (ไม่งั้นบัญชีที่ยังไม่ได้ยืนยันจะรีเซ็ตแล้วเข้าไม่ได้)
+      await em.update(User, { id: row.user_id }, { passwordHash, emailVerifiedAt: () => 'COALESCE(email_verified_at, now())' });
+      // ลิงก์รีเซ็ตอื่นที่ค้างอยู่ของบัญชีนี้ใช้ไม่ได้อีก
+      await em.update(PasswordResetToken, { userId: row.user_id, usedAt: IsNull() }, { usedAt: () => 'now()' });
       // เปลี่ยนรหัสผ่านแล้ว = ทุกอุปกรณ์ที่ล็อกอินค้างอยู่ต้องถูกบังคับให้ล็อกอินใหม่
       // (revoked_reason นี้เตรียมไว้แล้วใน migration 002 ตั้งแต่ตอนออกแบบ refresh_tokens)
       await em.update(
@@ -382,7 +419,49 @@ export class AuthService {
       );
     });
 
+    if (this.mail.enabled) {
+      void this.mail
+        .send({ to: row.email, ...passwordChangedEmail({ username: row.username }) })
+        .catch((err: Error) => this.logger.error(`ส่งอีเมลแจ้งเปลี่ยนรหัสผ่านไม่สำเร็จ user=${row.user_id}: ${err.message}`));
+    }
+  }
+
+  /** ตั้งรหัสใหม่ผ่าน API (JSON) — แอปหรือ client อื่นที่ถือ token จากลิงก์ */
+  async resetPassword(token: string, newPassword: string) {
+    const found = await this.findReset(token);
+    if (found.status === 'invalid') throw AppException.unauthorized('ลิงก์รีเซ็ตรหัสผ่านไม่ถูกต้อง');
+    if (found.status !== 'ok') throw AppException.unauthorized('ลิงก์รีเซ็ตรหัสผ่านหมดอายุหรือถูกใช้ไปแล้ว');
+
+    const passwordError = firstPasswordError(newPassword, { username: found.row.username, email: found.row.email });
+    if (passwordError) throw new AppException('WEAK_PASSWORD', passwordError);
+
+    await this.applyReset(found.row, newPassword);
     return { success: true };
+  }
+
+  /**
+   * ตั้งรหัสใหม่จากฟอร์มบนหน้าเว็บ — คืนผลให้ controller วาดหน้า (ไม่ throw เพราะผู้ใช้เห็นเป็นหน้าเว็บ ไม่ใช่ JSON)
+   * retry = รหัสไม่ผ่าน/ไม่ตรงกัน ให้แสดงฟอร์มเดิมพร้อมข้อความ (ลิงก์ยังไม่ถูกใช้)
+   */
+  async resetPasswordFromPage(
+    token: string,
+    newPassword: string,
+    confirmPassword: string,
+  ): Promise<{ outcome: ResetOutcome } | { outcome: 'retry'; message: string }> {
+    const found = await this.findReset(token);
+    if (found.status !== 'ok') return { outcome: found.status };
+
+    if (newPassword !== confirmPassword) return { outcome: 'retry', message: 'รหัสผ่านทั้งสองช่องไม่ตรงกัน' };
+    const passwordError = firstPasswordError(newPassword, { username: found.row.username, email: found.row.email });
+    if (passwordError) return { outcome: 'retry', message: passwordError };
+
+    try {
+      await this.applyReset(found.row, newPassword);
+    } catch (err) {
+      if (err instanceof AppException) return { outcome: 'used' }; // อีกคำขอใช้ลิงก์ตัดหน้าไปแล้ว
+      throw err;
+    }
+    return { outcome: 'ok' };
   }
 
   async me(userId: string) {
