@@ -359,6 +359,35 @@ Future<void> _shot(WidgetTester tester, String label) async {
   });
 }
 
+/// ข้อความที่ชิดขอบจอ (ห่างขอบ < 6px) = ลืมเว้นขอบซ้าย-ขวา (ล้นจอไม่ได้ แต่ดูแย่และตัวอักษรโดนตัดขอบ)
+/// ข้ามข้อความที่อยู่นอกจอ/อยู่ในแถบเลื่อนแนวนอน
+void _checkEdges(WidgetTester tester, String current, List<String> problems) {
+  final width = tester.view.physicalSize.width / tester.view.devicePixelRatio;
+  final height = tester.view.physicalSize.height / tester.view.devicePixelRatio;
+  final texts = find.byType(RichText).evaluate();
+  for (final e in texts) {
+    final box = e.renderObject;
+    if (box is! RenderBox || !box.attached || !box.hasSize) continue;
+    final rect = box.localToGlobal(Offset.zero) & box.size;
+    if (rect.width < 24 || rect.bottom < 0 || rect.top > height) continue;
+    var skip = false;
+    e.visitAncestorElements((a) {
+      if (a.widget is FittedBox || a.widget is InputDecorator) {
+        skip = true;
+        return false;
+      }
+      return true;
+    });
+    if (skip) continue;
+    final span = (e.widget as RichText).text.toPlainText();
+    if (span.trim().length < 6) continue;
+    if (rect.left < 6 || rect.right > width - 6) {
+      final key = '$current → ข้อความชิดขอบจอ "${span.length > 24 ? span.substring(0, 24) : span}" (${rect.left.toStringAsFixed(0)}..${rect.right.toStringAsFixed(0)} จาก ${width.toStringAsFixed(0)})';
+      if (!problems.contains(key)) problems.add(key);
+    }
+  }
+}
+
 typedef _Step = Future<void> Function(WidgetTester tester);
 
 Future<void> _settle(WidgetTester tester) async {
@@ -425,6 +454,7 @@ void _responsive(
                   await entry.value!(tester);
                   await _settle(tester);
                 }
+                _checkEdges(tester, current, problems);
                 if (_shotDir.isNotEmpty) await _shot(tester, '$name $current');
                 await tester.pumpWidget(const SizedBox());
                 await tester.pump(const Duration(milliseconds: 300));

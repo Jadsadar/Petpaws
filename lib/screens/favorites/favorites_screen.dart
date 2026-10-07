@@ -169,11 +169,14 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           : null,
       body: likedDogs.isEmpty
           ? const Center(
-              child: Text('ยังไม่มีสัตว์เลี้ยงที่ถูกใจเลย',
-                  style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textDark)))
+              child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 28),
+                  child: Text('ยังไม่มีสัตว์เลี้ยงที่ถูกใจเลย',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textDark))))
           : ListView.builder(
               padding: const EdgeInsets.all(12),
               itemCount: likedDogs.length,

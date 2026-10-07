@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 /// ช่องกรอก 2 ช่องที่อยู่ข้างกันบนจอปกติ แต่เรียงบน-ล่างเมื่อจอแคบ (กว้างน้อยกว่า [breakpoint])
 /// กันช่องแคบจนข้อความ/ป้ายชื่อถูกตัดหรือตกบรรทัดทีละตัวอักษร
 class ResponsivePair extends StatelessWidget {
-  const ResponsivePair({super.key, required this.first, required this.second, this.breakpoint = 300, this.gap = 16});
+  const ResponsivePair({super.key, required this.first, required this.second, this.breakpoint = 480, this.gap = 16});
 
   final Widget first;
   final Widget second;

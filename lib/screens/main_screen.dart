@@ -383,7 +383,10 @@ class _MainScreenState extends State<MainScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(_loadError!, style: const TextStyle(color: Colors.grey)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 28),
+              child: Text(_loadError!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
+            ),
             const SizedBox(height: 16),
             ElevatedButton(onPressed: _loadInitialData, child: const Text('ลองใหม่')),
           ],
