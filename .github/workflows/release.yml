@@ -41,14 +41,50 @@ jobs:
       - name: Install
         run: flutter pub get --enforce-lockfile
 
-      # ยังเซ็นด้วย debug keystore ชั่วคราว (ดูคอมเมนต์ใน android/app/build.gradle.kts)
-      # เหมาะสำหรับติดตั้งทดสอบตรง ๆ เท่านั้น ยังไม่ใช่เวอร์ชันที่จะขึ้น Play Store จริง
-      # เพราะนั้นต้องมี keystore ของจริงที่เก็บเป็นความลับ (ดู ROADMAP งาน CD ของทีม)
+      # เซ็นด้วย keystore ตัวจริงตัวเดียวกันทุกเวอร์ชัน (เก็บเป็น GitHub Secrets)
+      # จำเป็นต่อการอัพเดตในแอป: ถ้าลายเซ็นไม่เหมือนเวอร์ชันที่ผู้ใช้ติดตั้งอยู่ Android จะไม่ยอมติดตั้งทับ
+      # ไม่มี secrets = หยุดทันที ไม่ปล่อย APK ที่เซ็นด้วย debug key ออกไปเป็น "เวอร์ชันล่าสุด"
+      # (ผู้ใช้จะได้แจ้งอัพเดต แต่ติดตั้งไม่ได้) — วิธีตั้งค่าดู README หัวข้อ "แอป Android และการอัพเดต"
+      - name: ตั้งค่าเซ็นชื่อแอป (keystore ตัวจริง)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "::error::ยังไม่ได้ตั้ง GitHub Secrets สำหรับเซ็นแอป (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD) — ดู README"
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.jks
+          {
+            echo "storeFile=release.jks"
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > android/key.properties
+
       - name: Build release APK
         run: |
           flutter build apk --release \
             --build-number=${{ github.run_number }} \
             --build-name=1.0.${{ github.run_number }}
+
+      # ตรวจว่า APK เซ็นด้วยคีย์ตัวจริงตัวเดียวกันทุกรอบ (ลายนิ้วมือ SHA-256 ของใบรับรองต้องตรงกับ keystore ที่สร้างไว้)
+      # ใช้ apksigner เพราะ APK ยุคใหม่เซ็นแบบ v2/v3 ซึ่ง keytool -jarfile อ่านไม่ได้
+      # ถ้าเปลี่ยน keystore ต้องแก้ค่านี้ แต่ผู้ใช้เดิมจะอัพเดตทับไม่ได้อีก (Android ปฏิเสธ)
+      - name: ตรวจลายเซ็นของ APK
+        env:
+          EXPECTED_SHA256: 0c370b65a986e77bbee89a5aa6b0bc1955d1b4bc4f8e74979e66bf31f75cbd2d
+        run: |
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --verbose --print-certs build/app/outputs/flutter-apk/app-release.apk | tee /tmp/sig.txt
+          actual=$(grep -i "certificate SHA-256 digest" /tmp/sig.txt | head -1 | awk '{print $NF}' | tr 'A-F' 'a-f')
+          if [ "$actual" != "$EXPECTED_SHA256" ]; then
+            echo "::error::ลายเซ็นของ APK ไม่ตรงกับ keystore ตัวจริง (ได้ $actual) ห้ามแจก ผู้ใช้เดิมจะอัพเดตไม่ได้"
+            exit 1
+          fi
+          echo "ลายเซ็นถูกต้อง: $actual"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2

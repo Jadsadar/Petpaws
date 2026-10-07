@@ -3,6 +3,13 @@
          debug build ได้สิทธิ์นี้อัตโนมัติจาก Flutter tool อยู่แล้ว แต่ release build
          ไม่ได้ให้ฟรี ต้องประกาศเองตรงนี้ ไม่งั้นแอป release เชื่อมต่อเซิร์ฟเวอร์ไม่ได้เลย -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 11+ ต้องประกาศว่าแอปจะเปิดลิงก์ https (ใช้เปิดลิงก์ดาวน์โหลด APK ตอนอัพเดต) -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
     <application
         android:label="petpaws"
         android:networkSecurityConfig="@xml/network_security_config"
