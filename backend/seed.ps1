@@ -14,7 +14,7 @@
 .EXAMPLE
   .\backend\seed.cmd           # ใช้ข้อมูลเดิม เติม migration ที่ขาด แล้วรีเซ็ตบัญชีสาธิต
   .\backend\seed.cmd -Reset    # ล้าง DB ทั้งหมด (docker compose down -v) แล้วสร้างใหม่
-  .\backend\seed.cmd -All      # ใส่ seed ทุกไฟล์ (001, 002, 003) ไม่ใช่แค่ 003
+  .\backend\seed.cmd -All      # ใส่ seed ทุกไฟล์ (001-004) ไม่ใช่แค่ 003
 #>
 param(
   [switch]$Reset,
