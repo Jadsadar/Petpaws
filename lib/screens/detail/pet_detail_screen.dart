@@ -10,6 +10,7 @@ import '../chat/chat_inbox_screen.dart';
 import '../chat/chat_screen.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/animated_heart_button.dart';
+import '../chat/media_viewer_screen.dart';
 
 class PetDetailScreen extends StatefulWidget {
   final Map<String, dynamic> dog;
@@ -74,6 +75,15 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     widget.onToggleFavorite?.call();
   }
 
+  void _openFullImage() {
+    final url = widget.dog['imageUrl'] as String?;
+    if (url == null || url.isEmpty) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ImageViewerScreen(url: url)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -87,12 +97,36 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            PetNetworkImage(
-              imageUrl: widget.dog['imageUrl'],
-              width: double.infinity,
-              // จอเตี้ย (แนวนอน/จอเล็ก): รูปไม่ควรกินเกือบทั้งจอจนไม่เห็นรายละเอียด
-              height: (MediaQuery.sizeOf(context).height * 0.45).clamp(220.0, 400.0).toDouble(),
-              fit: BoxFit.cover,
+            // แตะรูปหรือปุ่มแว่นขยาย → ดูรูปเต็มจอ ซูม/เลื่อนได้
+            Stack(
+              children: [
+                GestureDetector(
+                  onTap: _openFullImage,
+                  child: PetNetworkImage(
+                    imageUrl: widget.dog['imageUrl'],
+                    width: double.infinity,
+                    // จอเตี้ย/จอเล็ก: รูปไม่กินเกือบทั้งจอ
+                    height: (MediaQuery.sizeOf(context).height * 0.45).clamp(220.0, 400.0).toDouble(),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                if ((widget.dog['imageUrl'] as String?)?.isNotEmpty ?? false)
+                  Positioned(
+                    right: 16,
+                    bottom: 16,
+                    child: Material(
+                      color: Colors.white.withValues(alpha: 0.92),
+                      shape: const CircleBorder(),
+                      elevation: 3,
+                      child: IconButton(
+                        key: const ValueKey('detail-zoom'),
+                        tooltip: 'ดูรูปเต็ม',
+                        icon: const Icon(Icons.zoom_in, color: AppColors.textDark),
+                        onPressed: _openFullImage,
+                      ),
+                    ),
+                  ),
+              ],
             ),
             Padding(
               padding: const EdgeInsets.all(24.0),

@@ -6,6 +6,7 @@ import '../../services/admin_service.dart';
 import '../../theme/app_theme.dart';
 import 'admin_cache_stats_widgets.dart';
 import 'admin_widgets.dart';
+import '../../widgets/paw_loader.dart';
 
 const Duration _autoRefresh = Duration(seconds: 15);
 
@@ -102,7 +103,7 @@ class _AdminCacheStatsScreenState extends State<AdminCacheStatsScreen> {
   }
 
   Widget _body() {
-    if (_loading) return const Center(child: CircularProgressIndicator(color: adminOrange));
+    if (_loading) return const Center(child: PawLoader(color: adminOrange));
     final s = _stats;
     if (s == null) return AdminErrorView(error: _error!, onRetry: _load);
 

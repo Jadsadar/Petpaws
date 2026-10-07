@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/admin_service.dart';
 import 'admin_widgets.dart';
+import '../../widgets/paw_loader.dart';
 
 /// แถบเลื่อนหน้าใต้รายการ: « ‹ หน้า 2 / 5 · ทั้งหมด 93 รายการ › »
 class AdminPager extends StatelessWidget {
@@ -107,7 +108,7 @@ class AdminPagedListState<T> extends State<AdminPagedList<T>> {
       future: _future,
       builder: (context, snap) {
         if (snap.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(child: PawLoader());
         }
         if (snap.hasError) return AdminErrorView(error: snap.error!, onRetry: reload);
         final page = snap.data!;

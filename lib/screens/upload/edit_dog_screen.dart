@@ -13,6 +13,7 @@ import '../../utils/pet_species.dart';
 import '../../widgets/tag_selector.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/field_error.dart';
+import '../../widgets/paw_loader.dart';
 
 class EditDogScreen extends StatefulWidget {
   final Map<String, dynamic> dog;
@@ -255,8 +256,7 @@ class _EditDogScreenState extends State<EditDogScreen> with FieldErrors {
                   ? const SizedBox(
                       width: 24,
                       height: 24,
-                      child: CircularProgressIndicator(
-                          color: Colors.white, strokeWidth: 2.5),
+                      child: PawSpinner(color: Colors.white),
                     )
                   : const Text('บันทึกการแก้ไข',
                       style:

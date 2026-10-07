@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:petpaws/main.dart' as app;
 import 'package:petpaws/services/auth_service.dart';
+import 'package:petpaws/services/pet_service.dart';
 import 'package:petpaws/shared/token_storage.dart';
 import 'package:petpaws/widgets/swipeable_card.dart';
 
@@ -68,12 +69,19 @@ void main() {
     await login(tester);
 
     final name = topCardName(tester);
+    final petId = tester.widget<SwipeableCard>(find.byType(SwipeableCard)).dog['id'] as String;
     await tester.tap(find.byKey(const ValueKey('discover-like')));
     await settle(tester);
 
     await tester.tap(find.text('ถูกใจ').last); // แท็บเมนูล่าง
-    await waitFor(tester, find.text(name));
+    await settle(tester);
+    // ตัวที่เพิ่งถูกใจต่อท้ายรายการ ถ้ารายการยาว (เช่น รันซ้ำในเครื่อง) จะอยู่นอกจอ → เลื่อนหา
+    final list = find.byType(Scrollable).last;
+    await tester.scrollUntilVisible(find.text(name), 300, scrollable: list, maxScrolls: 100);
     expect(find.text(name), findsWidgets);
+
+    // เก็บกวาด: เลิกถูกใจคืน ไม่ให้ข้อมูลทดสอบสะสมจนการ์ดหมดเวลารันซ้ำ
+    await PetService.instance.unlike(petId);
   });
 
   testWidgets('5) สมัครสมาชิก → ล็อกอิน → สร้างโปรไฟล์ → เข้าแอปได้', (tester) async {
@@ -84,6 +92,17 @@ void main() {
     const password = 'E2eTest!234';
 
     await tester.tap(find.byKey(const ValueKey('login-register-link')));
+    await settle(tester);
+
+    // หน้ายินยอมเด้งขึ้นมา: ปุ่มยินยอมกดไม่ได้จนกว่าจะเลื่อนอ่านจนสุด + ติ๊ก
+    await waitFor(tester, find.byKey(const ValueKey('consent-accept')));
+    expect(tester.widget<ElevatedButton>(find.byKey(const ValueKey('consent-accept'))).onPressed,
+        isNull, reason: 'ยังไม่ได้อ่านจนจบ ต้องกดยินยอมไม่ได้');
+    await tester.drag(find.byKey(const ValueKey('consent-scroll')), const Offset(0, -6000));
+    await settle(tester);
+    await tester.tap(find.byKey(const ValueKey('consent-check')));
+    await settle(tester);
+    await tester.tap(find.byKey(const ValueKey('consent-accept')));
     await settle(tester);
     await tester.enterText(find.byKey(const ValueKey('register-username')), username);
     await tester.enterText(find.byKey(const ValueKey('register-email')), '$username@e2e.test');

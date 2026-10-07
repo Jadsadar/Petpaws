@@ -5,6 +5,7 @@ import '../../services/chat_service.dart';
 import '../../widgets/pet_avatar.dart';
 import 'chat_screen.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/paw_loader.dart';
 
 class ChatInboxScreen extends StatefulWidget {
   /// ถ้าระบุ = โหมดเจ้าของดูแชทของ "ประกาศนี้" ตัวเดียว (กรองด้วยชื่อสัตว์
@@ -229,7 +230,7 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
         stream: _chatsStream,
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(child: PawLoader());
           }
           final all = snapshot.data!;
           final chats = [for (final c in all) if (_matches(c, _search ?? '')) c];

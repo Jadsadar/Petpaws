@@ -11,15 +11,26 @@ import '../../widgets/tag_selector.dart';
 import '../chat/chat_inbox_screen.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/field_error.dart';
+import '../../widgets/paw_loader.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  const ProfileScreen({super.key, this.active = true});
+
+  /// แท็บนี้กำลังแสดงอยู่ไหม (หน้าหลักใช้ IndexedStack จึงไม่ถูกสร้างใหม่ตอนสลับแท็บ)
+  final bool active;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
+  @override
+  void didUpdateWidget(ProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // ออกจากแท็บโปรไฟล์ → ล้างข้อความเตือนค้าง กลับมาใหม่จะไม่เห็นของเก่า
+    if (oldWidget.active && !widget.active) clearFieldErrors();
+  }
+
   bool _isEditing = false;
   bool _isLoading = true;
   bool _isSaving = false;
@@ -213,7 +224,7 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
           elevation: 0,
           centerTitle: true,
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const Center(child: PawLoader()),
       );
     }
     return Scaffold(
@@ -336,8 +347,7 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
                     ? const SizedBox(
                         width: 18,
                         height: 18,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2.5),
+                        child: PawSpinner(color: Colors.white),
                       )
                     : Icon(_isEditing ? Icons.save : Icons.edit),
                 label: Text(_isEditing ? 'บันทึกข้อมูล' : 'แก้ไขข้อมูล',
@@ -489,11 +499,10 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
                       isExpanded: true,
                       value: currentHomeType,
                       disabledHint: Text(currentHomeType),
+                      // ตอนยังไม่กดแก้ไข ให้ดูเป็นช่องปิดแบบเดียวกับช่องอื่น (ขอบจาง)
                       decoration: InputDecoration(
                           labelText: 'ประเภทที่พักอาศัย',
-                          border: OutlineInputBorder(
-                              borderRadius:
-                                  BorderRadius.circular(AppRadius.card))),
+                          enabled: _isEditing),
                       items: homeTypes
                           .map(
                               (h) => DropdownMenuItem(value: h, child: Text(h)))

@@ -8,6 +8,7 @@ import '../../widgets/province_picker.dart';
 import '../../widgets/tag_selector.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/field_error.dart';
+import '../../widgets/paw_loader.dart';
 
 /// บังคับให้กรอกโปรไฟล์หลังล็อกอินครั้งแรก (บัญชีที่ยังไม่มี displayName)
 /// ไม่มีปุ่มย้อนกลับ เพราะเป็นขั้นตอนบังคับก่อนเข้าใช้งานแอป
@@ -346,8 +347,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> with FieldErr
                     ? const SizedBox(
                         width: 24,
                         height: 24,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2.5),
+                        child: PawSpinner(color: Colors.white),
                       )
                     : const Text('บันทึกและเริ่มใช้งาน',
                         style: TextStyle(

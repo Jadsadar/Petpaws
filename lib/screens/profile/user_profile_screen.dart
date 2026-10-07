@@ -9,6 +9,7 @@ import '../../widgets/pet_network_image.dart';
 import '../detail/pet_detail_screen.dart';
 import '../../theme/app_theme.dart';
 import '../../shared/favorites_store.dart';
+import '../../widgets/paw_loader.dart';
 
 /// หน้าโปรไฟล์ของผู้ใช้คนอื่น เปิดได้จากประกาศสัตว์เลี้ยงหรือจากห้องแชท
 ///
@@ -79,7 +80,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       return Scaffold(
         backgroundColor: Colors.transparent,
         appBar: _appBar(),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const Center(child: PawLoader()),
       );
     }
     if (_hasError || _profile == null) {

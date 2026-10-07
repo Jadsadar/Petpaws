@@ -111,7 +111,10 @@ class _ReportDialogState extends State<_ReportDialog> {
     return AlertDialog(
       scrollable: true,
       title: Text(widget.title),
-      content: SingleChildScrollView(
+      // ความกว้างคงที่ (ไม่เกิน 420) ไม่ให้กล่องยืดตามข้อความที่พิมพ์ยาว ๆ
+      content: SizedBox(
+        width: 420,
+        child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -135,11 +138,26 @@ class _ReportDialogState extends State<_ReportDialog> {
               key: const ValueKey('report-detail'),
               controller: _detail,
               maxLength: 500,
-              maxLines: 2,
-              decoration: const InputDecoration(labelText: 'รายละเอียดเพิ่มเติม (ไม่บังคับ)'),
+              // พิมพ์ยาวแล้วขึ้นบรรทัดใหม่เอง (สูงสุด 5 บรรทัด เกินนั้นเลื่อนในช่อง)
+              minLines: 3,
+              maxLines: 5,
+              keyboardType: TextInputType.multiline,
+              decoration: const InputDecoration(
+                labelText: 'รายละเอียดเพิ่มเติม (ไม่บังคับ)',
+                alignLabelWithHint: true,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(16))),
+                enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(16)),
+                    borderSide: BorderSide(color: AppColors.mocha, width: 1.6)),
+                focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(16)),
+                    borderSide: BorderSide(color: AppColors.brown, width: 2.2)),
+              ),
             ),
           ],
         ),
+      ),
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('ยกเลิก')),

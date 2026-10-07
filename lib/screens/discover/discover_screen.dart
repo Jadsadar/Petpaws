@@ -8,6 +8,7 @@ import '../../widgets/swipeable_card.dart';
 import '../chat/chat_screen.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/pop_icon.dart';
+import '../../widgets/paw_loader.dart';
 
 class DiscoverScreen extends StatelessWidget {
   final List<Map<String, dynamic>> dogs;
@@ -20,6 +21,9 @@ class DiscoverScreen extends StatelessWidget {
 
   /// ตัวกรองชนิดสัตว์ ('' = ทั้งหมด) — เปลี่ยนแล้ว MainScreen โหลดเด็คใหม่ตามชนิดนั้น
   final String speciesFilter;
+
+  /// กำลังโหลดการ์ดของหมวดที่เพิ่งเลือก
+  final bool loading;
   final ValueChanged<String> onSpeciesFilterChanged;
 
   const DiscoverScreen({
@@ -32,6 +36,7 @@ class DiscoverScreen extends StatelessWidget {
     required this.likedDogs,
     required this.onToggleFavorite,
     this.speciesFilter = '',
+    this.loading = false,
     required this.onSpeciesFilterChanged,
   });
 
@@ -118,6 +123,11 @@ class DiscoverScreen extends StatelessWidget {
   }
 
   Widget _deck(BuildContext context) {
+    if (loading) {
+      return const Center(
+          key: ValueKey('deck-loading'),
+          child: PawLoader(label: 'กำลังหาน้อง ๆ ให้คุณ...'));
+    }
     return dogs.isEmpty
           ? Center(
               child: Column(
