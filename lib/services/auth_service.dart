@@ -115,6 +115,22 @@ class AuthService {
     }
   }
 
+  /// ขอลิงก์รีเซ็ตรหัสผ่านทางอีเมล (POST /auth/forgot-password)
+  /// backend ตอบข้อความเดียวกันเสมอ ไม่บอกว่ามีอีเมลนี้ในระบบไหม — คืนข้อความนั้นไปแสดง
+  Future<String> requestPasswordReset(String email) async {
+    try {
+      final res = await _api.post(
+        '/auth/forgot-password',
+        body: {'email': email},
+        auth: false,
+      );
+      final msg = res is Map ? res['message'] as String? : null;
+      return msg ?? 'ถ้ามีบัญชีนี้อยู่ในระบบ ระบบได้ส่งลิงก์รีเซ็ตรหัสผ่านไปที่อีเมลแล้ว';
+    } on ApiException catch (e) {
+      throw AuthFailure(e.message, code: e.code);
+    }
+  }
+
   /// ส่งลิงก์ยืนยันอีเมลอีกครั้ง — [identifier] เป็นอีเมลหรือชื่อผู้ใช้ก็ได้
   /// backend ตอบข้อความเดียวกันเสมอ (ไม่บอกว่ามีบัญชีนี้ไหม) และพักส่งซ้ำ 60 วินาทีต่อบัญชี
   Future<String> resendVerification(String identifier) async {
