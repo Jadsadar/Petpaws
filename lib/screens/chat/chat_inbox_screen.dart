@@ -153,9 +153,12 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
             : Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('กล่องข้อความ',
-                style: TextStyle(
-                    fontWeight: FontWeight.bold, color: AppColors.textDark, fontSize: 22)),
+            const FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text('กล่องข้อความ',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold, color: AppColors.textDark, fontSize: 22)),
+            ),
             if (widget.dogName != null)
               Text('สัตว์เลี้ยง: ${widget.dogName}',
                   style: const TextStyle(

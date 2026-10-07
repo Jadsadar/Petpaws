@@ -6,6 +6,7 @@ import '../../services/pet_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/users_service.dart';
 import '../../services/storage_service.dart';
+import '../../widgets/responsive_pair.dart';
 import '../../widgets/pet_avatar.dart';
 import '../../widgets/pet_image_picker.dart';
 import '../../widgets/province_picker.dart';
@@ -326,27 +327,22 @@ class _UploadScreenState extends State<UploadScreen> with FieldErrors {
                   onChanged: (val) => setState(() => selectedGender = val!),
                 ),
                 const SizedBox(height: 16),
-                Row(children: [
-                  Expanded(child: _ageField(ageYearController, 'อายุ (ปี) *')),
-                  const SizedBox(width: 16),
-                  Expanded(child: _ageField(ageMonthController, 'อายุ (เดือน)')),
-                ]),
+                ResponsivePair(
+                  first: _ageField(ageYearController, 'อายุ (ปี) *'),
+                  second: _ageField(ageMonthController, 'อายุ (เดือน)'),
+                ),
                 InlineError(fieldError('age')),
                 const SizedBox(height: 16),
                 const SizedBox(height: 16),
-                Row(children: [
-                  Expanded(
-                    child: ProvinceField(
+                ResponsivePair(
+                  first: ProvinceField(
                       value: selectedProvince,
                       onChanged: (val) => setState(() {
                         _provinceTouched = true;
                         selectedProvince = val;
                       }),
-                    ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: TextField(
+                  second: TextField(
                         controller: weightController,
                         keyboardType:
                             const TextInputType.numberWithOptions(decimal: true),
@@ -358,8 +354,7 @@ class _UploadScreenState extends State<UploadScreen> with FieldErrors {
                             labelText: 'น้ำหนัก (กก.)',
                             border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(AppRadius.card)))),
-                  ),
-                ]),
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -434,46 +429,10 @@ class _UploadScreenState extends State<UploadScreen> with FieldErrors {
                       final dog = widget.myPostedDogs[index];
                       final currentStatus =
                           dog['status'] ?? 'ยังไม่ถูกรับเลี้ยง';
-                      return Card(
-                        elevation: 0,
-                        color: AppColors.section,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(AppRadius.card),
-                            side: const BorderSide(
-                                color: AppColors.sand, width: 1)),
-                        margin: const EdgeInsets.only(bottom: 16),
-                        child: InkWell(
-                          onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => PetDetailScreen(
-                                        dog: dog,
-                                        isMyPost: true,
-                                        isFavorited: widget.likedDogs
-                                            .any((d) => d['id'] == dog['id']),
-                                        onToggleFavorite: () =>
-                                            widget.onToggleFavorite(dog),
-                                      ))),
-                          borderRadius: BorderRadius.circular(AppRadius.card),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: PetAvatar(
-                                    imageUrl: dog['imageUrl'],
-                                    radius: 28,
-                                  ),
-                                  title: Text(dog['name'],
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 18,
-                                          color: AppColors.textDark)),
-                                  subtitle: Text(
-                                      '${dog['province']} • อายุ ${dog['age']}'),
-                                  trailing: Row(
+                      // จอแคบ/ตัวอักษรใหญ่: ปุ่มแก้ไข-ลบย้ายลงใต้ชื่อ ไม่แย่งที่ชื่อสัตว์จนตกบรรทัดทีละตัวอักษร
+                      final narrow = MediaQuery.sizeOf(context).width < 400 ||
+                          MediaQuery.textScalerOf(context).scale(1) > 1.4;
+                      final actions = Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       IconButton(
@@ -523,12 +482,53 @@ class _UploadScreenState extends State<UploadScreen> with FieldErrors {
                                         },
                                       ),
                                     ],
+                                  );
+                      return Card(
+                        elevation: 0,
+                        color: AppColors.section,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.card),
+                            side: const BorderSide(
+                                color: AppColors.sand, width: 1)),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        child: InkWell(
+                          onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => PetDetailScreen(
+                                        dog: dog,
+                                        isMyPost: true,
+                                        isFavorited: widget.likedDogs
+                                            .any((d) => d['id'] == dog['id']),
+                                        onToggleFavorite: () =>
+                                            widget.onToggleFavorite(dog),
+                                      ))),
+                          borderRadius: BorderRadius.circular(AppRadius.card),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: PetAvatar(
+                                    imageUrl: dog['imageUrl'],
+                                    radius: 28,
                                   ),
+                                  title: Text(dog['name'],
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 18,
+                                          color: AppColors.textDark)),
+                                  subtitle: Text(
+                                      '${dog['province']} • อายุ ${dog['age']}'),
+                                  trailing: narrow ? null : actions,
                                 ),
+                                if (narrow) Align(alignment: Alignment.centerRight, child: actions),
                                 const Divider(color: Colors.white),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
+                                Wrap(
+                                  alignment: WrapAlignment.spaceBetween,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
                                     const Text('สถานะปัจจุบัน:',
                                         style:

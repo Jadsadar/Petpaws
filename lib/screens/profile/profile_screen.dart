@@ -496,6 +496,7 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
                 IgnorePointer(
                     ignoring: !_isEditing,
                     child: DropdownButtonFormField<String>(
+                      isExpanded: true,
                       value: currentHomeType,
                       disabledHint: Text(currentHomeType),
                       // ตอนยังไม่กดแก้ไข ให้ดูเป็นช่องปิดแบบเดียวกับช่องอื่น (ขอบจาง)

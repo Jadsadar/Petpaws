@@ -135,6 +135,14 @@ class AppTheme {
   /// ขยายตัวอักษรทั้งแอป (คูณกับขนาดที่ผู้ใช้ตั้งในเครื่องอีกที)
   static const textScale = 1.12;
 
+  /// เพดานของ "ขนาดตัวอักษรรวม" (ที่ผู้ใช้ตั้งในเครื่อง × [textScale]) กันหน้าจอเล็กล้นเมื่อผู้ใช้ตั้งตัวอักษรใหญ่มาก
+  /// 1.6 เท่ากับที่ผู้ใช้เลือก "ใหญ่" ในมือถือส่วนใหญ่ (≈1.43) ยังอ่านสบาย และทุกหน้าถูกทดสอบที่ขนาดนี้ (test/responsive_test.dart)
+  static const maxTextScale = 1.6;
+
+  /// ตัวขยายตัวอักษรของทั้งแอป: ขนาดที่ผู้ใช้ตั้ง × [textScale] แต่ไม่เกิน [maxTextScale]
+  static TextScaler appTextScaler(TextScaler system) =>
+      TextScaler.linear((system.scale(1) * textScale).clamp(0.5, maxTextScale).toDouble());
+
   static const _bold = TextStyle(
     fontFamily: font,
     fontFamilyFallback: fontFallback,

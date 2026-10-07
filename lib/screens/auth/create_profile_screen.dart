@@ -301,6 +301,7 @@ class _CreateProfileScreenState extends State<CreateProfileScreen> with FieldErr
                 title: 'ข้อมูลเสริมคัดกรองผู้เลี้ยง',
                 children: [
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
                   value: selectedHomeType,
                   decoration: InputDecoration(
                       labelText: 'ประเภทที่พักอาศัย',

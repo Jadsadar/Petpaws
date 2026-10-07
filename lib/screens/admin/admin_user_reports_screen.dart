@@ -93,9 +93,12 @@ class _AdminUserReportsScreenState extends State<AdminUserReportsScreen> {
         centerTitle: true,
         iconTheme: const IconThemeData(color: adminOrange),
       ),
-      body: Column(
+      body: LayoutBuilder(builder: (context, box) => Column(
         children: [
-          ListTile(
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: box.maxHeight * 0.4),
+            child: SingleChildScrollView(
+              child: ListTile(
             key: const ValueKey('open-profile'),
             onTap: _openProfile,
             leading: PetAvatar(imageUrl: user.avatarUrl, radius: 28, icon: Icons.person),
@@ -109,6 +112,8 @@ class _AdminUserReportsScreenState extends State<AdminUserReportsScreen> {
                 Icon(Icons.chevron_right, color: adminOrange),
               ],
             ),
+              ),
+            ),
           ),
           const Divider(height: 1),
           Expanded(
@@ -119,7 +124,7 @@ class _AdminUserReportsScreenState extends State<AdminUserReportsScreen> {
             ),
           ),
         ],
-      ),
+      )),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -127,24 +132,25 @@ class _AdminUserReportsScreenState extends State<AdminUserReportsScreen> {
             children: [
               Expanded(
                 child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12)),
                   onPressed: _busy ? null : _dismiss,
-                  child: const Text('ปัดตก'),
+                  child: const FittedBox(fit: BoxFit.scaleDown, child: Text('ปัดตก')),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: ElevatedButton(
                   onPressed: _busy ? null : () => _ban(permanent: false),
-                  style: ElevatedButton.styleFrom(backgroundColor: adminOrange, foregroundColor: Colors.white),
-                  child: const Text('แบนชั่วคราว'),
+                  style: ElevatedButton.styleFrom(backgroundColor: adminOrange, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12)),
+                  child: const FittedBox(fit: BoxFit.scaleDown, child: Text('แบนชั่วคราว')),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: ElevatedButton(
                   onPressed: _busy ? null : () => _ban(permanent: true),
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger, foregroundColor: Colors.white),
-                  child: const Text('แบนถาวร'),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12)),
+                  child: const FittedBox(fit: BoxFit.scaleDown, child: Text('แบนถาวร')),
                 ),
               ),
             ],
@@ -169,14 +175,15 @@ class _ReportCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Chip(
                   label: Text(reportReasonLabel(report.reason)),
                   backgroundColor: Colors.redAccent.withValues(alpha: 0.12),
                   labelStyle: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold),
                 ),
-                const Spacer(),
                 Text(formatDateTime(report.createdAt),
                     style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
               ],
@@ -271,8 +278,10 @@ class _BanDialogState extends State<_BanDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       title: Text(widget.permanent ? 'แบนถาวร' : 'แบนชั่วคราว'),
-      content: Column(
+      content: SingleChildScrollView(
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -299,6 +308,7 @@ class _BanDialogState extends State<_BanDialog> {
             decoration: const InputDecoration(labelText: 'บันทึกเหตุผล (ไม่บังคับ)'),
           ),
         ],
+      ),
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('ยกเลิก')),

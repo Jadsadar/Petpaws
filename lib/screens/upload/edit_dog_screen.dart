@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../data/mock_data.dart';
 import '../../services/pet_service.dart';
 import '../../services/storage_service.dart';
+import '../../widgets/responsive_pair.dart';
 import '../../widgets/pet_image_picker.dart';
 import '../../utils/pet_tags.dart';
 import '../../widgets/province_picker.dart';
@@ -165,9 +166,9 @@ class _EditDogScreenState extends State<EditDogScreen> with FieldErrors {
                         border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(AppRadius.card)))),
                 const SizedBox(height: 16),
-                Row(children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
+                ResponsivePair(
+                  first: DropdownButtonFormField<String>(
+                      isExpanded: true,
                       value: selectedGender,
                       decoration: InputDecoration(
                           labelText: 'เพศ',
@@ -177,11 +178,8 @@ class _EditDogScreenState extends State<EditDogScreen> with FieldErrors {
                           .map((g) => DropdownMenuItem(value: g, child: Text(g)))
                           .toList(),
                       onChanged: (val) => setState(() => selectedGender = val!),
-                    ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                      child: TextField(
+                  second: TextField(
                           controller: ageController,
                           // กันไม่ให้พิมพ์เครื่องหมายลบ แต่ยังพิมพ์ "6 เดือน" ได้
                           inputFormatters: [
@@ -191,19 +189,15 @@ class _EditDogScreenState extends State<EditDogScreen> with FieldErrors {
                               labelText: 'อายุ *',
                               error: fieldErrorWidget('age'),
                               border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(AppRadius.card))))),
-                ]),
+                                  borderRadius: BorderRadius.circular(AppRadius.card)))),
+                ),
                 const SizedBox(height: 16),
-                Row(children: [
-                  Expanded(
-                    child: ProvinceField(
+                ResponsivePair(
+                  first: ProvinceField(
                       value: selectedProvince,
                       onChanged: (val) => setState(() => selectedProvince = val),
-                    ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                      child: TextField(
+                  second: TextField(
                           controller: weightController,
                           keyboardType:
                               const TextInputType.numberWithOptions(decimal: true),
@@ -214,8 +208,8 @@ class _EditDogScreenState extends State<EditDogScreen> with FieldErrors {
                           decoration: InputDecoration(
                               labelText: 'น้ำหนัก (กก.)',
                               border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(AppRadius.card))))),
-                ]),
+                                  borderRadius: BorderRadius.circular(AppRadius.card)))),
+                ),
               ],
             ),
             const SizedBox(height: 16),

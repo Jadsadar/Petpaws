@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'data/mock_data.dart';
 import 'screens/admin/admin_screen.dart';
@@ -17,7 +19,19 @@ Future<void> main() async {
   // เช็ค token ที่ค้างอยู่ในเครื่อง (ถ้ามี) ก่อนวาดหน้าแรก กันไม่ให้ผู้ใช้ที่
   // เคยล็อกอินไว้แล้วต้องเห็นหน้า login วูบหนึ่งก่อนสลับไป MainScreen
   await AuthService.instance.restoreSession();
+  await _lockPortraitOnPhones();
   runApp(const PetPawsApp());
+}
+
+/// มือถือ (ด้านสั้นของจอ < 600dp) ล็อกแนวตั้ง: หน้าปัดการ์ด/แชท/ฟอร์มออกแบบมาสำหรับแนวตั้ง
+/// แนวนอนจอสูงแค่ ~320dp (ลบแถบบน/ล่างแล้วเหลือที่แสดงการ์ดไม่พอ) แท็บเล็ตและเว็บหมุนได้ตามปกติ
+Future<void> _lockPortraitOnPhones() async {
+  if (kIsWeb) return;
+  final view = WidgetsBinding.instance.platformDispatcher.views.first;
+  if (view.physicalSize.shortestSide / view.devicePixelRatio < 600) {
+    await SystemChrome.setPreferredOrientations(
+        const [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
+  }
 }
 
 class PetPawsApp extends StatelessWidget {
@@ -33,10 +47,7 @@ class PetPawsApp extends StatelessWidget {
       builder: (context, child) {
         final mq = MediaQuery.of(context);
         return MediaQuery(
-          data: mq.copyWith(
-            textScaler: TextScaler.linear(
-                mq.textScaler.scale(1) * AppTheme.textScale),
-          ),
+          data: mq.copyWith(textScaler: AppTheme.appTextScaler(mq.textScaler)),
           // แจ้งเตือน (SnackBar) อยู่ด้านล่าง ความกว้างไม่เกิน 480 บนจอกว้าง
           child: Builder(builder: (context) {
             final size = MediaQuery.sizeOf(context);

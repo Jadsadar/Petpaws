@@ -109,6 +109,7 @@ class _ReportDialogState extends State<_ReportDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      scrollable: true,
       title: Text(widget.title),
       // ความกว้างคงที่ (ไม่เกิน 420) ไม่ให้กล่องยืดตามข้อความที่พิมพ์ยาว ๆ
       content: SizedBox(

@@ -105,7 +105,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   child: PetNetworkImage(
                     imageUrl: widget.dog['imageUrl'],
                     width: double.infinity,
-                    height: 400,
+                    // จอเตี้ย/จอเล็ก: รูปไม่กินเกือบทั้งจอ
+                    height: (MediaQuery.sizeOf(context).height * 0.45).clamp(220.0, 400.0).toDouble(),
                     fit: BoxFit.cover,
                   ),
                 ),
@@ -135,11 +136,15 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(widget.dog['name'],
-                          style: const TextStyle(
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textDark)),
+                      Expanded(
+                        child: Text(widget.dog['name'],
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textDark)),
+                      ),
                       Icon(
                           widget.dog['gender'] == 'ผู้'
                               ? Icons.male
@@ -156,9 +161,13 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                       const Icon(Icons.location_on,
                           color: AppColors.primarySoft),
                       const SizedBox(width: 8),
-                      Text(widget.dog['province'],
-                          style: TextStyle(
-                              fontSize: 18, color: Colors.grey[700])),
+                      Expanded(
+                        child: Text(widget.dog['province'],
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 18, color: Colors.grey[700])),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -322,9 +331,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 ],
               ),
             ),
-            const Text('ดูโปรไฟล์',
-                style: TextStyle(
-                    color: AppColors.textDark, fontWeight: FontWeight.bold)),
+            if (MediaQuery.sizeOf(context).width >= 400 && MediaQuery.textScalerOf(context).scale(1) < 1.4)
+              const Text('ดูโปรไฟล์',
+                  style: TextStyle(
+                      color: AppColors.textDark, fontWeight: FontWeight.bold)),
             const Icon(Icons.chevron_right, color: AppColors.primary),
           ],
         ),

@@ -49,14 +49,19 @@ class _PrivacyConsentDialogState extends State<_PrivacyConsentDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // กล่องเลื่อนเอกสารสูงตามจอ (160–420) ส่วนที่เหลือ (ชื่อเรื่อง/ช่องติ๊ก/ปุ่ม) ถ้าจอเตี้ยมาก
+    // กล่องทั้งใบเลื่อนได้ (scrollable) แทนการล้นจอ
+    final policyHeight = (MediaQuery.sizeOf(context).height * 0.38).clamp(160.0, 420.0).toDouble();
     return AlertDialog(
+      scrollable: true,
       title: const Text('การยินยอมให้เก็บและใช้ข้อมูลส่วนบุคคล'),
       content: SizedBox(
         width: 520,
-        height: MediaQuery.sizeOf(context).height * 0.55,
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
+            SizedBox(
+              height: policyHeight,
               child: Container(
                 decoration: BoxDecoration(
                   color: AppColors.section,

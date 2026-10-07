@@ -90,32 +90,53 @@ class SwipeableCard extends StatelessWidget {
                     stops: [0.6, 1.0],
                   ),
                 ),
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('${dog['name']}, ${dog['age']}',
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    Text('${petSpeciesLabel(dog)} • ${dog['breed'] ?? 'ไม่ระบุสายพันธุ์'}',
-                        style: const TextStyle(
-                            color: Colors.white70, fontSize: 18)),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Icon(Icons.location_on,
-                            color: AppColors.primarySoft, size: 20),
-                        const SizedBox(width: 4),
-                        Text(dog['province'],
-                            style: const TextStyle(
-                                color: Colors.white70, fontSize: 16)),
-                      ],
+                padding: const EdgeInsets.all(20.0),
+                // จอเล็ก/ตัวอักษรใหญ่: ชื่อและสายพันธุ์ยาวตัดบรรทัดได้ ถ้ายังไม่พอให้ย่อทั้งก้อนลงแทนล้น
+                child: LayoutBuilder(
+                  builder: (context, box) => Align(
+                    alignment: Alignment.bottomLeft,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.bottomLeft,
+                      child: SizedBox(
+                        width: box.maxWidth,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('${dog['name']}, ${dog['age']}',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            Text('${petSpeciesLabel(dog)} • ${dog['breed'] ?? 'ไม่ระบุสายพันธุ์'}',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: Colors.white70, fontSize: 18)),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                const Icon(Icons.location_on,
+                                    color: AppColors.primarySoft, size: 20),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text('${dog['province']}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                          color: Colors.white70, fontSize: 16)),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ],
+                  ),
                 ),
               ),
             ],

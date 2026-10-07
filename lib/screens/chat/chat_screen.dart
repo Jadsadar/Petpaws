@@ -11,6 +11,7 @@ import '../../services/chat_service.dart';
 import '../../services/report_service.dart';
 import '../../services/users_service.dart';
 import '../../shared/api_exception.dart';
+import '../../widgets/centered_scroll.dart';
 import '../../widgets/chat_media_bubble.dart';
 import '../../widgets/pet_avatar.dart';
 import '../../widgets/report_dialog.dart';
@@ -350,8 +351,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
     final pick = await showModalBottomSheet<Future<List<PreparedMedia>> Function()>(
       context: context,
+      isScrollControlled: true,
       builder: (sheet) => SafeArea(
-        child: Column(
+        child: SingleChildScrollView(
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
@@ -381,6 +384,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
             ],
           ],
+        ),
         ),
       ),
     );
@@ -784,7 +788,7 @@ class _ChatScreenState extends State<ChatScreen> {
       stream: messagesStream,
       builder: (context, snapshot) {
         if (snapshot.hasError && !snapshot.hasData) {
-          return Center(
+          return CenteredScroll(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

@@ -136,29 +136,39 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // พื้นที่ที่เหลือจริง (หักคีย์บอร์ดแล้ว) — จอเตี้ย/คีย์บอร์ดขึ้น ย่อโลโก้ให้ช่องกรอกยังอยู่ในจอ
+    final avail = MediaQuery.sizeOf(context).height - MediaQuery.viewInsetsOf(context).bottom;
+    final logoSize = avail < 420 ? 0.0 : (avail < 640 ? 64.0 : 100.0);
+    final gap = avail < 640 ? 20.0 : 48.0;
     // หน้าเข้าสู่ระบบใช้พื้นหลังลายสัตว์ หน้าอื่นใช้ภาพมือจับอุ้งเท้า
     return AppBackground(
       bg: AppBg.login,
       child: Scaffold(
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(32.0),
+          padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.pets,
-                  size: 100,
-                  color: AppColors.primary,
-                  shadows: AppTheme.outlineThick),
-              const SizedBox(height: 16),
-              const Text(
-                'PetPaws',
-                style: TextStyle(
-                    fontFamily: AppTheme.logoFont,
-                    fontSize: 40,
-                    fontWeight: FontWeight.bold,
+              if (logoSize > 0) ...[
+                Icon(Icons.pets,
+                    size: logoSize,
                     color: AppColors.primary,
                     shadows: AppTheme.outlineThick),
+                const SizedBox(height: 16),
+              ],
+              // ชื่อแอปไม่ตัดบรรทัดกลางคำ: ถ้าจอแคบ/ตัวอักษรใหญ่ให้ย่อลงแทน
+              const FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  'PetPaws',
+                  style: TextStyle(
+                      fontFamily: AppTheme.logoFont,
+                      fontSize: 40,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                      shadows: AppTheme.outlineThick),
+                ),
               ),
               const Text(
                 'หาบ้านใหม่ให้สัตว์เลี้ยงแสนรัก',
@@ -167,7 +177,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     fontWeight: FontWeight.w600,
                     color: AppColors.textDark),
               ),
-              const SizedBox(height: 48),
+              SizedBox(height: gap),
               TextField(
                 key: const ValueKey('login-identifier'),
                 controller: identifierController,
@@ -271,9 +281,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
+              Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   const Text('ยังไม่มีบัญชีเหรอ? ',
                       style: TextStyle(
