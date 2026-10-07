@@ -27,7 +27,8 @@ Color hitRatioColor(double? ratio, int total) {
   return AppColors.danger;
 }
 
-String formatRatio(double? ratio) => ratio == null ? '-' : '${(ratio * 100).toStringAsFixed(1)}%';
+String formatRatio(double? ratio) =>
+    ratio == null ? '-' : '${(ratio * 100).toStringAsFixed(1)}%';
 
 String _formatBytes(int b) {
   if (b >= 1024 * 1024) return '${(b / (1024 * 1024)).toStringAsFixed(1)} MB';
@@ -36,8 +37,12 @@ String _formatBytes(int b) {
 }
 
 String _formatDuration(int seconds) {
-  if (seconds >= 86400) return '${seconds ~/ 86400} วัน ${(seconds % 86400) ~/ 3600} ชม.';
-  if (seconds >= 3600) return '${seconds ~/ 3600} ชม. ${(seconds % 3600) ~/ 60} นาที';
+  if (seconds >= 86400) {
+    return '${seconds ~/ 86400} วัน ${(seconds % 86400) ~/ 3600} ชม.';
+  }
+  if (seconds >= 3600) {
+    return '${seconds ~/ 3600} ชม. ${(seconds % 3600) ~/ 60} นาที';
+  }
   if (seconds >= 60) return '${seconds ~/ 60} นาที';
   return '$seconds วินาที';
 }
@@ -59,7 +64,9 @@ class CacheBanner extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(AppRadius.control)),
       child: Row(
         children: [
           Icon(Icons.warning_amber_rounded, color: color),
@@ -79,7 +86,11 @@ class CacheSectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
-        child: Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textDark)),
+        child: Text(text,
+            style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+                color: AppColors.textDark)),
       );
 }
 
@@ -94,16 +105,20 @@ class CacheOverallCard extends StatelessWidget {
     final color = hitRatioColor(o.hitRatio, o.total);
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(AppRadius.control)),
       child: Column(
         children: [
           Text('Hit ratio รวม', style: TextStyle(color: color)),
           Text(
             formatRatio(o.hitRatio),
             key: const ValueKey('cache-overall-ratio'),
-            style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: color),
+            style: TextStyle(
+                fontSize: 32, fontWeight: FontWeight.w600, color: color),
           ),
-          Text('hit ${o.hits} · miss ${o.misses}', style: TextStyle(color: color)),
+          Text('hit ${o.hits} · miss ${o.misses}',
+              style: TextStyle(color: color)),
           const SizedBox(height: 4),
           Text('นับตั้งแต่ ${formatDateTime(stats.since)}',
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
@@ -130,9 +145,11 @@ class CacheNamespaceTile extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text(_namespaceLabels[ns.name] ?? ns.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                child: Text(_namespaceLabels[ns.name] ?? ns.name,
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
               ),
-              Text(formatRatio(c.hitRatio), style: TextStyle(fontWeight: FontWeight.bold, color: color)),
+              Text(formatRatio(c.hitRatio),
+                  style: TextStyle(fontWeight: FontWeight.w600, color: color)),
             ],
           ),
           const SizedBox(height: 4),
@@ -170,8 +187,9 @@ class CacheRedisCard extends StatelessWidget {
         : '${_formatBytes(redis.usedMemoryBytes)} (ไม่จำกัด)';
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration:
-          BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(AppRadius.control)),
       child: Column(
         children: [
           _row('Hit ratio (ทุกคำสั่ง)', formatRatio(redis.counter.hitRatio)),
@@ -188,11 +206,13 @@ class CacheRedisCard extends StatelessWidget {
               ),
             ),
           // evicted ขึ้นเรื่อย ๆ = maxmemory เล็กไป key ถูกไล่ออกก่อนหมด TTL ทำให้ hit ratio ตก
-          _row('ถูกไล่ออก (evicted)', '${redis.evictedKeys}', color: redis.evictedKeys > 0 ? AppColors.warning : null),
+          _row('ถูกไล่ออก (evicted)', '${redis.evictedKeys}',
+              color: redis.evictedKeys > 0 ? AppColors.warning : null),
           _row('หมดอายุ (expired)', '${redis.expiredKeys}'),
           _row('นโยบายไล่ key', redis.maxMemoryPolicy ?? '-'),
           _row('เปิดมาแล้ว', _formatDuration(redis.uptimeSeconds)),
-          _row('คำสั่ง cache ล้มเหลว (API process นี้)', '$errors', color: errors > 0 ? AppColors.danger : null),
+          _row('คำสั่ง cache ล้มเหลว (API process นี้)', '$errors',
+              color: errors > 0 ? AppColors.danger : null),
         ],
       ),
     );
@@ -202,8 +222,11 @@ class CacheRedisCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
           children: [
-            Expanded(child: Text(label, style: TextStyle(color: Colors.grey.shade700))),
-            Text(value, style: TextStyle(fontWeight: FontWeight.w600, color: color)),
+            Expanded(
+                child:
+                    Text(label, style: TextStyle(color: Colors.grey.shade700))),
+            Text(value,
+                style: TextStyle(fontWeight: FontWeight.w600, color: color)),
           ],
         ),
       );

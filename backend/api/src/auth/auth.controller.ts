@@ -94,13 +94,13 @@ export class AuthController {
   @Header('Cache-Control', 'no-store')
   @Header('Referrer-Policy', 'no-referrer')
   async resetPasswordPage(@Query() query: ResetPasswordQueryDto, @Res({ passthrough: true }) res: Response) {
-    const outcome = await this.authService.checkResetToken(query.token);
+    const context = await this.authService.resetFormContext(query.token);
     res.type('html');
-    if (outcome !== 'ok') {
+    if (context.outcome !== 'ok') {
       res.status(HttpStatus.BAD_REQUEST);
-      return resetResultPage(outcome);
+      return resetResultPage(context.outcome);
     }
-    return resetFormPage({ token: query.token });
+    return resetFormPage({ token: query.token, ...context });
   }
 
   /** ฟอร์มบนหน้าเว็บด้านบนส่งมาที่นี่ (form-urlencoded) — ตอบเป็นหน้าเว็บ ไม่ใช่ JSON */
@@ -115,7 +115,7 @@ export class AuthController {
     res.type('html');
     if (result.outcome === 'retry') {
       res.status(HttpStatus.BAD_REQUEST);
-      return resetFormPage({ token: dto.token, error: result.message });
+      return resetFormPage({ token: dto.token, error: result.message, username: result.username, email: result.email });
     }
     if (result.outcome !== 'ok') res.status(HttpStatus.BAD_REQUEST);
     return resetResultPage(result.outcome);

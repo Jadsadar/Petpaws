@@ -51,6 +51,7 @@ class ChatScreen extends StatefulWidget {
 
   final String dogName;
   final String otherUserName;
+
   /// รูปคู่สนทนา — null = ผู้เปิดไม่รู้ (หน้าจอจะดึงจากโปรไฟล์สาธารณะเอง)
   /// '' = รู้แล้วว่าไม่มีรูป (โชว์ไอคอนคน ไม่ต้องยิง API เพิ่ม)
   final String? otherUserAvatar;
@@ -81,6 +82,7 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _closed = false;
   String? _closedReason;
   bool _blockedByMe = false;
+
   /// จำนวนข้อความระบบที่เห็นล่าสุด (-1 = ยังไม่ได้ข้อมูลรอบแรก) เพิ่มขึ้นระหว่างเปิดห้อง
   /// = ห้องเพิ่งถูกปิด ต้องถามสถานะใหม่ — รอบแรกไม่ต้อง เพราะสถานะมากับหน้าแรกแล้ว
   int _systemCount = -1;
@@ -153,7 +155,8 @@ class _ChatScreenState extends State<ChatScreen> {
   /// (เช่น ข้อมูลประกาศจาก backend รุ่นเก่าที่ยังไม่มี ownerAvatar)
   Future<void> _loadOtherAvatar() async {
     try {
-      final profile = await UsersService.instance.getPublicProfile(widget.otherUserId);
+      final profile =
+          await UsersService.instance.getPublicProfile(widget.otherUserId);
       final url = profile['profileImageUrl'] as String? ?? '';
       if (!mounted || url.isEmpty) return;
       setState(() => _otherAvatar = url);
@@ -187,7 +190,8 @@ class _ChatScreenState extends State<ChatScreen> {
     _chatId = chatId;
     _feed = chat.openMessages(chatId, myUid: _myUid)
       // สถานะห้องมากับหน้าแรกของข้อความแล้ว — ถามแยกเฉพาะตอน backend รุ่นก่อนไม่ได้ส่งมา
-      ..onRoomStatus = (room) => room == null ? _loadDetail() : _applyRoomStatus(room);
+      ..onRoomStatus =
+          (room) => room == null ? _loadDetail() : _applyRoomStatus(room);
     _messagesStream = _feed!.stream;
     _roomSubs.add(chat.otherTyping(chatId, myUid: _myUid).listen((typing) {
       _otherTypingExpiry?.cancel();
@@ -289,6 +293,7 @@ class _ChatScreenState extends State<ChatScreen> {
               if (p.isText) p.failed = true;
             }
           }
+
           mounted ? setState(markFailed) : markFailed();
           _showError(e, 'ส่งข้อความไม่สำเร็จ แตะที่ข้อความเพื่อลองใหม่');
           return;
@@ -301,7 +306,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// ส่งข้อความ (ตัวหนังสือ หรือสื่อที่อัปแล้ว) เข้าห้อง — ถ้ายังไม่มีห้อง ข้อความนี้คือ
   /// ข้อความแรก ต้องสร้างห้องพร้อมกันในธุรกรรมเดียว
-  Future<void> _deliver({String text = '', Map<String, dynamic>? media, required String clientId}) async {
+  Future<void> _deliver(
+      {String text = '',
+      Map<String, dynamic>? media,
+      required String clientId}) async {
     // ข้อความแรกจากอีกคิว (รูป/ตัวหนังสือ) กำลังสร้างห้อง — รอให้เสร็จแล้วส่งเข้าห้องนั้น
     final creating = _creatingRoom;
     if (_chatId == null && creating != null) {
@@ -314,8 +322,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
     final chatId = _chatId;
     if (chatId == null) {
-      final create = ChatService.instance
-          .createOrSend(petId: widget.petId, message: text, media: media, clientId: clientId);
+      final create = ChatService.instance.createOrSend(
+          petId: widget.petId, message: text, media: media, clientId: clientId);
       _creatingRoom = create;
       try {
         final newChatId = await create;
@@ -329,8 +337,8 @@ class _ChatScreenState extends State<ChatScreen> {
         if (identical(_creatingRoom, create)) _creatingRoom = null;
       }
     } else {
-      final sent =
-          await ChatService.instance.sendMessage(chatId, text: text, media: media, clientId: clientId);
+      final sent = await ChatService.instance
+          .sendMessage(chatId, text: text, media: media, clientId: clientId);
       // ใส่ลง feed เลยจากผลของ POST ไม่ต้องรอ event จาก socket
       _feed?.upsert(sent);
     }
@@ -349,42 +357,48 @@ class _ChatScreenState extends State<ChatScreen> {
       return m == null ? const [] : [m];
     }
 
-    final pick = await showModalBottomSheet<Future<List<PreparedMedia>> Function()>(
+    final pick =
+        await showModalBottomSheet<Future<List<PreparedMedia>> Function()>(
       context: context,
       isScrollControlled: true,
       builder: (sheet) => SafeArea(
         child: SingleChildScrollView(
           child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('รูปภาพจากคลัง'),
-              subtitle: const Text('เลือกได้สูงสุด ${ChatMediaService.maxImagesPerPick} รูป'),
-              onTap: () => Navigator.pop(sheet, _pickGalleryImages),
-            ),
-            if (!kIsWeb)
+            mainAxisSize: MainAxisSize.min,
+            children: [
               ListTile(
-                leading: const Icon(Icons.photo_camera_outlined),
-                title: const Text('ถ่ายรูป'),
-                onTap: () => Navigator.pop(sheet, () => single(media.pickImage(ImageSource.camera))),
+                leading: const Icon(Icons.photo_library_outlined),
+                title: const Text('รูปภาพจากคลัง'),
+                subtitle: const Text(
+                    'เลือกได้สูงสุด ${ChatMediaService.maxImagesPerPick} รูป'),
+                onTap: () => Navigator.pop(sheet, _pickGalleryImages),
               ),
-            if (ChatMediaService.canSendVideo) ...[
-              ListTile(
-                leading: const Icon(Icons.video_library_outlined),
-                title: const Text(kIsWeb ? 'วิดีโอจากเครื่อง' : 'วิดีโอจากคลัง'),
-                subtitle: Text(ChatMediaService.videoLimitHint),
-                onTap: () => Navigator.pop(sheet, () => single(media.pickVideo(ImageSource.gallery))),
-              ),
-              if (ChatMediaService.canRecordVideo)
+              if (!kIsWeb)
                 ListTile(
-                  leading: const Icon(Icons.videocam_outlined),
-                  title: const Text('ถ่ายวิดีโอ'),
-                  onTap: () => Navigator.pop(sheet, () => single(media.pickVideo(ImageSource.camera))),
+                  leading: const Icon(Icons.photo_camera_outlined),
+                  title: const Text('ถ่ายรูป'),
+                  onTap: () => Navigator.pop(
+                      sheet, () => single(media.pickImage(ImageSource.camera))),
                 ),
+              if (ChatMediaService.canSendVideo) ...[
+                ListTile(
+                  leading: const Icon(Icons.video_library_outlined),
+                  title:
+                      const Text(kIsWeb ? 'วิดีโอจากเครื่อง' : 'วิดีโอจากคลัง'),
+                  subtitle: Text(ChatMediaService.videoLimitHint),
+                  onTap: () => Navigator.pop(sheet,
+                      () => single(media.pickVideo(ImageSource.gallery))),
+                ),
+                if (ChatMediaService.canRecordVideo)
+                  ListTile(
+                    leading: const Icon(Icons.videocam_outlined),
+                    title: const Text('ถ่ายวิดีโอ'),
+                    onTap: () => Navigator.pop(sheet,
+                        () => single(media.pickVideo(ImageSource.camera))),
+                  ),
+              ],
             ],
-          ],
-        ),
+          ),
         ),
       ),
     );
@@ -402,7 +416,8 @@ class _ChatScreenState extends State<ChatScreen> {
     return picked.images;
   }
 
-  Future<void> _prepareAndSend(Future<List<PreparedMedia>> Function() pick) async {
+  Future<void> _prepareAndSend(
+      Future<List<PreparedMedia>> Function() pick) async {
     setState(() => _preparingMedia = true);
     var picked = const <PreparedMedia>[];
     try {
@@ -446,7 +461,8 @@ class _ChatScreenState extends State<ChatScreen> {
     // ผลของแต่ละชิ้นเป็น record ไม่ใช่ completeError — ชิ้นท้าย ๆ ที่ล้มก่อนถึงคิว await
     // จะกลายเป็น unhandled error ของ zone
     final uploads = [
-      for (final _ in batch) Completer<({Map<String, dynamic>? media, Object? error})>()
+      for (final _ in batch)
+        Completer<({Map<String, dynamic>? media, Object? error})>()
     ];
     var next = 0;
     Future<void> worker() async {
@@ -493,7 +509,8 @@ class _ChatScreenState extends State<ChatScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           duration: AppTheme.snackDuration,
-          content: Text('ส่งไม่สำเร็จ $failed จาก ${batch.length} ไฟล์ แตะที่รูปเพื่อลองใหม่')));
+          content: Text(
+              'ส่งไม่สำเร็จ $failed จาก ${batch.length} ไฟล์ แตะที่รูปเพื่อลองใหม่')));
     }
   }
 
@@ -511,8 +528,10 @@ class _ChatScreenState extends State<ChatScreen> {
               onTap: () => Navigator.pop(sheet, true),
             ),
             ListTile(
-              leading: const Icon(Icons.delete_outline, color: AppColors.danger),
-              title: const Text('ยกเลิก', style: TextStyle(color: AppColors.danger)),
+              leading:
+                  const Icon(Icons.delete_outline, color: AppColors.danger),
+              title: const Text('ยกเลิก',
+                  style: TextStyle(color: AppColors.danger)),
               onTap: () => Navigator.pop(sheet, false),
             ),
           ],
@@ -537,8 +556,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _showError(Object error, String fallback) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(duration: AppTheme.snackDuration, content: Text(error is ApiException ? error.message : fallback)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        duration: AppTheme.snackDuration,
+        content: Text(error is ApiException ? error.message : fallback)));
   }
 
   @override
@@ -560,7 +580,8 @@ class _ChatScreenState extends State<ChatScreen> {
     final myUid = AuthService.instance.currentUser?.uid ?? '';
 
     return Scaffold(
-      backgroundColor: Colors.transparent, // เห็นพื้นหลังมือจับอุ้งเท้าเหมือนหน้าอื่น
+      backgroundColor:
+          Colors.transparent, // เห็นพื้นหลังมือจับอุ้งเท้าเหมือนหน้าอื่น
       appBar: AppBar(
         title: GestureDetector(
           onTap: widget.otherUserId.isEmpty
@@ -586,7 +607,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   : const CircleAvatar(
                       backgroundColor: Colors.white,
                       radius: 20,
-                      child: Icon(Icons.person, color: AppColors.primary, size: 22),
+                      child: Icon(Icons.person,
+                          color: AppColors.primary, size: 22),
                     ),
               const SizedBox(width: 12),
               Expanded(
@@ -594,13 +616,19 @@ class _ChatScreenState extends State<ChatScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(widget.otherUserName,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: 16),
                         overflow: TextOverflow.ellipsis),
-                    Text(_otherTyping ? 'กำลังพิมพ์...' : 'สัตว์เลี้ยง: ${widget.dogName}',
+                    Text(
+                        _otherTyping
+                            ? 'กำลังพิมพ์...'
+                            : 'สัตว์เลี้ยง: ${widget.dogName}',
                         style: TextStyle(
                             fontSize: 11,
                             color: Colors.white70,
-                            fontStyle: _otherTyping ? FontStyle.italic : FontStyle.normal)),
+                            fontStyle: _otherTyping
+                                ? FontStyle.italic
+                                : FontStyle.normal)),
                   ],
                 ),
               ),
@@ -609,32 +637,36 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.onPrimary,
-        elevation: 1,
+        elevation: 0,
         actions: [
           if (_chatId != null)
             PopupMenuButton<String>(
               key: const ValueKey('chat-menu'),
               onSelected: _onMenu,
               itemBuilder: (_) => [
-                const PopupMenuItem(value: 'search', child: Text('ค้นหาข้อความ')),
+                const PopupMenuItem(
+                    value: 'search', child: Text('ค้นหาข้อความ')),
                 if (widget.otherUserId.isNotEmpty) ...[
                   PopupMenuItem(
                       value: _blockedByMe ? 'unblock' : 'block',
                       child: Text(_blockedByMe ? 'ปลดบล็อก' : 'บล็อก')),
-                  const PopupMenuItem(value: 'report', child: Text('รายงานผู้ใช้')),
+                  const PopupMenuItem(
+                      value: 'report', child: Text('รายงานผู้ใช้')),
                 ],
                 const PopupMenuItem(value: 'delete', child: Text('ลบแชท')),
               ],
             ),
         ],
       ),
-      body: Column(
-        children: [
-          if (_search != null) _buildSearchBar(),
-          Expanded(child: _buildMessageList(myUid)),
-          _closed ? _buildClosedBanner() : _buildComposer(),
-        ],
-      ),
+      body: AppPageFrame(
+          maxWidth: AppLayout.contentWidth,
+          child: Column(
+            children: [
+              if (_search != null) _buildSearchBar(),
+              Expanded(child: _buildMessageList(myUid)),
+              _closed ? _buildClosedBanner() : _buildComposer(),
+            ],
+          )),
     );
   }
 
@@ -645,15 +677,19 @@ class _ChatScreenState extends State<ChatScreen> {
         title: Text(title),
         content: Text(message),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(ok)),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('ยกเลิก')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true), child: Text(ok)),
         ],
       ),
     );
     return res == true;
   }
 
-  void _snack(String text) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(duration: AppTheme.snackDuration, content: Text(text)));
+  void _snack(String text) => ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(duration: AppTheme.snackDuration, content: Text(text)));
 
   Future<void> _onMenu(String action) async {
     final chatId = _chatId;
@@ -662,8 +698,10 @@ class _ChatScreenState extends State<ChatScreen> {
       case 'search':
         setState(() => _search = '');
       case 'block':
-        if (!await _confirm('บล็อก ${widget.otherUserName}',
-            'ห้องแชทนี้จะถูกปิด และคุณทั้งสองจะไม่เห็นประกาศของกันและกัน ปลดบล็อกได้ภายหลัง', 'บล็อก')) {
+        if (!await _confirm(
+            'บล็อก ${widget.otherUserName}',
+            'ห้องแชทนี้จะถูกปิด และคุณทั้งสองจะไม่เห็นประกาศของกันและกัน ปลดบล็อกได้ภายหลัง',
+            'บล็อก')) {
           return;
         }
         try {
@@ -685,14 +723,17 @@ class _ChatScreenState extends State<ChatScreen> {
         await reportWithDialog(
           context,
           title: 'รายงาน ${widget.otherUserName}',
-          send: (reason, detail) =>
-              ReportService.instance.reportUser(widget.otherUserId, reason: reason, detail: detail),
+          send: (reason, detail) => ReportService.instance
+              .reportUser(widget.otherUserId, reason: reason, detail: detail),
           blockUserId: widget.otherUserId,
           blockUserName: widget.otherUserName,
           onBlocked: _loadDetail,
         );
       case 'delete':
-        if (!await _confirm('ลบแชท', 'แชทนี้จะหายจากรายการของคุณ (อีกฝ่ายยังเห็นอยู่) ลบแล้วกู้คืนไม่ได้', 'ลบ')) {
+        if (!await _confirm(
+            'ลบแชท',
+            'แชทนี้จะหายจากรายการของคุณ (อีกฝ่ายยังเห็นอยู่) ลบแล้วกู้คืนไม่ได้',
+            'ลบ')) {
           return;
         }
         try {
@@ -755,8 +796,13 @@ class _ChatScreenState extends State<ChatScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            Expanded(child: Text(text, style: const TextStyle(color: Colors.black54))),
-            if (_blockedByMe) TextButton(onPressed: () => _onMenu('unblock'), child: const Text('ปลดบล็อก')),
+            Expanded(
+                child:
+                    Text(text, style: const TextStyle(color: Colors.black54))),
+            if (_blockedByMe)
+              TextButton(
+                  onPressed: () => _onMenu('unblock'),
+                  child: const Text('ปลดบล็อก')),
           ],
         ),
       ),
@@ -782,7 +828,8 @@ class _ChatScreenState extends State<ChatScreen> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 28),
           child: Text('ทักทายเรื่องสัตว์เลี้ยง ${widget.dogName} กันเลย!',
-              textAlign: TextAlign.center, style: const TextStyle(color: Colors.black38)),
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.black38)),
         ),
       );
     }
@@ -798,7 +845,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 const Icon(Icons.cloud_off, size: 48, color: Colors.black26),
                 const SizedBox(height: 12),
                 const Text('โหลดข้อความไม่สำเร็จ',
-                    key: ValueKey('chat-load-error'), style: TextStyle(color: Colors.black54)),
+                    key: ValueKey('chat-load-error'),
+                    style: TextStyle(color: Colors.black54)),
                 const SizedBox(height: 4),
                 const Text('เซิร์ฟเวอร์ตอบช้าหรือไม่ตอบสนอง',
                     style: TextStyle(fontSize: 12, color: Colors.black38)),
@@ -818,36 +866,46 @@ class _ChatScreenState extends State<ChatScreen> {
         final serverMessages = snapshot.data!;
 
         // มีข้อความระบบใหม่ (สัตว์ได้บ้าน/ประกาศถูกยกเลิก) = ห้องเพิ่งถูกปิด ดึงสถานะใหม่
-        final systemCount = serverMessages.where((m) => m['kind'] == 'system').length;
+        final systemCount =
+            serverMessages.where((m) => m['kind'] == 'system').length;
         if (systemCount != _systemCount) {
           final changedWhileOpen = _systemCount >= 0;
           _systemCount = systemCount;
-          if (changedWhileOpen) WidgetsBinding.instance.addPostFrameCallback((_) => _loadDetail());
+          if (changedWhileOpen) {
+            WidgetsBinding.instance.addPostFrameCallback((_) => _loadDetail());
+          }
         }
 
         // ค้นหาข้อความในห้อง (เมนู ⋮ > ค้นหาข้อความ) กรองเฉพาะข้อความที่มีตัวอักษรตรงกัน
         final query = (_search ?? '').toLowerCase();
         final messages = [
           for (final m in serverMessages)
-            if (query.isEmpty || '${m['text']}'.toLowerCase().contains(query)) m,
+            if (query.isEmpty || '${m['text']}'.toLowerCase().contains(query))
+              m,
         ];
         if (messages.isEmpty && query.isNotEmpty) {
           return const Center(
               child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: 28),
-                  child: Text('ไม่พบข้อความที่ค้นหา', textAlign: TextAlign.center, style: TextStyle(color: Colors.black38))));
+                  child: Text('ไม่พบข้อความที่ค้นหา',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.black38))));
         }
         // ข้อความจริงมาถึงทาง socket ก่อนคำตอบของ POST — ซ่อน bubble รอส่งตัวเดียวกันทันที
         // ไม่งั้นจะเห็นข้อความเดียวกันสองอันชั่วครู่
         final delivered = {for (final m in serverMessages) m['clientId']};
-        final pending = [for (final p in _pending) if (!delivered.contains(p.clientId)) p];
+        final pending = [
+          for (final p in _pending)
+            if (!delivered.contains(p.clientId)) p
+        ];
 
         if (messages.isEmpty && pending.isEmpty) {
           return Center(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 28),
               child: Text('ทักทายเรื่องสัตว์เลี้ยง ${widget.dogName} กันเลย!',
-                  textAlign: TextAlign.center, style: const TextStyle(color: Colors.black38)),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.black38)),
             ),
           );
         }
@@ -858,7 +916,8 @@ class _ChatScreenState extends State<ChatScreen> {
             : (messages.isEmpty ? null : messages.last['id'] as String?);
         if (latestId != _lastScrolledId) {
           _lastScrolledId = latestId;
-          WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+          WidgetsBinding.instance
+              .addPostFrameCallback((_) => _scrollToBottom());
         }
 
         final feed = _feed;
@@ -883,16 +942,22 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: Container(
                   key: ValueKey('system-${data['id']}'),
                   margin: const EdgeInsets.symmetric(vertical: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  decoration: BoxDecoration(color: Colors.black12, borderRadius: BorderRadius.circular(AppRadius.card)),
-                  child: Text('${data['text']}', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                      color: Colors.black12,
+                      borderRadius: BorderRadius.circular(AppRadius.card)),
+                  child: Text('${data['text']}',
+                      style:
+                          const TextStyle(fontSize: 12, color: Colors.black54)),
                 ),
               );
             }
             final isMe = data['senderId'] == myUid;
             final messageId = data['id'];
             // รายงานได้เฉพาะข้อความของอีกฝ่ายที่ถูกบันทึกลงเซิร์ฟเวอร์แล้ว (ข้อความที่ยังไม่มี id จริงยังไม่ได้)
-            final reportable = !isMe && messageId is String && messageId.isNotEmpty;
+            final reportable =
+                !isMe && messageId is String && messageId.isNotEmpty;
             Widget bubble = _buildMessage(data, isMe);
             if (reportable) {
               bubble = GestureDetector(
@@ -908,7 +973,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 bubble,
                 const Padding(
                   padding: EdgeInsets.only(bottom: 8, right: 4),
-                  child: Text('อ่านแล้ว', style: TextStyle(fontSize: 11, color: Colors.black45)),
+                  child: Text('อ่านแล้ว',
+                      style: TextStyle(fontSize: 11, color: Colors.black45)),
                 ),
               ],
             );
@@ -935,8 +1001,8 @@ class _ChatScreenState extends State<ChatScreen> {
     await reportWithDialog(
       context,
       title: 'รายงานข้อความนี้',
-      send: (reason, detail) =>
-          ReportService.instance.reportMessage(messageId, reason: reason, detail: detail),
+      send: (reason, detail) => ReportService.instance
+          .reportMessage(messageId, reason: reason, detail: detail),
       blockUserId: widget.otherUserId.isEmpty ? null : widget.otherUserId,
       blockUserName: widget.otherUserName,
       onBlocked: _loadDetail,
@@ -949,11 +1015,12 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Center(
         child: feed.loadingOlder
             ? const SizedBox(
-                width: 24, height: 24, child: PawSpinner(color: AppColors.primary))
+                width: 24,
+                height: 24,
+                child: PawSpinner(color: AppColors.primary))
             : TextButton.icon(
-                onPressed: () => feed
-                    .loadOlder()
-                    .catchError((Object e) => _showError(e, 'โหลดข้อความก่อนหน้าไม่สำเร็จ')),
+                onPressed: () => feed.loadOlder().catchError((Object e) =>
+                    _showError(e, 'โหลดข้อความก่อนหน้าไม่สำเร็จ')),
                 icon: const Icon(Icons.history, size: 18),
                 label: const Text('ดูข้อความก่อนหน้า'),
                 style: TextButton.styleFrom(foregroundColor: Colors.black54),
@@ -984,26 +1051,33 @@ class _ChatScreenState extends State<ChatScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     // จางไว้ระหว่างรอ server ยืนยัน
-                    Opacity(opacity: pending.failed ? 1 : 0.6, child: _textBubble(pending.text, true)),
+                    Opacity(
+                        opacity: pending.failed ? 1 : 0.6,
+                        child: _textBubble(pending.text, true)),
                     const SizedBox(height: 2),
                     pending.failed
                         ? const Row(
                             key: ValueKey('pending-failed'),
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.error_outline, size: 14, color: AppColors.danger),
+                              Icon(Icons.error_outline,
+                                  size: 14, color: AppColors.danger),
                               SizedBox(width: 4),
                               Text('ส่งไม่สำเร็จ แตะเพื่อลองใหม่',
-                                  style: TextStyle(fontSize: 11, color: AppColors.danger)),
+                                  style: TextStyle(
+                                      fontSize: 11, color: AppColors.danger)),
                             ],
                           )
                         : const Row(
                             key: ValueKey('pending-sending'),
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.schedule, size: 12, color: Colors.black38),
+                              Icon(Icons.schedule,
+                                  size: 12, color: Colors.black38),
                               SizedBox(width: 4),
-                              Text('กำลังส่ง', style: TextStyle(fontSize: 11, color: Colors.black38)),
+                              Text('กำลังส่ง',
+                                  style: TextStyle(
+                                      fontSize: 11, color: Colors.black38)),
                             ],
                           ),
                   ],
@@ -1015,23 +1089,31 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _textBubble(String text, bool isMe) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+        constraints: BoxConstraints(
+            maxWidth: MediaQuery.sizeOf(context)
+                    .width
+                    .clamp(0, AppLayout.contentWidth) *
+                0.75),
         decoration: BoxDecoration(
           color: isMe ? AppColors.primary : Colors.white,
           borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(20),
-            topRight: const Radius.circular(20),
-            bottomLeft: Radius.circular(isMe ? 20 : 0),
-            bottomRight: Radius.circular(isMe ? 0 : 20),
+            topLeft: const Radius.circular(AppRadius.card),
+            topRight: const Radius.circular(AppRadius.card),
+            bottomLeft: Radius.circular(isMe ? AppRadius.card : 4),
+            bottomRight: Radius.circular(isMe ? 4 : AppRadius.card),
           ),
-          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
+          border: isMe ? null : Border.all(color: AppColors.sand),
         ),
-        child: Text(text, style: TextStyle(color: isMe ? Colors.white : Colors.black87, fontSize: 16)),
+        child: Text(text,
+            style: TextStyle(
+                color: isMe ? Colors.white : Colors.black87, fontSize: 16)),
       );
 
   Widget _buildMessage(Map<String, dynamic> data, bool isMe) {
     final text = data['text'] as String? ?? '';
-    final media = data['media'] is Map ? Map<String, dynamic>.from(data['media'] as Map) : null;
+    final media = data['media'] is Map
+        ? Map<String, dynamic>.from(data['media'] as Map)
+        : null;
     final textBubble = text.isEmpty ? null : _textBubble(text, isMe);
 
     return Align(
@@ -1041,10 +1123,14 @@ class _ChatScreenState extends State<ChatScreen> {
         child: media == null
             ? textBubble
             : Column(
-                crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                crossAxisAlignment:
+                    isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                 children: [
                   ChatMediaBubble.fromMessage(media),
-                  if (textBubble != null) ...[const SizedBox(height: 4), textBubble],
+                  if (textBubble != null) ...[
+                    const SizedBox(height: 4),
+                    textBubble
+                  ],
                 ],
               ),
       ),
@@ -1065,7 +1151,7 @@ class _ChatScreenState extends State<ChatScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: const BoxDecoration(
         color: Colors.white,
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -2))],
+        border: Border(top: AppLayout.border),
       ),
       child: Row(
         children: [
@@ -1075,7 +1161,9 @@ class _ChatScreenState extends State<ChatScreen> {
             color: AppColors.primary,
             icon: _preparingMedia
                 ? const SizedBox(
-                    width: 22, height: 22, child: PawSpinner(color: AppColors.primary))
+                    width: 22,
+                    height: 22,
+                    child: PawSpinner(color: AppColors.primary))
                 : const Icon(Icons.add_photo_alternate_outlined),
           ),
           Expanded(
@@ -1085,10 +1173,12 @@ class _ChatScreenState extends State<ChatScreen> {
               decoration: InputDecoration(
                 hintText: 'พิมพ์ข้อความ...',
                 border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
+                    borderRadius: BorderRadius.circular(AppRadius.control),
+                    borderSide: BorderSide.none),
                 filled: true,
                 fillColor: Colors.grey.shade100,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               ),
               onChanged: _onTextChanged,
               textInputAction: TextInputAction.send,
@@ -1104,7 +1194,8 @@ class _ChatScreenState extends State<ChatScreen> {
             onTap: _sendMessage,
             child: Container(
               padding: const EdgeInsets.all(12),
-              decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
+              decoration: const BoxDecoration(
+                  color: AppColors.primary, shape: BoxShape.circle),
               child: const Icon(Icons.send, color: Colors.white),
             ),
           ),

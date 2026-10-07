@@ -26,7 +26,8 @@ class ChatMediaBubble extends StatelessWidget {
   });
 
   /// สร้างจาก field `media` ของข้อความที่ได้จาก API / socket
-  factory ChatMediaBubble.fromMessage(Map<String, dynamic> media) => ChatMediaBubble(
+  factory ChatMediaBubble.fromMessage(Map<String, dynamic> media) =>
+      ChatMediaBubble(
         type: media['type'] as String,
         url: media['url'] as String?,
         thumbnailUrl: media['thumbnailUrl'] as String?,
@@ -70,7 +71,8 @@ class ChatMediaBubble extends StatelessWidget {
     final uploading = progress != null;
 
     final Widget image = localThumbnail != null
-        ? Image.memory(localThumbnail!, fit: BoxFit.cover, gaplessPlayback: true)
+        ? Image.memory(localThumbnail!,
+            fit: BoxFit.cover, gaplessPlayback: true)
         : CachedNetworkImage(
             imageUrl: thumbnailUrl ?? '',
             fit: BoxFit.cover,
@@ -78,7 +80,8 @@ class ChatMediaBubble extends StatelessWidget {
             placeholder: (_, __) => Container(color: Colors.black12),
             errorWidget: (_, __, ___) => Container(
               color: Colors.black12,
-              child: const Icon(Icons.broken_image_outlined, color: Colors.black38),
+              child: const Icon(Icons.broken_image_outlined,
+                  color: Colors.black38),
             ),
           );
 
@@ -98,21 +101,25 @@ class ChatMediaBubble extends StatelessWidget {
                   child: CircleAvatar(
                     radius: 24,
                     backgroundColor: Colors.black45,
-                    child: Icon(Icons.play_arrow, color: Colors.white, size: 32),
+                    child:
+                        Icon(Icons.play_arrow, color: Colors.white, size: 32),
                   ),
                 ),
               if (_isVideo && durationMs != null && !uploading)
                 Positioned(
                   right: 8,
                   bottom: 8,
-                  child: _Badge(text: formatDuration(Duration(milliseconds: durationMs!))),
+                  child: _Badge(
+                      text:
+                          formatDuration(Duration(milliseconds: durationMs!))),
                 ),
               if (uploading)
                 Container(
                   color: Colors.black38,
                   alignment: Alignment.center,
                   child: failed
-                      ? const Icon(Icons.error_outline, color: Colors.white, size: 36)
+                      ? const Icon(Icons.error_outline,
+                          color: Colors.white, size: 36)
                       // วงแหวนบอก % อัปโหลด + อุ้งเท้าหมุนตรงกลาง
                       : SizedBox(
                           width: 44,
@@ -154,8 +161,11 @@ class _Badge extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
-        child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 12)),
+        decoration: BoxDecoration(
+            color: Colors.black54,
+            borderRadius: BorderRadius.circular(AppRadius.chip)),
+        child: Text(text,
+            style: const TextStyle(color: Colors.white, fontSize: 12)),
       );
 }
 

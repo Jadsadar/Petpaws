@@ -28,6 +28,8 @@ describe('perf stats (e2e)', () => {
     await request(server).get('/users/me').expect(401);
     await request(server).get('/users/me').expect(401);
     await request(server).get('/health/live').expect(200);
+    await request(server).get('/admin/perf-stats').expect(401);
+    await request(server).get('/admin/cache-stats').expect(401);
     // ตัวนับเขียนแบบไม่รอ — ให้ Redis รับก่อนอ่าน
     await new Promise((r) => setTimeout(r, 200));
 
@@ -36,6 +38,7 @@ describe('perf stats (e2e)', () => {
     // ไฟล์ e2e อื่นรันพร้อมกันและยิง /users/me ด้วย (Redis ตัวเดียวกัน) — ได้อย่างน้อย 2
     expect(stats.routes.find((r) => r.route === 'GET /users/me')?.count).toBeGreaterThanOrEqual(2);
     expect(stats.routes.some((r) => r.route.includes('/health'))).toBe(false);
+    expect(stats.routes.some((r) => /\/admin\/(perf-stats|cache-stats)/.test(r.route))).toBe(false);
   });
 
   it('query ที่กินเวลา DB มากสุด: เปิด pg_stat_statements แล้วได้รายการ ไม่เปิดก็ไม่พัง', async () => {

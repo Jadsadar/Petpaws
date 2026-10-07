@@ -72,7 +72,8 @@ class _EditDogScreenState extends State<EditDogScreen> with FieldErrors {
   Future<void> saveChanges() async {
     clearFieldErrors();
     if (nameController.text.isEmpty || ageController.text.isEmpty) {
-      showFieldError(nameController.text.isEmpty ? 'name' : 'age', 'กรุณากรอกชื่อและอายุ');
+      showFieldError(
+          nameController.text.isEmpty ? 'name' : 'age', 'กรุณากรอกชื่อและอายุ');
       return;
     }
     if (selectedSpecies == 'other' &&
@@ -112,8 +113,11 @@ class _EditDogScreenState extends State<EditDogScreen> with FieldErrors {
       widget.onSave(updatedDog);
       if (!mounted) return;
       Navigator.pop(context);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(shape: AppTheme.snackSuccessShape, duration: AppTheme.snackDuration, content: Text('อัปเดตข้อมูลสำเร็จ!', style: AppTheme.snackSuccessText)));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          shape: AppTheme.snackSuccessShape,
+          duration: AppTheme.snackDuration,
+          content:
+              Text('อัปเดตข้อมูลสำเร็จ!', style: AppTheme.snackSuccessText)));
     } catch (_) {
       if (!mounted) return;
       showFieldError('submit', 'บันทึกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
@@ -129,57 +133,64 @@ class _EditDogScreenState extends State<EditDogScreen> with FieldErrors {
       appBar: AppBar(
         title: const Text('แก้ไขข้อมูล',
             style: TextStyle(
-                fontWeight: FontWeight.bold, color: AppColors.textDark)),
+                fontWeight: FontWeight.w600, color: AppColors.textDark)),
         backgroundColor: Colors.white,
         iconTheme: const IconThemeData(color: AppColors.primary),
-        elevation: 1,
+        elevation: 0,
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SectionCard(
-              title: 'ข้อมูลสัตว์เลี้ยง',
+      body: AppPageFrame(
+          maxWidth: AppLayout.formWidth,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextField(
-                    controller: nameController,
-                    decoration: InputDecoration(
-                        labelText: 'ชื่อสัตว์เลี้ยง *',
-                        error: fieldErrorWidget('name'),
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(AppRadius.card)))),
-                const SizedBox(height: 16),
-                SpeciesField(
-                  species: selectedSpecies,
-                  otherController: speciesOtherController,
-                  enabled: !_isSaving,
-                  onChanged: (v) => setState(() => selectedSpecies = v),
-                ),
-                InlineError(fieldError('species')),
-                const SizedBox(height: 16),
-                TextField(
-                    controller: breedController,
-                    decoration: InputDecoration(
-                        labelText: 'สายพันธุ์',
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(AppRadius.card)))),
-                const SizedBox(height: 16),
-                ResponsivePair(
-                  first: DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      value: selectedGender,
-                      decoration: InputDecoration(
-                          labelText: 'เพศ',
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppRadius.card))),
-                      items: genders
-                          .map((g) => DropdownMenuItem(value: g, child: Text(g)))
-                          .toList(),
-                      onChanged: (val) => setState(() => selectedGender = val!),
-                  ),
-                  second: TextField(
+                SectionCard(
+                  title: 'ข้อมูลสัตว์เลี้ยง',
+                  children: [
+                    TextField(
+                        controller: nameController,
+                        decoration: InputDecoration(
+                            labelText: 'ชื่อสัตว์เลี้ยง *',
+                            error: fieldErrorWidget('name'),
+                            border: OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.card)))),
+                    const SizedBox(height: 16),
+                    SpeciesField(
+                      species: selectedSpecies,
+                      otherController: speciesOtherController,
+                      enabled: !_isSaving,
+                      onChanged: (v) => setState(() => selectedSpecies = v),
+                    ),
+                    InlineError(fieldError('species')),
+                    const SizedBox(height: 16),
+                    TextField(
+                        controller: breedController,
+                        decoration: InputDecoration(
+                            labelText: 'สายพันธุ์',
+                            border: OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.card)))),
+                    const SizedBox(height: 16),
+                    ResponsivePair(
+                      first: DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        initialValue: selectedGender,
+                        decoration: InputDecoration(
+                            labelText: 'เพศ',
+                            border: OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.card))),
+                        items: genders
+                            .map((g) =>
+                                DropdownMenuItem(value: g, child: Text(g)))
+                            .toList(),
+                        onChanged: (val) =>
+                            setState(() => selectedGender = val!),
+                      ),
+                      second: TextField(
                           controller: ageController,
                           // กันไม่ให้พิมพ์เครื่องหมายลบ แต่ยังพิมพ์ "6 เดือน" ได้
                           inputFormatters: [
@@ -189,18 +200,20 @@ class _EditDogScreenState extends State<EditDogScreen> with FieldErrors {
                               labelText: 'อายุ *',
                               error: fieldErrorWidget('age'),
                               border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(AppRadius.card)))),
-                ),
-                const SizedBox(height: 16),
-                ResponsivePair(
-                  first: ProvinceField(
-                      value: selectedProvince,
-                      onChanged: (val) => setState(() => selectedProvince = val),
-                  ),
-                  second: TextField(
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadius.card)))),
+                    ),
+                    const SizedBox(height: 16),
+                    ResponsivePair(
+                      first: ProvinceField(
+                        value: selectedProvince,
+                        onChanged: (val) =>
+                            setState(() => selectedProvince = val),
+                      ),
+                      second: TextField(
                           controller: weightController,
-                          keyboardType:
-                              const TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
                           // รับเฉพาะตัวเลขกับจุดทศนิยม พิมพ์เครื่องหมายลบไม่ได้
                           inputFormatters: [
                             FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))
@@ -208,64 +221,68 @@ class _EditDogScreenState extends State<EditDogScreen> with FieldErrors {
                           decoration: InputDecoration(
                               labelText: 'น้ำหนัก (กก.)',
                               border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(AppRadius.card)))),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SectionCard(
-              title: 'นิสัยเด่น ๆ ของสัตว์เลี้ยง',
-              children: [
-                TagSelector(
-                  selectedIds: selectedTags,
-                  onToggle: _toggleTag,
-                  enabled: !_isSaving,
-                  backgroundColor: AppColors.background,
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadius.card)))),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
-                TextField(
-                    controller: storyController,
-                    maxLines: 3,
-                    decoration: InputDecoration(
-                        labelText: 'รายละเอียดเพิ่มเติม / เรื่องราวของสัตว์เลี้ยง',
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(AppRadius.card)))),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SectionCard(
-              title: 'รูปภาพ',
-              children: [
-                PetImagePicker(
-                  initialImageUrl: widget.dog['imageUrl'],
-                  onChanged: (bytes) => setState(() => _pickedImageBytes = bytes),
+                SectionCard(
+                  title: 'นิสัยเด่น ๆ ของสัตว์เลี้ยง',
+                  children: [
+                    TagSelector(
+                      selectedIds: selectedTags,
+                      onToggle: _toggleTag,
+                      enabled: !_isSaving,
+                      backgroundColor: AppColors.background,
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                        controller: storyController,
+                        maxLines: 3,
+                        decoration: InputDecoration(
+                            labelText:
+                                'รายละเอียดเพิ่มเติม / เรื่องราวของสัตว์เลี้ยง',
+                            border: OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.card)))),
+                  ],
                 ),
+                const SizedBox(height: 16),
+                SectionCard(
+                  title: 'รูปภาพ',
+                  children: [
+                    PetImagePicker(
+                      initialImageUrl: widget.dog['imageUrl'],
+                      onChanged: (bytes) =>
+                          setState(() => _pickedImageBytes = bytes),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: _isSaving ? null : saveChanges,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueGrey.shade400,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.control)),
+                  ),
+                  child: _isSaving
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: PawSpinner(color: Colors.white),
+                        )
+                      : const Text('บันทึกการแก้ไข',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w600)),
+                ),
+                InlineError(fieldError('submit')),
               ],
             ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _isSaving ? null : saveChanges,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueGrey.shade400,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30)),
-              ),
-              child: _isSaving
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: PawSpinner(color: Colors.white),
-                    )
-                  : const Text('บันทึกการแก้ไข',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            ),
-            InlineError(fieldError('submit')),
-          ],
-        ),
-      ),
+          )),
     );
   }
 }

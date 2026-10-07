@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../services/admin_service.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/pet_avatar.dart';
-import 'admin_cache_stats_screen.dart';
+import 'admin_monitoring_screen.dart';
 import 'admin_paged_list.dart';
 import 'admin_user_reports_screen.dart';
 import 'admin_widgets.dart';
@@ -34,10 +34,13 @@ class _AdminScreenState extends State<AdminScreen> {
         title: const Text('ออกจากระบบ'),
         content: const Text('ต้องการออกจากระบบแอดมินใช่หรือไม่?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('ยกเลิก')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('ออกจากระบบ', style: TextStyle(color: AppColors.danger)),
+            child: const Text('ออกจากระบบ',
+                style: TextStyle(color: AppColors.danger)),
           ),
         ],
       ),
@@ -59,19 +62,23 @@ class _AdminScreenState extends State<AdminScreen> {
         backgroundColor: Colors.white,
         appBar: AppBar(
           title: const Text('แดชบอร์ดแอดมิน',
-              style: TextStyle(fontWeight: FontWeight.bold, color: adminOrange)),
+              style:
+                  TextStyle(fontWeight: FontWeight.w600, color: adminOrange)),
           backgroundColor: Colors.white,
-          elevation: 1,
+          elevation: 0,
           centerTitle: true,
           iconTheme: const IconThemeData(color: adminOrange),
           actions: [
             IconButton(
               onPressed: () => Navigator.push(
                 context,
-                MaterialPageRoute<void>(builder: (_) => const AdminCacheStatsScreen()),
+                MaterialPageRoute<void>(
+                    builder: (_) => const AdminMonitoringScreen()),
               ),
-              icon: const Icon(Icons.speed, color: adminOrange),
-              tooltip: 'สถิติ cache',
+              key: const ValueKey('admin-monitoring'),
+              icon:
+                  const Icon(Icons.monitor_heart_outlined, color: adminOrange),
+              tooltip: 'Monitoring',
             ),
             IconButton(
               onPressed: _logout,
@@ -85,19 +92,21 @@ class _AdminScreenState extends State<AdminScreen> {
             tabs: [Tab(text: 'รีพอร์ต'), Tab(text: 'ถูกแบน')],
           ),
         ),
-        body: Column(
-          children: [
-            _SummaryBar(summary: _summary),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  _ReportedTab(onChanged: _refreshSummary),
-                  _BannedTab(onChanged: _refreshSummary),
-                ],
-              ),
-            ),
-          ],
-        ),
+        body: AppPageFrame(
+            maxWidth: AppLayout.dashboardWidth,
+            child: Column(
+              children: [
+                _SummaryBar(summary: _summary),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      _ReportedTab(onChanged: _refreshSummary),
+                      _BannedTab(onChanged: _refreshSummary),
+                    ],
+                  ),
+                ),
+              ],
+            )),
       ),
     );
   }
@@ -146,7 +155,11 @@ class _SummaryBar extends StatelessWidget {
 }
 
 class _StatCard extends StatelessWidget {
-  const _StatCard({super.key, required this.label, required this.value, required this.color});
+  const _StatCard(
+      {super.key,
+      required this.label,
+      required this.value,
+      required this.color});
 
   final String label;
   final String value;
@@ -159,11 +172,13 @@ class _StatCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppRadius.control),
         ),
         child: Column(
           children: [
-            Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)),
+            Text(value,
+                style: TextStyle(
+                    fontSize: 22, fontWeight: FontWeight.w600, color: color)),
             Text(label, style: TextStyle(fontSize: 12, color: color)),
           ],
         ),
@@ -210,7 +225,8 @@ class _ReportedTabState extends State<_ReportedTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('แสดงผู้ที่ถูกรายงานตั้งแต่', style: TextStyle(color: Colors.black54)),
+              const Text('แสดงผู้ที่ถูกรายงานตั้งแต่',
+                  style: TextStyle(color: Colors.black54)),
               const SizedBox(height: 4),
               Wrap(
                 spacing: 8,
@@ -235,9 +251,11 @@ class _ReportedTabState extends State<_ReportedTab> {
         Expanded(
           child: AdminPagedList<ReportedUser>(
             key: _listKey,
-            fetch: (page) => AdminService.instance.reportedUsers(minReports: _minReports, page: page),
+            fetch: (page) => AdminService.instance
+                .reportedUsers(minReports: _minReports, page: page),
             emptyMessage: 'ไม่มีรีพอร์ตที่รอตรวจสอบตามเกณฑ์นี้',
-            itemBuilder: (context, user) => _ReportedUserTile(user: user, onTap: () => _open(user)),
+            itemBuilder: (context, user) =>
+                _ReportedUserTile(user: user, onTap: () => _open(user)),
           ),
         ),
       ],
@@ -254,21 +272,25 @@ class _ReportedUserTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 1,
+      elevation: 0,
       child: ListTile(
         onTap: onTap,
-        leading: PetAvatar(imageUrl: user.avatarUrl, radius: 24, icon: Icons.person),
-        title: Text(user.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text('@${user.username} · ${user.email}\nล่าสุด ${formatDateTime(user.lastReportedAt)}'),
+        leading:
+            PetAvatar(imageUrl: user.avatarUrl, radius: 24, icon: Icons.person),
+        title: Text(user.title,
+            style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text(
+            '@${user.username} · ${user.email}\nล่าสุด ${formatDateTime(user.lastReportedAt)}'),
         isThreeLine: true,
         trailing: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
             color: Colors.redAccent.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(AppRadius.control),
           ),
           child: Text('${user.reportCount} คน',
-              style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold)),
+              style: const TextStyle(
+                  color: AppColors.danger, fontWeight: FontWeight.w600)),
         ),
       ),
     );
@@ -292,10 +314,15 @@ class _BannedTabState extends State<_BannedTab> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('ปลดแบน'),
-        content: Text('ต้องการปลดแบน "${user.title}" ใช่หรือไม่?\nเขาจะล็อกอินกลับเข้าแอปได้ทันที'),
+        content: Text(
+            'ต้องการปลดแบน "${user.title}" ใช่หรือไม่?\nเขาจะล็อกอินกลับเข้าแอปได้ทันที'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('ปลดแบน')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('ยกเลิก')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('ปลดแบน')),
         ],
       ),
     );
@@ -318,14 +345,17 @@ class _BannedTabState extends State<_BannedTab> {
       fetch: (page) => AdminService.instance.bannedUsers(page: page),
       emptyMessage: 'ยังไม่มีบัญชีที่ถูกแบน',
       itemBuilder: (context, u) => Card(
-        elevation: 1,
+        elevation: 0,
         child: ListTile(
-          leading: PetAvatar(imageUrl: u.avatarUrl, radius: 24, icon: Icons.person),
-          title: Text(u.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+          leading:
+              PetAvatar(imageUrl: u.avatarUrl, radius: 24, icon: Icons.person),
+          title: Text(u.title,
+              style: const TextStyle(fontWeight: FontWeight.w600)),
           subtitle: Text(
               '@${u.username} · ${u.email}\n${u.permanent ? 'แบนถาวร' : 'ถึง ${formatDate(u.suspendedUntil)}'}'),
           isThreeLine: true,
-          trailing: TextButton(onPressed: () => _unban(u), child: const Text('ปลดแบน')),
+          trailing: TextButton(
+              onPressed: () => _unban(u), child: const Text('ปลดแบน')),
         ),
       ),
     );

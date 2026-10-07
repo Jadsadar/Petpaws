@@ -47,7 +47,8 @@ class _RegisterScreenState extends State<RegisterScreen> with FieldErrors {
   Future<void> handleRegister() async {
     clearFieldErrors();
     if (!_consented) {
-      showFieldError('consent', 'กรุณาอ่านและกดยินยอมการใช้ข้อมูลส่วนบุคคลก่อนสมัครสมาชิก');
+      showFieldError('consent',
+          'กรุณาอ่านและกดยินยอมการใช้ข้อมูลส่วนบุคคลก่อนสมัครสมาชิก');
       return;
     }
     final username = usernameController.text.trim();
@@ -93,7 +94,8 @@ class _RegisterScreenState extends State<RegisterScreen> with FieldErrors {
         await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => VerifyEmailScreen(email: emailController.text.trim(), identifier: username),
+            builder: (_) => VerifyEmailScreen(
+                email: emailController.text.trim(), identifier: username),
           ),
         );
         if (!mounted) return;
@@ -123,150 +125,165 @@ class _RegisterScreenState extends State<RegisterScreen> with FieldErrors {
       appBar: AppBar(
         title: const Text('สมัครสมาชิก',
             style: TextStyle(
-                fontWeight: FontWeight.bold, color: AppColors.textDark)),
+                fontWeight: FontWeight.w600, color: AppColors.textDark)),
         backgroundColor: AppColors.appBar,
         iconTheme: const IconThemeData(color: AppColors.primary),
         elevation: 0,
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SectionCard(
-              title: 'ข้อมูลพื้นฐานบัญชีผู้ใช้',
+      body: AppPageFrame(
+          maxWidth: AppLayout.authWidth,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextField(
-                    key: const ValueKey('register-username'),
-                    controller: usernameController,
-                    enabled: !_isLoading,
-                    decoration: InputDecoration(
-                        labelText: 'Username (สำหรับใช้ล็อกอิน) *',
-                        error: fieldErrorWidget('username'),
-                        helper: const Text('ห้ามเว้นวรรค ใช้ล็อกอินแทนอีเมลได้',
-                            style: TextStyle(
-                                fontSize: 13, color: AppColors.textDark)),
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(AppRadius.card)))),
-                const SizedBox(height: 16),
-                TextField(
-                    key: const ValueKey('register-email'),
-                    controller: emailController,
-                    enabled: !_isLoading,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(
-                        labelText: 'อีเมล *',
-                        error: fieldErrorWidget('email'),
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(AppRadius.card)))),
-                const SizedBox(height: 16),
-                TextField(
-                    key: const ValueKey('register-password'),
-                    controller: passwordController,
-                    obscureText: _obscurePassword,
-                    enabled: !_isLoading,
-                    onChanged: (_) => setState(() {}),
-                    decoration: InputDecoration(
-                        labelText: 'รหัสผ่าน *',
-                        error: fieldErrorWidget('password'),
-                        suffixIcon: IconButton(
-                          icon: Icon(_obscurePassword
-                              ? Icons.visibility_off
-                              : Icons.visibility),
-                          onPressed: () => setState(
-                              () => _obscurePassword = !_obscurePassword),
-                        ),
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(AppRadius.card)))),
-                PasswordChecklist(
-                  password: passwordController.text,
-                  username: usernameController.text,
-                  email: emailController.text,
+                SectionCard(
+                  title: 'ข้อมูลพื้นฐานบัญชีผู้ใช้',
+                  children: [
+                    TextField(
+                        key: const ValueKey('register-username'),
+                        controller: usernameController,
+                        enabled: !_isLoading,
+                        decoration: InputDecoration(
+                            labelText: 'Username (สำหรับใช้ล็อกอิน) *',
+                            error: fieldErrorWidget('username'),
+                            helper: const Text(
+                                'ห้ามเว้นวรรค ใช้ล็อกอินแทนอีเมลได้',
+                                style: TextStyle(
+                                    fontSize: 13, color: AppColors.textDark)),
+                            border: OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.card)))),
+                    const SizedBox(height: 16),
+                    TextField(
+                        key: const ValueKey('register-email'),
+                        controller: emailController,
+                        enabled: !_isLoading,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: InputDecoration(
+                            labelText: 'อีเมล *',
+                            error: fieldErrorWidget('email'),
+                            border: OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.card)))),
+                    const SizedBox(height: 16),
+                    TextField(
+                        key: const ValueKey('register-password'),
+                        controller: passwordController,
+                        obscureText: _obscurePassword,
+                        enabled: !_isLoading,
+                        onChanged: (_) => setState(() {}),
+                        decoration: InputDecoration(
+                            labelText: 'รหัสผ่าน *',
+                            error: fieldErrorWidget('password'),
+                            suffixIcon: IconButton(
+                              icon: Icon(_obscurePassword
+                                  ? Icons.visibility_off
+                                  : Icons.visibility),
+                              onPressed: () => setState(
+                                  () => _obscurePassword = !_obscurePassword),
+                            ),
+                            border: OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.card)))),
+                    PasswordChecklist(
+                      password: passwordController.text,
+                      username: usernameController.text,
+                      email: emailController.text,
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                        key: const ValueKey('register-confirm'),
+                        controller: confirmPasswordController,
+                        obscureText: _obscureConfirmPassword,
+                        enabled: !_isLoading,
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) {
+                          if (!_isLoading) handleRegister();
+                        },
+                        decoration: InputDecoration(
+                            labelText: 'ยืนยันรหัสผ่าน *',
+                            error: fieldErrorWidget('confirm'),
+                            suffixIcon: IconButton(
+                              icon: Icon(_obscureConfirmPassword
+                                  ? Icons.visibility_off
+                                  : Icons.visibility),
+                              onPressed: () => setState(() =>
+                                  _obscureConfirmPassword =
+                                      !_obscureConfirmPassword),
+                            ),
+                            border: OutlineInputBorder(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.card)))),
+                  ],
                 ),
                 const SizedBox(height: 16),
-                TextField(
-                    key: const ValueKey('register-confirm'),
-                    controller: confirmPasswordController,
-                    obscureText: _obscureConfirmPassword,
-                    enabled: !_isLoading,
-                    textInputAction: TextInputAction.done,
-                    onSubmitted: (_) {
-                      if (!_isLoading) handleRegister();
-                    },
-                    decoration: InputDecoration(
-                        labelText: 'ยืนยันรหัสผ่าน *',
-                        error: fieldErrorWidget('confirm'),
-                        suffixIcon: IconButton(
-                          icon: Icon(_obscureConfirmPassword
-                              ? Icons.visibility_off
-                              : Icons.visibility),
-                          onPressed: () => setState(() =>
-                              _obscureConfirmPassword = !_obscureConfirmPassword),
-                        ),
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(AppRadius.card)))),
+                // สถานะการยินยอม + ปุ่มเปิดอ่านอีกครั้ง
+                Container(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.section,
+                    borderRadius: BorderRadius.circular(AppRadius.card),
+                    border: Border.all(
+                        color: _consented ? AppColors.success : AppColors.sand),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                          _consented
+                              ? Icons.verified_user
+                              : Icons.privacy_tip_outlined,
+                          color:
+                              _consented ? AppColors.success : AppColors.brown),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                            _consented
+                                ? 'ยินยอมการใช้ข้อมูลส่วนบุคคลแล้ว'
+                                : 'ยังไม่ได้ยินยอมการใช้ข้อมูลส่วนบุคคล',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: _consented
+                                    ? AppColors.success
+                                    : AppColors.textDark)),
+                      ),
+                      TextButton(
+                        key: const ValueKey('consent-open'),
+                        onPressed: _askConsent,
+                        child:
+                            Text(_consented ? 'อ่านอีกครั้ง' : 'อ่านและยินยอม'),
+                      ),
+                    ],
+                  ),
+                ),
+                InlineError(fieldError('consent')),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  key: const ValueKey('register-submit'),
+                  onPressed: _isLoading ? null : handleRegister,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.onPrimary,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.control)),
+                    elevation: 0,
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: PawSpinner(color: Colors.white),
+                        )
+                      : const Text('สมัครสมาชิก',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w600)),
+                ),
+                InlineError(fieldError('submit')),
               ],
             ),
-            const SizedBox(height: 16),
-            // สถานะการยินยอม + ปุ่มเปิดอ่านอีกครั้ง
-            Container(
-              padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
-              decoration: BoxDecoration(
-                color: AppColors.section,
-                borderRadius: BorderRadius.circular(AppRadius.card),
-                border: Border.all(
-                    color: _consented ? AppColors.success : AppColors.sand),
-              ),
-              child: Row(
-                children: [
-                  Icon(_consented ? Icons.verified_user : Icons.privacy_tip_outlined,
-                      color: _consented ? AppColors.success : AppColors.brown),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                        _consented
-                            ? 'ยินยอมการใช้ข้อมูลส่วนบุคคลแล้ว'
-                            : 'ยังไม่ได้ยินยอมการใช้ข้อมูลส่วนบุคคล',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: _consented ? AppColors.success : AppColors.textDark)),
-                  ),
-                  TextButton(
-                    key: const ValueKey('consent-open'),
-                    onPressed: _askConsent,
-                    child: Text(_consented ? 'อ่านอีกครั้ง' : 'อ่านและยินยอม'),
-                  ),
-                ],
-              ),
-            ),
-            InlineError(fieldError('consent')),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              key: const ValueKey('register-submit'),
-              onPressed: _isLoading ? null : handleRegister,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.onPrimary,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30)),
-                elevation: 2,
-              ),
-              child: _isLoading
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: PawSpinner(color: Colors.white),
-                    )
-                  : const Text('สมัครสมาชิก',
-                      style: TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold)),
-            ),
-            InlineError(fieldError('submit')),
-          ],
-        ),
-      ),
+          )),
     );
   }
 }

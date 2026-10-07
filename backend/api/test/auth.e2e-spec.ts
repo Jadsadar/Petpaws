@@ -446,6 +446,9 @@ describe('auth (e2e กับ DB จริง)', () => {
 
         await expect(s.auth.checkResetToken(token)).resolves.toBe('ok');
         await expect(s.auth.checkResetToken(token)).resolves.toBe('ok');
+        await expect(s.auth.resetFormContext(token)).resolves.toEqual({
+          outcome: 'ok', username: s.u.username, email: s.u.email,
+        });
 
         await expect(s.auth.resetPasswordFromPage(token, NEW_PASSWORD, NEW_PASSWORD)).resolves.toEqual({ outcome: 'ok' });
         await expect(s.auth.checkResetToken(token)).resolves.toBe('used');
@@ -459,6 +462,8 @@ describe('auth (e2e กับ DB จริง)', () => {
         await expect(s.auth.resetPasswordFromPage(token, NEW_PASSWORD, 'ไม่ตรงกัน')).resolves.toEqual({
           outcome: 'retry',
           message: 'รหัสผ่านทั้งสองช่องไม่ตรงกัน',
+          username: s.u.username,
+          email: s.u.email,
         });
         const weak = await s.auth.resetPasswordFromPage(token, 'abc', 'abc');
         expect(weak).toMatchObject({ outcome: 'retry' });

@@ -93,14 +93,16 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     final ownerId = dog['ownerId'] as String?;
     final myUid = AuthService.instance.currentUser?.uid;
     if (ownerId == null || ownerId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(duration: AppTheme.snackDuration, 
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          duration: AppTheme.snackDuration,
           content: Text(
               'สัตว์เลี้ยงตัวอย่างนี้ยังไม่มีเจ้าของจริงในระบบให้แชทด้วย')));
       return;
     }
     if (ownerId == myUid) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(duration: AppTheme.snackDuration, content: Text('นี่คือประกาศของคุณเอง')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          duration: AppTheme.snackDuration,
+          content: Text('นี่คือประกาศของคุณเอง')));
       return;
     }
     final ownerName = dog['ownerName'] as String? ?? 'เจ้าของ';
@@ -124,7 +126,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         title: Text(
             _selecting ? 'เลือกแล้ว ${_selected.length} ตัว' : 'รายการที่สนใจ',
             style: const TextStyle(
-                fontWeight: FontWeight.bold, color: AppColors.textDark)),
+                fontWeight: FontWeight.w600, color: AppColors.textDark)),
         backgroundColor: AppColors.appBar,
         elevation: 0,
         centerTitle: true,
@@ -167,83 +169,88 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
               ),
             )
           : null,
-      body: likedDogs.isEmpty
-          ? const Center(
-              child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 28),
-                  child: Text('ยังไม่มีสัตว์เลี้ยงที่ถูกใจเลย',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textDark))))
-          : ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: likedDogs.length,
-              itemBuilder: (context, index) {
-                final dog = likedDogs[index];
-                final id = dog['id'] as String;
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  elevation: 1,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.card)),
-                  child: ListTile(
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    leading: PetAvatar(
-                      imageUrl: dog['imageUrl'],
-                      radius: 30,
-                    ),
-                    title: Text(dog['name'],
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text('${dog['province']} • ${dog['breed']}'),
-                    trailing: _selecting
-                        ? Checkbox(
-                            key: ValueKey('fav-check-$id'),
-                            value: _selected.contains(id),
-                            activeColor: AppColors.primary,
-                            onChanged: (_) => _toggleSelected(id),
-                          )
-                        : (MediaQuery.sizeOf(context).width < 400
-                            // จอแคบ: ปุ่มเหลือแค่ไอคอน ไม่งั้นแย่งที่ชื่อสัตว์จนตกบรรทัดทีละตัวอักษร
-                            ? IconButton.filled(
-                                key: ValueKey('fav-chat-$id'),
-                                tooltip: 'ทักแชท',
-                                onPressed: () => _chatWithOwner(context, dog),
-                                icon: const Icon(Icons.chat, size: 20),
-                                style: IconButton.styleFrom(
-                                  backgroundColor: AppColors.primarySoft,
-                                  foregroundColor: AppColors.onPrimary,
-                                ),
+      body: AppPageFrame(
+          maxWidth: AppLayout.contentWidth,
+          child: likedDogs.isEmpty
+              ? const Center(
+                  child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 28),
+                      child: Text('ยังไม่มีสัตว์เลี้ยงที่ถูกใจเลย',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textDark))))
+              : ListView.builder(
+                  padding: const EdgeInsets.all(12),
+                  itemCount: likedDogs.length,
+                  itemBuilder: (context, index) {
+                    final dog = likedDogs[index];
+                    final id = dog['id'] as String;
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.card)),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        leading: PetAvatar(
+                          imageUrl: dog['imageUrl'],
+                          radius: 30,
+                        ),
+                        title: Text(dog['name'],
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w600)),
+                        subtitle: Text('${dog['province']} • ${dog['breed']}'),
+                        trailing: _selecting
+                            ? Checkbox(
+                                key: ValueKey('fav-check-$id'),
+                                value: _selected.contains(id),
+                                activeColor: AppColors.primary,
+                                onChanged: (_) => _toggleSelected(id),
                               )
-                            : ElevatedButton.icon(
-                                onPressed: () => _chatWithOwner(context, dog),
-                                icon: const Icon(Icons.chat, size: 18),
-                                label: const Text('ทักแชท'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primarySoft,
-                                  foregroundColor: AppColors.onPrimary,
-                                  elevation: 0,
-                                ),
-                              )),
-                    onTap: _selecting
-                        ? () => _toggleSelected(id)
-                        : () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => PetDetailScreen(
-                                      dog: dog,
-                                      isMyPost: false,
-                                      isFavorited: likedDogs
-                                          .any((d) => d['id'] == dog['id']),
-                                      onToggleFavorite: () =>
-                                          onToggleFavorite(dog),
-                                    ))),
-                  ),
-                );
-              },
-            ),
+                            : (MediaQuery.sizeOf(context).width < 400
+                                // จอแคบ: ปุ่มเหลือแค่ไอคอน ไม่งั้นแย่งที่ชื่อสัตว์จนตกบรรทัดทีละตัวอักษร
+                                ? IconButton.filled(
+                                    key: ValueKey('fav-chat-$id'),
+                                    tooltip: 'ทักแชท',
+                                    onPressed: () =>
+                                        _chatWithOwner(context, dog),
+                                    icon: const Icon(Icons.chat, size: 20),
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: AppColors.primarySoft,
+                                      foregroundColor: AppColors.onPrimary,
+                                    ),
+                                  )
+                                : ElevatedButton.icon(
+                                    onPressed: () =>
+                                        _chatWithOwner(context, dog),
+                                    icon: const Icon(Icons.chat, size: 18),
+                                    label: const Text('ทักแชท'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.primarySoft,
+                                      foregroundColor: AppColors.onPrimary,
+                                      elevation: 0,
+                                    ),
+                                  )),
+                        onTap: _selecting
+                            ? () => _toggleSelected(id)
+                            : () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (context) => PetDetailScreen(
+                                          dog: dog,
+                                          isMyPost: false,
+                                          isFavorited: likedDogs
+                                              .any((d) => d['id'] == dog['id']),
+                                          onToggleFavorite: () =>
+                                              onToggleFavorite(dog),
+                                        ))),
+                      ),
+                    );
+                  },
+                )),
     );
   }
 }

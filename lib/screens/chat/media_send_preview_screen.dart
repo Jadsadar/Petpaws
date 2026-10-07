@@ -49,76 +49,83 @@ class _MediaSendPreviewScreenState extends State<MediaSendPreviewScreen> {
         title: Text(n > 1 ? 'ตรวจก่อนส่ง (${_index + 1}/$n)' : 'ตรวจก่อนส่ง',
             style: const TextStyle(color: Colors.white)),
       ),
-      body: Column(
-        children: [
-          // ภาพใหญ่ เลื่อนซ้ายขวาดูทีละชิ้น ซูมได้
-          Expanded(
-            child: PageView.builder(
-              controller: _page,
-              itemCount: n,
-              onPageChanged: (i) => setState(() => _index = i),
-              itemBuilder: (_, i) => Stack(
-                fit: StackFit.expand,
-                children: [
-                  InteractiveViewer(
-                    maxScale: 5,
-                    child: Image.memory(
-                      _items[i].isVideo ? _items[i].thumbnail : _items[i].bytes,
-                      fit: BoxFit.contain,
-                    ),
+      body: AppPageFrame(
+          maxWidth: AppLayout.contentWidth,
+          child: Column(
+            children: [
+              // ภาพใหญ่ เลื่อนซ้ายขวาดูทีละชิ้น ซูมได้
+              Expanded(
+                child: PageView.builder(
+                  controller: _page,
+                  itemCount: n,
+                  onPageChanged: (i) => setState(() => _index = i),
+                  itemBuilder: (_, i) => Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      InteractiveViewer(
+                        maxScale: 5,
+                        child: Image.memory(
+                          _items[i].isVideo
+                              ? _items[i].thumbnail
+                              : _items[i].bytes,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                      if (_items[i].isVideo)
+                        const Center(
+                          child: Icon(Icons.play_circle_fill,
+                              size: 72, color: Colors.white70),
+                        ),
+                    ],
                   ),
-                  if (_items[i].isVideo)
-                    const Center(
-                      child: Icon(Icons.play_circle_fill, size: 72, color: Colors.white70),
-                    ),
-                ],
+                ),
               ),
-            ),
-          ),
-          // แถบรูปย่อ: แตะเพื่อไปดู, กด ✕ เพื่อเอาออกจากชุด
-          if (n > 0)
-            SizedBox(
-              height: 92,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                itemCount: n,
-                separatorBuilder: (_, __) => const SizedBox(width: 10),
-                itemBuilder: (_, i) => _thumb(i),
-              ),
-            ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      key: const ValueKey('media-preview-cancel'),
-                      style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          side: const BorderSide(color: Colors.white54)),
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('ยกเลิก'),
-                    ),
+              // แถบรูปย่อ: แตะเพื่อไปดู, กด ✕ เพื่อเอาออกจากชุด
+              if (n > 0)
+                SizedBox(
+                  height: 92,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                    itemCount: n,
+                    separatorBuilder: (_, __) => const SizedBox(width: 10),
+                    itemBuilder: (_, i) => _thumb(i),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton.icon(
-                      key: const ValueKey('media-preview-send'),
-                      onPressed: n == 0 ? null : () => Navigator.pop(context, _items),
-                      icon: const Icon(Icons.send),
-                      label: Text(n > 1 ? 'ส่ง ($n รายการ)' : 'ส่ง'),
-                    ),
+                ),
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          key: const ValueKey('media-preview-cancel'),
+                          style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.white,
+                              side: const BorderSide(color: Colors.white54)),
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('ยกเลิก'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton.icon(
+                          key: const ValueKey('media-preview-send'),
+                          onPressed: n == 0
+                              ? null
+                              : () => Navigator.pop(context, _items),
+                          icon: const Icon(Icons.send),
+                          label: Text(n > 1 ? 'ส่ง ($n รายการ)' : 'ส่ง'),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
-        ],
-      ),
+            ],
+          )),
     );
   }
 
@@ -131,15 +138,17 @@ class _MediaSendPreviewScreenState extends State<MediaSendPreviewScreen> {
           onTap: () {
             setState(() => _index = i);
             _page.animateToPage(i,
-                duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOut);
           },
           child: Container(
             width: 72,
             height: 72,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(AppRadius.control),
               border: Border.all(
-                  color: selected ? AppColors.primary : Colors.white24, width: selected ? 3 : 1),
+                  color: selected ? AppColors.primary : Colors.white24,
+                  width: selected ? 3 : 1),
             ),
             clipBehavior: Clip.antiAlias,
             child: Image.memory(_items[i].thumbnail, fit: BoxFit.cover),
@@ -152,7 +161,8 @@ class _MediaSendPreviewScreenState extends State<MediaSendPreviewScreen> {
             key: ValueKey('media-preview-remove-$i'),
             onTap: () => _remove(i),
             child: Container(
-              decoration: const BoxDecoration(color: AppColors.danger, shape: BoxShape.circle),
+              decoration: const BoxDecoration(
+                  color: AppColors.danger, shape: BoxShape.circle),
               padding: const EdgeInsets.all(3),
               child: const Icon(Icons.close, size: 16, color: Colors.white),
             ),

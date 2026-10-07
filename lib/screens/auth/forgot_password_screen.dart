@@ -17,7 +17,8 @@ class ForgotPasswordScreen extends StatefulWidget {
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
 }
 
-class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> with FieldErrors {
+class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
+    with FieldErrors {
   late final _email = TextEditingController(text: widget.initialEmail);
   bool _sending = false;
 
@@ -67,17 +68,19 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> with FieldE
         elevation: 0,
         centerTitle: true,
       ),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
-              child: _sentMessage == null ? _form() : _done(),
+      body: AppPageFrame(
+          maxWidth: AppLayout.authWidth,
+          child: SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 480),
+                  child: _sentMessage == null ? _form() : _done(),
+                ),
+              ),
             ),
-          ),
-        ),
-      ),
+          )),
     );
   }
 
@@ -87,7 +90,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> with FieldE
       children: [
         const Text(
           'กรอกอีเมลที่ใช้สมัครสมาชิก ระบบจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปให้',
-          style: TextStyle(fontSize: 15, color: AppColors.textDark, height: 1.4),
+          style:
+              TextStyle(fontSize: 15, color: AppColors.textDark, height: 1.4),
         ),
         const SizedBox(height: 16),
         TextField(
@@ -123,13 +127,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> with FieldE
     return SectionCard(
       title: 'ตรวจสอบอีเมลของคุณ',
       children: [
-        const Icon(Icons.mark_email_read_outlined, size: 64, color: AppColors.success),
+        const Icon(Icons.mark_email_read_outlined,
+            size: 64, color: AppColors.success),
         const SizedBox(height: 12),
         Text(
           _sentMessage!,
           key: const ValueKey('forgot-done'),
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 16, color: AppColors.textDark, height: 1.4),
+          style: const TextStyle(
+              fontSize: 16, color: AppColors.textDark, height: 1.4),
         ),
         const SizedBox(height: 8),
         const Text(

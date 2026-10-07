@@ -398,6 +398,12 @@ export class AuthService {
     return (await this.findReset(token)).status;
   }
 
+  async resetFormContext(token: string) {
+    const found = await this.findReset(token);
+    if (found.status !== 'ok') return { outcome: found.status };
+    return { outcome: 'ok' as const, username: found.row.username, email: found.row.email };
+  }
+
   /** ตั้งรหัสใหม่ + ปิดลิงก์ + เตะทุกอุปกรณ์ออก (ทำใน transaction เดียว) แล้วแจ้งเตือนทางอีเมล */
   private async applyReset(row: { id: string; user_id: string; username: string; email: string }, newPassword: string) {
     const passwordHash = await argon2.hash(newPassword);
@@ -447,13 +453,16 @@ export class AuthService {
     token: string,
     newPassword: string,
     confirmPassword: string,
-  ): Promise<{ outcome: ResetOutcome } | { outcome: 'retry'; message: string }> {
+  ): Promise<{ outcome: ResetOutcome } | { outcome: 'retry'; message: string; username: string; email: string }> {
     const found = await this.findReset(token);
     if (found.status !== 'ok') return { outcome: found.status };
 
-    if (newPassword !== confirmPassword) return { outcome: 'retry', message: 'รหัสผ่านทั้งสองช่องไม่ตรงกัน' };
+    const retry = (message: string) => ({
+      outcome: 'retry' as const, message, username: found.row.username, email: found.row.email,
+    });
+    if (newPassword !== confirmPassword) return retry('รหัสผ่านทั้งสองช่องไม่ตรงกัน');
     const passwordError = firstPasswordError(newPassword, { username: found.row.username, email: found.row.email });
-    if (passwordError) return { outcome: 'retry', message: passwordError };
+    if (passwordError) return retry(passwordError);
 
     try {
       await this.applyReset(found.row, newPassword);

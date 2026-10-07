@@ -1,5 +1,8 @@
 import '../shared/api_client.dart';
 import '../shared/api_exception.dart';
+import 'admin_monitoring_models.dart';
+
+export 'admin_monitoring_models.dart';
 
 // ป้ายภาษาไทยของเหตุผลรายงานอยู่ใน utils/report_reasons.dart (ใช้ร่วมกับฝั่งผู้ใช้ที่ส่งรายงาน)
 
@@ -76,6 +79,15 @@ class AdminService {
   /// เริ่มนับ hit/miss ใหม่ (ไม่ลบข้อมูลที่ cache ไว้)
   Future<void> resetCacheStats() async {
     await _api.post('/admin/cache-stats/reset');
+  }
+
+  Future<PerfStats> perfStats() async {
+    final res = await _api.get('/admin/perf-stats') as Map<String, dynamic>;
+    return PerfStats.fromJson(res);
+  }
+
+  Future<void> resetPerfStats() async {
+    await _api.post('/admin/perf-stats/reset');
   }
 
   /// โปรไฟล์ + ประกาศทั้งหมดของผู้ใช้พร้อมรูป (ให้แอดมินตรวจสิ่งที่ถูกรายงาน)

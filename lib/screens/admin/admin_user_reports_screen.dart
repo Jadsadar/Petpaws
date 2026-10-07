@@ -40,33 +40,46 @@ class _AdminUserReportsScreenState extends State<AdminUserReportsScreen> {
   Future<void> _dismiss() async {
     final ok = await _confirm(
       title: 'ปัดตกรีพอร์ต',
-      message: 'ตรวจแล้วไม่พบความผิด ต้องการปิดรีพอร์ตทั้งหมดของ "${widget.user.title}" โดยไม่แบนใช่หรือไม่?',
+      message:
+          'ตรวจแล้วไม่พบความผิด ต้องการปิดรีพอร์ตทั้งหมดของ "${widget.user.title}" โดยไม่แบนใช่หรือไม่?',
       confirmLabel: 'ปัดตก',
     );
-    if (ok) await _run(() => AdminService.instance.dismissReports(widget.user.id), 'ปัดตกรีพอร์ตแล้ว');
+    if (ok) {
+      await _run(() => AdminService.instance.dismissReports(widget.user.id),
+          'ปัดตกรีพอร์ตแล้ว');
+    }
   }
 
   Future<void> _ban({required bool permanent}) async {
     final result = await showDialog<_BanChoice>(
       context: context,
-      builder: (_) => _BanDialog(userTitle: widget.user.title, permanent: permanent),
+      builder: (_) =>
+          _BanDialog(userTitle: widget.user.title, permanent: permanent),
     );
     if (result == null) return;
     await _run(
-      () => AdminService.instance.ban(widget.user.id, days: result.days, note: result.note),
+      () => AdminService.instance
+          .ban(widget.user.id, days: result.days, note: result.note),
       'แบน "${widget.user.title}" แล้ว',
     );
   }
 
-  Future<bool> _confirm({required String title, required String message, required String confirmLabel}) async {
+  Future<bool> _confirm(
+      {required String title,
+      required String message,
+      required String confirmLabel}) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(title),
         content: Text(message),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(confirmLabel)),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('ยกเลิก')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(confirmLabel)),
         ],
       ),
     );
@@ -76,7 +89,8 @@ class _AdminUserReportsScreenState extends State<AdminUserReportsScreen> {
   void _openProfile() => Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => AdminUserProfileScreen(userId: widget.user.id, fallbackTitle: widget.user.title),
+          builder: (_) => AdminUserProfileScreen(
+              userId: widget.user.id, fallbackTitle: widget.user.title),
         ),
       );
 
@@ -87,44 +101,59 @@ class _AdminUserReportsScreenState extends State<AdminUserReportsScreen> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: Text(user.title,
-            style: const TextStyle(fontWeight: FontWeight.bold, color: adminOrange)),
+            style: const TextStyle(
+                fontWeight: FontWeight.w600, color: adminOrange)),
         backgroundColor: Colors.white,
-        elevation: 1,
+        elevation: 0,
         centerTitle: true,
         iconTheme: const IconThemeData(color: adminOrange),
       ),
-      body: LayoutBuilder(builder: (context, box) => Column(
-        children: [
-          ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: box.maxHeight * 0.4),
-            child: SingleChildScrollView(
-              child: ListTile(
-            key: const ValueKey('open-profile'),
-            onTap: _openProfile,
-            leading: PetAvatar(imageUrl: user.avatarUrl, radius: 28, icon: Icons.person),
-            title: Text(user.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text('@${user.username} · ${user.email}\nถูกรายงาน ${user.reportCount} คน'),
-            isThreeLine: true,
-            trailing: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('ดูโปรไฟล์', style: TextStyle(color: adminOrange)),
-                Icon(Icons.chevron_right, color: adminOrange),
-              ],
-            ),
-              ),
-            ),
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: AdminPagedList<UserReport>(
-              fetch: (page) => AdminService.instance.userReports(user.id, page: page),
-              emptyMessage: 'ไม่มีรีพอร์ตค้างแล้ว (อาจถูกตัดสินไปก่อนหน้านี้)',
-              itemBuilder: (context, report) => _ReportCard(report: report),
-            ),
-          ),
-        ],
-      )),
+      body: AppPageFrame(
+          maxWidth: AppLayout.dashboardWidth,
+          child: LayoutBuilder(
+              builder: (context, box) => Column(
+                    children: [
+                      ConstrainedBox(
+                        constraints:
+                            BoxConstraints(maxHeight: box.maxHeight * 0.4),
+                        child: SingleChildScrollView(
+                          child: ListTile(
+                            key: const ValueKey('open-profile'),
+                            onTap: _openProfile,
+                            leading: PetAvatar(
+                                imageUrl: user.avatarUrl,
+                                radius: 28,
+                                icon: Icons.person),
+                            title: Text(user.title,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600)),
+                            subtitle: Text(
+                                '@${user.username} · ${user.email}\nถูกรายงาน ${user.reportCount} คน'),
+                            isThreeLine: true,
+                            trailing: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text('ดูโปรไฟล์',
+                                    style: TextStyle(color: adminOrange)),
+                                Icon(Icons.chevron_right, color: adminOrange),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      Expanded(
+                        child: AdminPagedList<UserReport>(
+                          fetch: (page) => AdminService.instance
+                              .userReports(user.id, page: page),
+                          emptyMessage:
+                              'ไม่มีรีพอร์ตค้างแล้ว (อาจถูกตัดสินไปก่อนหน้านี้)',
+                          itemBuilder: (context, report) =>
+                              _ReportCard(report: report),
+                        ),
+                      ),
+                    ],
+                  ))),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -132,25 +161,38 @@ class _AdminUserReportsScreenState extends State<AdminUserReportsScreen> {
             children: [
               Expanded(
                 child: OutlinedButton(
-                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12)),
+                  style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 12)),
                   onPressed: _busy ? null : _dismiss,
-                  child: const FittedBox(fit: BoxFit.scaleDown, child: Text('ปัดตก')),
+                  child: const FittedBox(
+                      fit: BoxFit.scaleDown, child: Text('ปัดตก')),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: ElevatedButton(
                   onPressed: _busy ? null : () => _ban(permanent: false),
-                  style: ElevatedButton.styleFrom(backgroundColor: adminOrange, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12)),
-                  child: const FittedBox(fit: BoxFit.scaleDown, child: Text('แบนชั่วคราว')),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: adminOrange,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 12)),
+                  child: const FittedBox(
+                      fit: BoxFit.scaleDown, child: Text('แบนชั่วคราว')),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: ElevatedButton(
                   onPressed: _busy ? null : () => _ban(permanent: true),
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12)),
-                  child: const FittedBox(fit: BoxFit.scaleDown, child: Text('แบนถาวร')),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.danger,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 12)),
+                  child: const FittedBox(
+                      fit: BoxFit.scaleDown, child: Text('แบนถาวร')),
                 ),
               ),
             ],
@@ -169,7 +211,7 @@ class _ReportCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 1,
+      elevation: 0,
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -182,10 +224,12 @@ class _ReportCard extends StatelessWidget {
                 Chip(
                   label: Text(reportReasonLabel(report.reason)),
                   backgroundColor: Colors.redAccent.withValues(alpha: 0.12),
-                  labelStyle: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold),
+                  labelStyle: const TextStyle(
+                      color: AppColors.danger, fontWeight: FontWeight.w600),
                 ),
                 Text(formatDateTime(report.createdAt),
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                    style:
+                        TextStyle(color: Colors.grey.shade600, fontSize: 12)),
               ],
             ),
             _target(context),
@@ -214,7 +258,8 @@ class _ReportCard extends StatelessWidget {
                 '${pet == null ? '' : ' (${pet.statusLabel})'}'),
             if (pet != null && pet.description.isNotEmpty) ...[
               const SizedBox(height: 4),
-              Text(pet.description, style: TextStyle(color: Colors.grey.shade700, fontSize: 13)),
+              Text(pet.description,
+                  style: TextStyle(color: Colors.grey.shade700, fontSize: 13)),
             ],
             const SizedBox(height: 8),
             AdminPhotoStrip(photos: pet?.photos ?? const [], title: pet?.name),
@@ -233,8 +278,9 @@ class _ReportCard extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(12),
-                border: const Border(left: BorderSide(color: AppColors.danger, width: 4)),
+                borderRadius: BorderRadius.circular(AppRadius.control),
+                border: const Border(
+                    left: BorderSide(color: AppColors.danger, width: 4)),
               ),
               child: Text(report.messageBody ?? '(ข้อความนี้ถูกลบแล้ว)'),
             ),
@@ -282,42 +328,48 @@ class _BanDialogState extends State<_BanDialog> {
       title: Text(widget.permanent ? 'แบนถาวร' : 'แบนชั่วคราว'),
       content: SingleChildScrollView(
         child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('"${widget.userTitle}" จะถูกเตะออกจากทุกเครื่องและล็อกอินกลับเข้าแอปไม่ได้'
-              '${widget.permanent ? ' จนกว่าแอดมินจะปลดแบน' : ''}'),
-          if (!widget.permanent) ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: SegmentedButton<int>(
-                showSelectedIcon: false,
-                segments: [
-                  for (final d in _durations) ButtonSegment<int>(value: d, label: Text('$d วัน')),
-                ],
-                selected: {_days},
-                onSelectionChanged: (v) => setState(() => _days = v.first),
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+                '"${widget.userTitle}" จะถูกเตะออกจากทุกเครื่องและล็อกอินกลับเข้าแอปไม่ได้'
+                '${widget.permanent ? ' จนกว่าแอดมินจะปลดแบน' : ''}'),
+            if (!widget.permanent) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<int>(
+                  showSelectedIcon: false,
+                  segments: [
+                    for (final d in _durations)
+                      ButtonSegment<int>(value: d, label: Text('$d วัน')),
+                  ],
+                  selected: {_days},
+                  onSelectionChanged: (v) => setState(() => _days = v.first),
+                ),
               ),
+            ],
+            const SizedBox(height: 12),
+            TextField(
+              controller: _note,
+              maxLength: 200,
+              decoration:
+                  const InputDecoration(labelText: 'บันทึกเหตุผล (ไม่บังคับ)'),
             ),
           ],
-          const SizedBox(height: 12),
-          TextField(
-            controller: _note,
-            maxLength: 200,
-            decoration: const InputDecoration(labelText: 'บันทึกเหตุผล (ไม่บังคับ)'),
-          ),
-        ],
-      ),
+        ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('ยกเลิก')),
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('ยกเลิก')),
         TextButton(
           onPressed: () => Navigator.pop(
             context,
             _BanChoice(days: widget.permanent ? null : _days, note: _note.text),
           ),
-          child: Text('ยืนยันแบน', style: TextStyle(color: Colors.red.shade700)),
+          child:
+              Text('ยืนยันแบน', style: TextStyle(color: Colors.red.shade700)),
         ),
       ],
     );

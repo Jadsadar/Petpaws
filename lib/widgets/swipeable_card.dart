@@ -65,9 +65,7 @@ class SwipeableCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadius.card),
             color: Colors.white,
-            boxShadow: const [
-              BoxShadow(color: Colors.black12, blurRadius: 8, spreadRadius: 1)
-            ],
+            boxShadow: AppLayout.shadows,
           ),
           child: Stack(
             fit: StackFit.expand,
@@ -109,14 +107,15 @@ class SwipeableCard extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 32,
-                                    fontWeight: FontWeight.bold)),
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w600)),
                             const SizedBox(height: 8),
-                            Text('${petSpeciesLabel(dog)} • ${dog['breed'] ?? 'ไม่ระบุสายพันธุ์'}',
+                            Text(
+                                '${petSpeciesLabel(dog)} • ${dog['breed'] ?? 'ไม่ระบุสายพันธุ์'}',
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                    color: Colors.white70, fontSize: 18)),
+                                    color: Colors.white70, fontSize: 16)),
                             const SizedBox(height: 8),
                             Row(
                               children: [

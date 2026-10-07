@@ -219,12 +219,14 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
         appBar: AppBar(
           title: const Text('โปรไฟล์ของฉัน',
               style: TextStyle(
-                  fontWeight: FontWeight.bold, color: AppColors.textDark)),
+                  fontWeight: FontWeight.w600, color: AppColors.textDark)),
           backgroundColor: AppColors.appBar,
           elevation: 0,
           centerTitle: true,
         ),
-        body: const Center(child: PawLoader()),
+        body: const AppPageFrame(
+            maxWidth: AppLayout.formWidth,
+            child: Center(child: PawLoader())),
       );
     }
     return Scaffold(
@@ -232,7 +234,7 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
       appBar: AppBar(
         title: const Text('โปรไฟล์ของฉัน',
             style: TextStyle(
-                fontWeight: FontWeight.bold, color: AppColors.textDark)),
+                fontWeight: FontWeight.w600, color: AppColors.textDark)),
         backgroundColor: AppColors.appBar,
         elevation: 0,
         centerTitle: true,
@@ -268,7 +270,7 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
                               style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 10,
-                                  fontWeight: FontWeight.bold),
+                                  fontWeight: FontWeight.w600),
                             ),
                           ),
                         ),
@@ -286,236 +288,242 @@ class _ProfileScreenState extends State<ProfileScreen> with FieldErrors {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Stack(
-              alignment: Alignment.bottomRight,
+      body: AppPageFrame(
+          maxWidth: AppLayout.formWidth,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                PetAvatar(
-                  imageUrl: _profile['profileImageUrl'],
-                  radius: 60,
-                  icon: Icons.person,
-                ),
-                if (_isEditing)
-                  GestureDetector(
-                    onTap: _pickAndUploadImage,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                      child: const Icon(Icons.camera_alt,
-                          color: Colors.white, size: 20),
+                Stack(
+                  alignment: Alignment.bottomRight,
+                  children: [
+                    PetAvatar(
+                      imageUrl: _profile['profileImageUrl'],
+                      radius: 60,
+                      icon: Icons.person,
                     ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(_profile['name'] ?? '',
-                style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDark)),
-            Text(_profile['email'] ?? '',
-                style: const TextStyle(
-                    fontFamily: 'Sarabun',
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textDark)),
-            Chip(
-              avatar:
-                  const Icon(Icons.location_on, color: Colors.white, size: 16),
-              label: Text(_profile['province'] ?? '-',
-                  style: const TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.bold)),
-              backgroundColor: AppColors.primarySoft,
-              side: BorderSide.none,
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _isSaving
-                    ? null
-                    : (_isEditing ? saveProfileData : startEditing),
-                icon: _isSaving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: PawSpinner(color: Colors.white),
-                      )
-                    : Icon(_isEditing ? Icons.save : Icons.edit),
-                label: Text(_isEditing ? 'บันทึกข้อมูล' : 'แก้ไขข้อมูล',
+                    if (_isEditing)
+                      GestureDetector(
+                        onTap: _pickAndUploadImage,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                          child: const Icon(Icons.camera_alt,
+                              color: Colors.white, size: 20),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(_profile['name'] ?? '',
                     style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.onPrimary,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30)),
-                  elevation: 2,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textDark)),
+                Text(_profile['email'] ?? '',
+                    style: const TextStyle(
+                        fontFamily: 'Sarabun',
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textDark)),
+                Chip(
+                  avatar: const Icon(Icons.location_on,
+                      color: Colors.white, size: 16),
+                  label: Text(_profile['province'] ?? '-',
+                      style: const TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.w600)),
+                  backgroundColor: AppColors.primarySoft,
+                  side: BorderSide.none,
                 ),
-              ),
-            ),
-            InlineError(fieldError('submit')),
-
-            // ===== แบนเนอร์แชทรอการตอบกลับ =====
-            StreamBuilder<int>(
-              stream: ChatService.instance.unreadChatCountStream(),
-              builder: (context, snapshot) {
-                final totalUnread = snapshot.data ?? 0;
-                if (totalUnread == 0) return const SizedBox.shrink();
-                return Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: GestureDetector(
-                    onTap: _openInbox,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(AppRadius.card),
-                        border: Border.all(
-                            color: AppColors.primary.withOpacity(0.4),
-                            width: 1.5),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: const BoxDecoration(
-                              color: AppColors.primary,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.chat,
-                                color: Colors.white, size: 20),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'มีข้อความใหม่ $totalUnread ข้อความ',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                      color: AppColors.textDark),
-                                ),
-                                const Text(
-                                  'มีคนสนใจรับเลี้ยงสัตว์เลี้ยงของคุณ กดเพื่อดูแชท',
-                                  style: TextStyle(
-                                      fontSize: 12, color: Colors.black54),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Icon(Icons.chevron_right,
-                              color: AppColors.primary),
-                        ],
-                      ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isSaving
+                        ? null
+                        : (_isEditing ? saveProfileData : startEditing),
+                    icon: _isSaving
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: PawSpinner(color: Colors.white),
+                          )
+                        : Icon(_isEditing ? Icons.save : Icons.edit),
+                    label: Text(_isEditing ? 'บันทึกข้อมูล' : 'แก้ไขข้อมูล',
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.onPrimary,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(AppRadius.control)),
+                      elevation: 0,
                     ),
                   ),
-                );
-              },
-            ),
+                ),
+                InlineError(fieldError('submit')),
 
-            const SizedBox(height: 20),
-            SectionCard(
-              title: 'ไลฟ์สไตล์ / นิสัยของคุณ',
-              children: [
-                _lockedHint(
-                    TagSelector(
-                      selectedIds: selectedTraitIds,
-                      onToggle: toggleTrait,
+                // ===== แบนเนอร์แชทรอการตอบกลับ =====
+                StreamBuilder<int>(
+                  stream: ChatService.instance.unreadChatCountStream(),
+                  builder: (context, snapshot) {
+                    final totalUnread = snapshot.data ?? 0;
+                    if (totalUnread == 0) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: GestureDetector(
+                        onTap: _openInbox,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(AppRadius.card),
+                            border: Border.all(
+                                color: AppColors.primary.withValues(alpha: 0.4),
+                                width: 1.5),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: const BoxDecoration(
+                                  color: AppColors.primary,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.chat,
+                                    color: Colors.white, size: 20),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'มีข้อความใหม่ $totalUnread ข้อความ',
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 15,
+                                          color: AppColors.textDark),
+                                    ),
+                                    const Text(
+                                      'มีคนสนใจรับเลี้ยงสัตว์เลี้ยงของคุณ กดเพื่อดูแชท',
+                                      style: TextStyle(
+                                          fontSize: 12, color: Colors.black54),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.chevron_right,
+                                  color: AppColors.primary),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 20),
+                SectionCard(
+                  title: 'ไลฟ์สไตล์ / นิสัยของคุณ',
+                  children: [
+                    _lockedHint(
+                        TagSelector(
+                          selectedIds: selectedTraitIds,
+                          onToggle: toggleTrait,
+                          enabled: _isEditing,
+                          backgroundColor: AppColors.background,
+                        ),
+                        'traits'),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SectionCard(
+                  title: 'ข้อมูลการติดต่อ',
+                  children: [
+                    TextField(
+                      controller: phoneController,
                       enabled: _isEditing,
-                      backgroundColor: AppColors.background,
-                    ),
-                    'traits'),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SectionCard(
-              title: 'ข้อมูลการติดต่อ',
-              children: [
-                TextField(
-                  controller: phoneController,
-                  enabled: _isEditing,
-                  keyboardType: TextInputType.phone,
-                  decoration: InputDecoration(
-                      labelText: 'เบอร์โทรศัพท์',
-                      prefixIcon: const Icon(Icons.phone),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.card))),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: lineController,
-                  enabled: _isEditing,
-                  decoration: InputDecoration(
-                      labelText: 'LINE ID',
-                      prefixIcon: const Icon(Icons.chat_bubble_outline),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.card))),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: fbController,
-                  enabled: _isEditing,
-                  decoration: InputDecoration(
-                      labelText: 'ชื่อ Facebook',
-                      prefixIcon: const Icon(Icons.facebook),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.card))),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SectionCard(
-              title: 'ข้อมูลสถานที่',
-              children: [
-                ProvinceField(
-                  value: currentProvince,
-                  labelText: 'จังหวัดที่อยู่ปัจจุบัน',
-                  enabled: _isEditing,
-                  onChanged: (val) => setState(() => currentProvince = val),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SectionCard(
-              title: 'ข้อมูลเสริมคัดกรองผู้เลี้ยง',
-              children: [
-                IgnorePointer(
-                    ignoring: !_isEditing,
-                    child: DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      value: currentHomeType,
-                      disabledHint: Text(currentHomeType),
-                      // ตอนยังไม่กดแก้ไข ให้ดูเป็นช่องปิดแบบเดียวกับช่องอื่น (ขอบจาง)
+                      keyboardType: TextInputType.phone,
                       decoration: InputDecoration(
-                          labelText: 'ประเภทที่พักอาศัย',
-                          enabled: _isEditing),
-                      items: homeTypes
-                          .map(
-                              (h) => DropdownMenuItem(value: h, child: Text(h)))
-                          .toList(),
-                      onChanged: _isEditing
-                          ? (val) => setState(() => currentHomeType = val!)
-                          : null,
-                    )),
+                          labelText: 'เบอร์โทรศัพท์',
+                          prefixIcon: const Icon(Icons.phone),
+                          border: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.card))),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: lineController,
+                      enabled: _isEditing,
+                      decoration: InputDecoration(
+                          labelText: 'LINE ID',
+                          prefixIcon: const Icon(Icons.chat_bubble_outline),
+                          border: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.card))),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: fbController,
+                      enabled: _isEditing,
+                      decoration: InputDecoration(
+                          labelText: 'ชื่อ Facebook',
+                          prefixIcon: const Icon(Icons.facebook),
+                          border: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.card))),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SectionCard(
+                  title: 'ข้อมูลสถานที่',
+                  children: [
+                    ProvinceField(
+                      value: currentProvince,
+                      labelText: 'จังหวัดที่อยู่ปัจจุบัน',
+                      enabled: _isEditing,
+                      onChanged: (val) => setState(() => currentProvince = val),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SectionCard(
+                  title: 'ข้อมูลเสริมคัดกรองผู้เลี้ยง',
+                  children: [
+                    IgnorePointer(
+                        ignoring: !_isEditing,
+                        child: DropdownButtonFormField<String>(
+                          isExpanded: true,
+                          initialValue: currentHomeType,
+                          disabledHint: Text(currentHomeType),
+                          // ตอนยังไม่กดแก้ไข ให้ดูเป็นช่องปิดแบบเดียวกับช่องอื่น (ขอบจาง)
+                          decoration: InputDecoration(
+                              labelText: 'ประเภทที่พักอาศัย',
+                              enabled: _isEditing),
+                          items: homeTypes
+                              .map((h) =>
+                                  DropdownMenuItem(value: h, child: Text(h)))
+                              .toList(),
+                          onChanged: _isEditing
+                              ? (val) => setState(() => currentHomeType = val!)
+                              : null,
+                        )),
+                  ],
+                ),
               ],
             ),
-          ],
-        ),
-      ),
+          )),
     );
   }
 }

@@ -109,8 +109,15 @@ UPDATE users SET is_admin = true WHERE username = '...';
 | POST | `/admin/users/:id/unban` | ปลดแบน |
 | POST | `/admin/users/:id/dismiss-reports` | ยกรายงานค้าง (ตัดสินว่าไม่ผิด) |
 | GET | `/admin/banned-users` | คนที่แบนอยู่ตอนนี้ |
+| GET | `/admin/perf-stats` | จำนวนคำขอ/เวลาแต่ละ API (เรียงตามจำนวนครั้งมากสุด) + 15 SQL queries ที่ใช้เวลารวมมากสุดจาก `pg_stat_statements` |
+| GET | `/admin/cache-stats` | hit/miss รวมและแยกกลุ่ม พร้อมสถานะ Redis |
+| POST | `/admin/cache-stats/reset` | เริ่มนับ Cache hit/miss ใหม่ โดยไม่ลบข้อมูลที่ cache ไว้ |
 
 แบนหมดเวลาแล้วปลดเองอัตโนมัติ (ล็อกอินได้ ประกาศกลับมาใน deck) · แบนแอดมินด้วยกัน/แบนตัวเองไม่ได้ · access token ที่ออกไปก่อนแบนยังใช้ได้อีกไม่เกิน 15 นาที
+
+เปิด **Monitoring** จากไอคอนบนแดชบอร์ดแอดมินเพื่อดูแท็บ **API / SQL / Cache** (รีเฟรชทุก 15 วินาที): API แสดงจำนวนครั้ง เวลาเฉลี่ย/สูงสุด/รวม และคำขอที่ใช้เวลา ≥ 500 ms พร้อมเลือกเรียงตามจำนวนครั้งหรือเวลาได้ ส่วน Cache ย้ายมาครบทั้ง hit/miss, TTL, หน่วยความจำ Redis และปุ่มเริ่มนับใหม่
+
+ตัวนับ API เป็นยอดสะสม รวมทุก API instance ผ่าน Redis และไม่นับ Health check/คำขออ่านสถิติ Monitoring ถ้า Redis ใช้ไม่ได้จะแจ้งว่าตัวเลขนับจาก instance เดียวหรือรวมตัวนับสำรองบางส่วน SQL นับแยกจากคำขอ API เพราะคำขอหนึ่งอาจเรียกหลาย queries หรืออ่านจาก Cache; หาก `pg_stat_statements` ยังไม่พร้อม แท็บ API และ Cache ยังใช้งานได้
 
 ## เอกสารเพิ่มเติม
 

@@ -19,7 +19,10 @@ class ImageViewerScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(backgroundColor: Colors.black, foregroundColor: Colors.white, elevation: 0),
+      appBar: AppBar(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          elevation: 0),
       body: InteractiveViewer(
         maxScale: 5,
         child: Center(
@@ -30,9 +33,12 @@ class ImageViewerScreen extends StatelessWidget {
               fit: BoxFit.contain,
               placeholder: (_, __) => thumbnailUrl == null
                   ? const Center(child: PawLoader(color: Colors.white))
-                  : CachedNetworkImage(imageUrl: thumbnailUrl!, fit: BoxFit.contain),
-              errorWidget: (_, __, ___) =>
-                  const Icon(Icons.broken_image_outlined, color: Colors.white54, size: 64),
+                  : CachedNetworkImage(
+                      imageUrl: thumbnailUrl!, fit: BoxFit.contain),
+              errorWidget: (_, __, ___) => const Icon(
+                  Icons.broken_image_outlined,
+                  color: Colors.white54,
+                  size: 64),
             ),
           ),
         ),
@@ -52,7 +58,10 @@ class MemoryImageViewerScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(backgroundColor: Colors.black, foregroundColor: Colors.white, elevation: 0),
+      appBar: AppBar(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          elevation: 0),
       body: InteractiveViewer(
         maxScale: 5,
         child: Center(child: Image.memory(bytes, fit: BoxFit.contain)),
@@ -149,7 +158,8 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
   /// จอสัมผัสไม่มี hover: กดค้างที่ลำโพงเพื่อเปิด/ปิดแถบเสียงแทน
   bool _volumePinned = false;
 
-  bool get _showVolumeSlider => _volumeHovered || _volumeDragging || _volumePinned;
+  bool get _showVolumeSlider =>
+      _volumeHovered || _volumeDragging || _volumePinned;
 
   /// แถบล่าง: ลำโพงซ้าย, เวลาขวา — แถบเสียงแนวตั้งโผล่เหนือลำโพงเฉพาะตอนชี้เมาส์
   /// (ไม่บังวิดีโอตอนดูปกติ) แถวจัดชิดล่าง แถบที่โผล่จึงยืดขึ้นด้านบนโดยเวลาไม่ขยับ
@@ -186,9 +196,14 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
             duration: const Duration(milliseconds: 150),
             transitionBuilder: (child, animation) => FadeTransition(
               opacity: animation,
-              child: SizeTransition(sizeFactor: animation, alignment: Alignment.bottomCenter, child: child),
+              child: SizeTransition(
+                  sizeFactor: animation,
+                  alignment: Alignment.bottomCenter,
+                  child: child),
             ),
-            child: _showVolumeSlider ? _buildVolumeSlider() : const SizedBox(width: 48),
+            child: _showVolumeSlider
+                ? _buildVolumeSlider()
+                : const SizedBox(width: 48),
           ),
           // ไม่ใช้ IconButton เพราะ tooltip ของมันแย่ง "กดค้าง" บนจอสัมผัสไป —
           // tooltip ขึ้นเฉพาะตอนชี้เมาส์ (manual) ส่วนกดค้างใช้เปิด/ปิดแถบเสียง
@@ -199,7 +214,8 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
               button: true,
               child: InkResponse(
                 onTap: _toggleMute,
-                onLongPress: () => setState(() => _volumePinned = !_volumePinned),
+                onLongPress: () =>
+                    setState(() => _volumePinned = !_volumePinned),
                 radius: 24,
                 child: SizedBox(
                   width: 48,
@@ -221,7 +237,7 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
       height: 120,
       decoration: BoxDecoration(
         color: Colors.black54,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(AppRadius.control),
       ),
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: RotatedBox(
@@ -240,7 +256,8 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
             onChanged: _setVolume,
             onChangeStart: (_) => setState(() => _volumeDragging = true),
             onChangeEnd: (_) => setState(() => _volumeDragging = false),
-            semanticFormatterCallback: (value) => 'ระดับเสียง ${(value * 100).round()}%',
+            semanticFormatterCallback: (value) =>
+                'ระดับเสียง ${(value * 100).round()}%',
           ),
         ),
       ),
@@ -252,10 +269,14 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
     final v = _controller.value;
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(backgroundColor: Colors.black, foregroundColor: Colors.white, elevation: 0),
+      appBar: AppBar(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          elevation: 0),
       body: Center(
         child: _failed
-            ? const Text('เล่นวิดีโอไม่สำเร็จ', style: TextStyle(color: Colors.white70))
+            ? const Text('เล่นวิดีโอไม่สำเร็จ',
+                style: TextStyle(color: Colors.white70))
             : !v.isInitialized
                 ? Hero(
                     tag: widget.url,
@@ -263,7 +284,9 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
                       alignment: Alignment.center,
                       children: [
                         if (widget.thumbnailUrl != null)
-                          CachedNetworkImage(imageUrl: widget.thumbnailUrl!, fit: BoxFit.contain),
+                          CachedNetworkImage(
+                              imageUrl: widget.thumbnailUrl!,
+                              fit: BoxFit.contain),
                         const PawSpinner(color: Colors.white),
                       ],
                     ),
@@ -280,7 +303,8 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
                             const CircleAvatar(
                               radius: 32,
                               backgroundColor: Colors.black45,
-                              child: Icon(Icons.play_arrow, color: Colors.white, size: 44),
+                              child: Icon(Icons.play_arrow,
+                                  color: Colors.white, size: 44),
                             ),
                           Positioned(
                             left: 0,
@@ -293,7 +317,8 @@ class _VideoViewerScreenState extends State<VideoViewerScreen> {
                                 VideoProgressIndicator(
                                   _controller,
                                   allowScrubbing: true,
-                                  colors: const VideoProgressColors(playedColor: AppColors.primary),
+                                  colors: const VideoProgressColors(
+                                      playedColor: AppColors.primary),
                                 ),
                               ],
                             ),

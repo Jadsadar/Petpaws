@@ -86,8 +86,12 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
         content: Text(
             'แชท ${_selected.length} รายการที่เลือกจะหายจากรายการของคุณ (อีกฝ่ายยังเห็นอยู่)'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('ยกเลิก')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('ลบ')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('ยกเลิก')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('ลบ')),
         ],
       ),
     );
@@ -102,8 +106,9 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
     }
     if (!mounted) return;
     if (failed) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(duration: AppTheme.snackDuration, content: Text('ลบแชทบางรายการไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          duration: AppTheme.snackDuration,
+          content: Text('ลบแชทบางรายการไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')));
     }
     _exitSelecting();
   }
@@ -118,7 +123,9 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
     if (iso == null) return '';
     final date = DateTime.parse(iso).toLocal();
     final now = DateTime.now();
-    if (date.year == now.year && date.month == now.month && date.day == now.day) {
+    if (date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day) {
       return DateFormat.Hm().format(date);
     }
     return DateFormat('d MMM').format(date);
@@ -150,25 +157,31 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
         title: _selecting
             ? Text('เลือกแล้ว ${_selected.length} แชท',
                 style: const TextStyle(
-                    fontWeight: FontWeight.bold, color: AppColors.textDark, fontSize: 22))
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textDark,
+                    fontSize: 20))
             : Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text('กล่องข้อความ',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold, color: AppColors.textDark, fontSize: 22)),
-            ),
-            if (widget.dogName != null)
-              Text('สัตว์เลี้ยง: ${widget.dogName}',
-                  style: const TextStyle(
-                      fontSize: 12, color: AppColors.textMuted, shadows: [])),
-          ],
-        ),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('กล่องข้อความ',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textDark,
+                            fontSize: 20)),
+                  ),
+                  if (widget.dogName != null)
+                    Text('สัตว์เลี้ยง: ${widget.dogName}',
+                        style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textMuted,
+                            shadows: [])),
+                ],
+              ),
         backgroundColor: AppColors.appBar,
         iconTheme: const IconThemeData(color: AppColors.primary),
-        elevation: 1,
+        elevation: 0,
         actions: [
           if (_selecting)
             TextButton(
@@ -179,12 +192,12 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                   : 'เลือกทั้งหมด'),
             )
           else ...[
-          TextButton(
-            key: const ValueKey('inbox-select'),
-            onPressed: () => setState(() => _selecting = true),
-            child: const Text('เลือก'),
-          ),
-          if (canPop) _searchButton(),
+            TextButton(
+              key: const ValueKey('inbox-select'),
+              onPressed: () => setState(() => _selecting = true),
+              child: const Text('เลือก'),
+            ),
+            if (canPop) _searchButton(),
           ],
         ],
         bottom: _search == null
@@ -204,7 +217,8 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
                       filled: true,
                       fillColor: Colors.grey.shade100,
                       border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+                          borderRadius: BorderRadius.circular(AppRadius.card),
+                          borderSide: BorderSide.none),
                     ),
                     onChanged: (v) => setState(() => _search = v.trim()),
                   ),
@@ -227,139 +241,167 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
               ),
             )
           : null,
-      body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: _chatsStream,
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: PawLoader());
-          }
-          final all = snapshot.data!;
-          final chats = [for (final c in all) if (_matches(c, _search ?? '')) c];
-          _visibleIds = [for (final c in chats) c['id'] as String];
-          if (all.isNotEmpty && chats.isEmpty) {
-            return const Center(
-                child: Padding(
+      body: AppPageFrame(
+          maxWidth: AppLayout.contentWidth,
+          child: StreamBuilder<List<Map<String, dynamic>>>(
+            stream: _chatsStream,
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Center(child: PawLoader());
+              }
+              final all = snapshot.data!;
+              final chats = [
+                for (final c in all)
+                  if (_matches(c, _search ?? '')) c
+              ];
+              _visibleIds = [for (final c in chats) c['id'] as String];
+              if (all.isNotEmpty && chats.isEmpty) {
+                return const Center(
+                    child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 28),
+                        child: Text('ไม่พบแชทที่ค้นหา',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.grey))));
+              }
+              if (chats.isEmpty) {
+                return const CenteredScroll(
+                  child: Padding(
                     padding: EdgeInsets.symmetric(horizontal: 28),
-                    child: Text('ไม่พบแชทที่ค้นหา', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey))));
-          }
-          if (chats.isEmpty) {
-            return const CenteredScroll(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 28),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.chat_bubble_outline, size: 64, color: AppColors.mocha),
-                    SizedBox(height: 16),
-                    Text('ยังไม่มีคนทักมาเลย',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textDark)),
-                    SizedBox(height: 8),
-                    Text('แชร์โพสต์เพื่อให้คนรู้จักสัตว์เลี้ยงของคุณมากขึ้น',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 14, color: AppColors.brown)),
-                  ],
-                ),
-              ),
-            );
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.all(12),
-            itemCount: chats.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final chat = chats[index];
-              final otherName = chat['otherUserName'] as String? ?? 'ผู้สนใจรับเลี้ยง';
-              final chatDogName = chat['petName'] as String? ?? widget.dogName ?? '';
-              final lastMessage = chat['lastMessage'] as String? ?? '';
-              final unread = (chat['unreadCount'] as num?)?.toInt() ?? 0;
-              final isUnread = unread > 0;
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.chat_bubble_outline,
+                            size: 64, color: AppColors.mocha),
+                        SizedBox(height: 16),
+                        Text('ยังไม่มีคนทักมาเลย',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textDark)),
+                        SizedBox(height: 8),
+                        Text(
+                            'แชร์โพสต์เพื่อให้คนรู้จักสัตว์เลี้ยงของคุณมากขึ้น',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: 14, color: AppColors.brown)),
+                      ],
+                    ),
+                  ),
+                );
+              }
+              return ListView.separated(
+                padding: const EdgeInsets.all(12),
+                itemCount: chats.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  final chat = chats[index];
+                  final otherName =
+                      chat['otherUserName'] as String? ?? 'ผู้สนใจรับเลี้ยง';
+                  final chatDogName =
+                      chat['petName'] as String? ?? widget.dogName ?? '';
+                  final lastMessage = chat['lastMessage'] as String? ?? '';
+                  final unread = (chat['unreadCount'] as num?)?.toInt() ?? 0;
+                  final isUnread = unread > 0;
 
-              return Card(
-                clipBehavior: Clip.antiAlias,
-                elevation: 2,
-                shadowColor: Colors.black26,
-                child: ListTile(
-                key: ValueKey('chat-${chat['id']}'),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                leading: Stack(
-                  children: [
-                    PetAvatar(
-                      imageUrl: chat['petImageUrl'] as String?,
-                      radius: 28,
-                      icon: Icons.person,
-                    ),
-                    if (isUnread)
-                      const Positioned(
-                        right: 0,
-                        top: 0,
-                        child: CircleAvatar(radius: 6, backgroundColor: AppColors.primary),
+                  return Card(
+                    clipBehavior: Clip.antiAlias,
+                    elevation: 0,
+                    shadowColor: Colors.black26,
+                    child: ListTile(
+                      key: ValueKey('chat-${chat['id']}'),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      leading: Stack(
+                        children: [
+                          PetAvatar(
+                            imageUrl: chat['petImageUrl'] as String?,
+                            radius: 28,
+                            icon: Icons.person,
+                          ),
+                          if (isUnread)
+                            const Positioned(
+                              right: 0,
+                              top: 0,
+                              child: CircleAvatar(
+                                  radius: 6,
+                                  backgroundColor: AppColors.primary),
+                            ),
+                        ],
                       ),
-                  ],
-                ),
-                trailing: _selecting
-                    ? Checkbox(
-                        key: ValueKey('inbox-check-${chat['id']}'),
-                        value: _selected.contains(chat['id']),
-                        activeColor: AppColors.primary,
-                        onChanged: (_) => _toggleSelected(chat['id'] as String),
-                      )
-                    : null,
-                title: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(otherName,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontWeight: isUnread ? FontWeight.bold : FontWeight.normal,
-                              fontSize: 16)),
-                    ),
-                    Text(_formatTime(chat['lastMessageAt'] as String?),
+                      trailing: _selecting
+                          ? Checkbox(
+                              key: ValueKey('inbox-check-${chat['id']}'),
+                              value: _selected.contains(chat['id']),
+                              activeColor: AppColors.primary,
+                              onChanged: (_) =>
+                                  _toggleSelected(chat['id'] as String),
+                            )
+                          : null,
+                      title: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(otherName,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                    fontWeight: isUnread
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                    fontSize: 16)),
+                          ),
+                          Text(_formatTime(chat['lastMessageAt'] as String?),
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: isUnread
+                                      ? AppColors.textDark
+                                      : Colors.grey,
+                                  fontWeight: isUnread
+                                      ? FontWeight.w600
+                                      : FontWeight.normal)),
+                        ],
+                      ),
+                      subtitle: Text(
+                        widget.dogName == null
+                            ? 'สัตว์เลี้ยง: $chatDogName • ${lastMessage.isEmpty ? "เริ่มการสนทนาแล้ว" : lastMessage}'
+                            : (lastMessage.isEmpty
+                                ? 'เริ่มการสนทนาแล้ว'
+                                : lastMessage),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                            fontSize: 12,
-                            color: isUnread ? AppColors.textDark : Colors.grey,
-                            fontWeight: isUnread ? FontWeight.bold : FontWeight.normal)),
-                  ],
-                ),
-                subtitle: Text(
-                  widget.dogName == null
-                      ? 'สัตว์เลี้ยง: $chatDogName • ${lastMessage.isEmpty ? "เริ่มการสนทนาแล้ว" : lastMessage}'
-                      : (lastMessage.isEmpty ? 'เริ่มการสนทนาแล้ว' : lastMessage),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      color: isUnread ? AppColors.textDark : AppColors.textMuted,
-                      fontWeight: isUnread ? FontWeight.w500 : FontWeight.normal),
-                ),
-                onTap: () {
-                  if (_selecting) {
-                    _toggleSelected(chat['id'] as String);
-                    return;
-                  }
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ChatScreen(
-                        chatId: chat['id'] as String,
-                        petId: chat['petId'] as String,
-                        dogName: chatDogName,
-                        otherUserName: otherName,
-                        otherUserAvatar: chat['otherUserAvatarUrl'] as String? ?? '',
-                        otherUserId: chat['otherUserId'] as String? ?? '',
+                            color: isUnread
+                                ? AppColors.textDark
+                                : AppColors.textMuted,
+                            fontWeight:
+                                isUnread ? FontWeight.w500 : FontWeight.normal),
                       ),
+                      onTap: () {
+                        if (_selecting) {
+                          _toggleSelected(chat['id'] as String);
+                          return;
+                        }
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChatScreen(
+                              chatId: chat['id'] as String,
+                              petId: chat['petId'] as String,
+                              dogName: chatDogName,
+                              otherUserName: otherName,
+                              otherUserAvatar:
+                                  chat['otherUserAvatarUrl'] as String? ?? '',
+                              otherUserId: chat['otherUserId'] as String? ?? '',
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   );
                 },
-              ),
               );
             },
-          );
-        },
-      ),
+          )),
     );
   }
 }
