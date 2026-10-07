@@ -77,7 +77,7 @@ jobs:
         env:
           EXPECTED_SHA256: 0c370b65a986e77bbee89a5aa6b0bc1955d1b4bc4f8e74979e66bf31f75cbd2d
         run: |
-          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
           "$APKSIGNER" verify --verbose --print-certs build/app/outputs/flutter-apk/app-release.apk | tee /tmp/sig.txt
           actual=$(grep -i "certificate SHA-256 digest" /tmp/sig.txt | head -1 | awk '{print $NF}' | tr 'A-F' 'a-f')
           if [ "$actual" != "$EXPECTED_SHA256" ]; then
