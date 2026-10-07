@@ -779,8 +779,11 @@ class _ChatScreenState extends State<ChatScreen> {
     if (messagesStream == null) {
       // ยังไม่เคยส่งข้อความเลย ไม่มีห้องให้ poll — โชว์ช่องว่างเชิญชวนให้เริ่มคุย
       return Center(
-        child: Text('ทักทายเรื่องสัตว์เลี้ยง ${widget.dogName} กันเลย!',
-            style: const TextStyle(color: Colors.black38)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 28),
+          child: Text('ทักทายเรื่องสัตว์เลี้ยง ${widget.dogName} กันเลย!',
+              textAlign: TextAlign.center, style: const TextStyle(color: Colors.black38)),
+        ),
       );
     }
 
@@ -829,7 +832,10 @@ class _ChatScreenState extends State<ChatScreen> {
             if (query.isEmpty || '${m['text']}'.toLowerCase().contains(query)) m,
         ];
         if (messages.isEmpty && query.isNotEmpty) {
-          return const Center(child: Text('ไม่พบข้อความที่ค้นหา', style: TextStyle(color: Colors.black38)));
+          return const Center(
+              child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 28),
+                  child: Text('ไม่พบข้อความที่ค้นหา', textAlign: TextAlign.center, style: TextStyle(color: Colors.black38))));
         }
         // ข้อความจริงมาถึงทาง socket ก่อนคำตอบของ POST — ซ่อน bubble รอส่งตัวเดียวกันทันที
         // ไม่งั้นจะเห็นข้อความเดียวกันสองอันชั่วครู่
@@ -838,8 +844,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
         if (messages.isEmpty && pending.isEmpty) {
           return Center(
-            child: Text('ทักทายเรื่องสัตว์เลี้ยง ${widget.dogName} กันเลย!',
-                style: const TextStyle(color: Colors.black38)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 28),
+              child: Text('ทักทายเรื่องสัตว์เลี้ยง ${widget.dogName} กันเลย!',
+                  textAlign: TextAlign.center, style: const TextStyle(color: Colors.black38)),
+            ),
           );
         }
 

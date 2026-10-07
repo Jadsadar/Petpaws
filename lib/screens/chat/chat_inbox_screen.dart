@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../services/chat_service.dart';
+import '../../widgets/centered_scroll.dart';
 import '../../widgets/pet_avatar.dart';
 import 'chat_screen.dart';
 import '../../theme/app_theme.dart';
@@ -236,24 +237,32 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
           final chats = [for (final c in all) if (_matches(c, _search ?? '')) c];
           _visibleIds = [for (final c in chats) c['id'] as String];
           if (all.isNotEmpty && chats.isEmpty) {
-            return const Center(child: Text('ไม่พบแชทที่ค้นหา', style: TextStyle(color: Colors.grey)));
+            return const Center(
+                child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 28),
+                    child: Text('ไม่พบแชทที่ค้นหา', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey))));
           }
           if (chats.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.chat_bubble_outline, size: 64, color: AppColors.mocha),
-                  SizedBox(height: 16),
-                  Text('ยังไม่มีคนทักมาเลย',
-                      style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textDark)),
-                  SizedBox(height: 8),
-                  Text('แชร์โพสต์เพื่อให้คนรู้จักสัตว์เลี้ยงของคุณมากขึ้น',
-                      style: TextStyle(fontSize: 14, color: AppColors.brown)),
-                ],
+            return const CenteredScroll(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.chat_bubble_outline, size: 64, color: AppColors.mocha),
+                    SizedBox(height: 16),
+                    Text('ยังไม่มีคนทักมาเลย',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textDark)),
+                    SizedBox(height: 8),
+                    Text('แชร์โพสต์เพื่อให้คนรู้จักสัตว์เลี้ยงของคุณมากขึ้น',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 14, color: AppColors.brown)),
+                  ],
+                ),
               ),
             );
           }

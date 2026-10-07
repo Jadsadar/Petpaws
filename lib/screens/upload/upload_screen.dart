@@ -415,6 +415,7 @@ class _UploadScreenState extends State<UploadScreen> with FieldErrors {
                     padding: EdgeInsets.symmetric(vertical: 24),
                     child: Center(
                       child: Text('คุณยังไม่ได้ลงประกาศสัตว์เลี้ยง',
+                          textAlign: TextAlign.center,
                           style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w600,
