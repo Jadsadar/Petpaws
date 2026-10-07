@@ -32,6 +32,14 @@ describe('PetPaws API (e2e)', () => {
       .expect({ status: 'ok', db: 'connected' });
   });
 
+  it('GET /health/ready เหมือน /health (ขั้น deploy ใช้รอ API ตัวใหม่พร้อม)', () => {
+    return request(app.getHttpServer()).get('/health/ready').expect(200).expect({ status: 'ok', db: 'connected' });
+  });
+
+  it('GET /health/live ไม่ต้องล็อกอิน และไม่แตะ DB (load balancer ใช้)', () => {
+    return request(app.getHttpServer()).get('/health/live').expect(200).expect({ status: 'ok' });
+  });
+
   // JwtAuthGuard เป็น global guard: route ที่ไม่ได้ติด @Public() ต้องมี token เสมอ
   it('GET /users/me ไม่มี token -> 401', () => {
     return request(app.getHttpServer()).get('/users/me').expect(401);

@@ -159,7 +159,7 @@
         - name: Docker compose pull (image สำเร็จรูป เช่น postgres, redis, caddy)
           ansible.builtin.shell: |
             set -o pipefail
-            timeout 600 docker compose -f docker-compose.prod.yml --env-file .env pull --ignore-buildable 2>&1 | tee -a deploy.log
+            timeout 600 docker compose -f docker-compose.prod.yml --env-file .env pull --ignore-buildable --ignore-pull-failures 2>&1 | tee -a deploy.log
           args:
             chdir: "{{ deploy_dir }}"
             executable: /bin/bash
@@ -167,7 +167,7 @@
           poll: 10
           changed_when: true
 
-        - name: Docker compose build (image ของเราเอง คือ api และ worker)
+        - name: Docker compose build (image ของเราเอง ใช้ร่วมกันทั้ง api, api-2 และ worker)
           ansible.builtin.shell: |
             set -o pipefail
             timeout 900 docker compose -f docker-compose.prod.yml --env-file .env build 2>&1 | tee -a deploy.log
@@ -222,7 +222,27 @@
           register: migrate_out
           changed_when: "'รัน migration:' in migrate_out.stdout"
 
-        - name: Docker compose up
+        # rolling deploy: เปลี่ยน API ทีละตัว รอตัวใหม่พร้อม (/health เช็ก DB) แล้วค่อยเปลี่ยนตัวถัดไป
+        # ระหว่างนั้น Caddy ส่งงานให้ตัวที่ยังรันอยู่ (lb_try_duration) ผู้ใช้ไม่เห็นระบบดับ
+        # infra (DB/Redis/MinIO) ขึ้นก่อน และจะถูกสร้างใหม่เฉพาะตอน config เปลี่ยน
+        - name: เริ่ม/อัปเดต infra (postgres, redis, redis-cache, minio)
+          ansible.builtin.shell: |
+            set -o pipefail
+            timeout 300 docker compose -f docker-compose.prod.yml --env-file .env up -d postgres redis redis-cache minio 2>&1 | tee -a deploy.log
+          args:
+            chdir: "{{ deploy_dir }}"
+            executable: /bin/bash
+          async: 400
+          poll: 10
+          changed_when: true
+
+        - name: เปลี่ยน API ทีละตัว {{ item }}
+          ansible.builtin.include_tasks: deploy_api_instance.yml
+          loop:
+            - api
+            - api-2
+
+        - name: Docker compose up ที่เหลือ (worker, caddy ฯลฯ)
           ansible.builtin.shell: |
             set -o pipefail
             timeout 300 docker compose -f docker-compose.prod.yml --env-file .env up -d --remove-orphans 2>&1 | tee -a deploy.log
@@ -233,15 +253,6 @@
           poll: 10
           changed_when: true
 
-        - name: รอให้ API healthy (สูงสุด ~2.5 นาที)
-          ansible.builtin.command:
-            cmd: docker inspect --format '{% raw %}{{.State.Health.Status}}{% endraw %}' petpaws-api
-          register: api_health
-          until: api_health.stdout == 'healthy'
-          retries: 30
-          delay: 5
-          changed_when: false
-
       rescue:
         - name: ดึง log และสถานะเครื่องมาแสดง (เพื่อรู้ว่าล้มตรงไหน)
           ansible.builtin.shell: |
@@ -250,6 +261,7 @@
             echo "== docker compose ps =="; docker compose -f docker-compose.prod.yml --env-file .env ps 2>&1
             echo "== แรม / ดิสก์ =="; free -m; df -h / | tail -1
             echo "== log ของ api =="; docker logs --tail 30 petpaws-api 2>&1 || true
+            echo "== log ของ api-2 =="; docker logs --tail 30 petpaws-api-2 2>&1 || true
           args:
             chdir: "{{ deploy_dir }}"
             executable: /bin/bash

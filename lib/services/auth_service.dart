@@ -6,6 +6,7 @@ import '../shared/api_exception.dart';
 import '../shared/app_user.dart';
 import '../shared/token_storage.dart';
 import 'chat_socket.dart';
+import 'storage_service.dart';
 
 /// ห่อการเรียก auth API ไว้ที่เดียว — แทนที่ FirebaseAuth เดิมทั้งหมด
 /// รองรับล็อกอินด้วย username หรือ email (ตรงกับ POST /auth/login ที่รับ
@@ -180,13 +181,7 @@ class AuthService {
   Future<String> uploadProfileImage(Uint8List bytes, {String contentType = 'image/jpeg'}) async {
     if (_currentUser == null) throw AuthFailure('กรุณาเข้าสู่ระบบก่อน');
 
-    final uploadRes = await _api.uploadFile(
-      '/media/upload',
-      bytes: bytes,
-      filename: 'profile.${contentType.split('/').last}',
-      contentType: contentType,
-    ) as Map<String, dynamic>;
-    final url = uploadRes['url'] as String;
+    final url = await StorageService.instance.uploadImage(bytes, contentType: contentType, filename: 'profile');
 
     await _api.patch('/users/me', body: {'profileImageUrl': url});
     _currentUser = _currentUser!.copyWith(photoURL: url);

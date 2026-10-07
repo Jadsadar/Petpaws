@@ -55,3 +55,19 @@ describe('MediaService.keyFromUrl', () => {
     expect(media.keyFromUrl(url)).toBeNull();
   });
 });
+
+describe('MediaService.createImageUpload (รูปประกาศ/โปรไฟล์อัปตรงไป storage)', () => {
+  it('ออกใบอนุญาตใต้ uploads/ พร้อม URL สาธารณะที่ใช้บันทึกลงประกาศ/โปรไฟล์ได้ทันที', async () => {
+    const out = await media.createImageUpload('image/png');
+
+    expect(out.key).toMatch(/^uploads\/[0-9a-f-]{36}\.png$/);
+    expect(out.url).toBe(`http://localhost:9000/petpaws-media/${out.key}`);
+    // policy ผูกชนิดไฟล์กับ key ไว้ — แอปเปลี่ยนเองไม่ได้
+    expect(out.upload.fields).toMatchObject({ key: out.key, 'Content-Type': 'image/png' });
+    expect(out.maxBytes).toBe(8 * 1024 * 1024);
+  });
+
+  it('ชนิดไฟล์อื่นนอกจาก JPEG/PNG/WEBP ถูกปฏิเสธ', async () => {
+    await expect(media.createImageUpload('image/gif')).rejects.toMatchObject({ code: 'INVALID_FILE_TYPE' });
+  });
+});

@@ -39,8 +39,7 @@ const corsOrigin = process.env.CORS_ORIGIN;
  *   conversation:{id}  — เข้าเองด้วย 'join' หลังตรวจว่าเป็นคู่สนทนา
  *                         ได้รับ 'message', 'read', 'typing' ของห้องนั้น
  *
- * ยังไม่มี Redis adapter — ถูกต้องเฉพาะตอนมี API instance เดียว
- * ถ้าจะสเกลหลาย instance ต้องเพิ่ม @socket.io/redis-adapter ก่อน (ROADMAP 7.7)
+ * ใช้กับ API หลายตัวหลัง load balancer ได้ — event กระจายผ่าน Redis (ดู common/redis-io.adapter.ts)
  *
  * หมายเหตุ: JwtAuthGuard (APP_GUARD global) ข้าม context ที่ไม่ใช่ 'http' ไว้แล้ว
  * ไม่งั้น @SubscribeMessage ทุกตัวจะถูกปฏิเสธเงียบ ๆ (ดู common/jwt-auth.guard.ts)

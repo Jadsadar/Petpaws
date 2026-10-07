@@ -19,7 +19,19 @@
 		reverse_proxy petpaws-minio:9000
 	}
 
+	# API สองตัว (docker-compose.prod.yml: api, api-2) — Caddy เป็น load balancer
 	handle {
-		reverse_proxy petpaws-api:3000
+		reverse_proxy petpaws-api:3000 petpaws-api-2:3000 {
+			# ส่งให้ตัวที่มีงานค้างน้อยกว่า — WebSocket ถือการเชื่อมต่อค้างนาน แบ่งตามจำนวนจริงดีกว่าสลับกันไปทีละคำขอ
+			lb_policy least_conn
+			# ตัวหนึ่งกำลัง restart (deploy) ต่อไม่ติด = ลองอีกตัวภายใน 5 วิ ผู้ใช้ไม่เห็น error
+			lb_try_duration 5s
+			lb_try_interval 250ms
+			# เช็กทุก 5 วิ ตัวไหนไม่ตอบถอดออกจนกว่าจะกลับมา — /health/live ไม่แตะ DB
+			# (DB สะดุดแป๊บเดียวจะได้ไม่ถอด API ทุกตัวพร้อมกัน)
+			health_uri /health/live
+			health_interval 5s
+			health_timeout 2s
+		}
 	}
 }
