@@ -4,6 +4,7 @@ import '../../services/auth_service.dart';
 import 'register_screen.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/paw_loader.dart';
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -218,7 +219,33 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderSide: BorderSide.none),
                 ),
               ),
-              const SizedBox(height: 32),
+              // ลืมรหัสผ่าน: ชิดขวาใต้ช่องรหัสผ่าน (ตำแหน่งมาตรฐาน)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  key: const ValueKey('login-forgot-link'),
+                  onPressed: _isLoading
+                      ? null
+                      : () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ForgotPasswordScreen(
+                                initialEmail: identifierController.text.contains('@')
+                                    ? identifierController.text.trim()
+                                    : '',
+                              ),
+                            ),
+                          ),
+                  child: const Text('ลืมรหัสผ่าน?',
+                      style: TextStyle(
+                          fontSize: 15,
+                          color: AppColors.textDark,
+                          fontWeight: FontWeight.w600,
+                          decoration: TextDecoration.underline,
+                          decorationColor: AppColors.outline)),
+                ),
+              ),
+              const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
