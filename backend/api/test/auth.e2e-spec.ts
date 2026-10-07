@@ -17,6 +17,13 @@ const PASSWORD = 'Str0ng!Passw0rd#1';
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 const tokenFrom = (text: string) => /token=([A-Za-z0-9_-]+)/.exec(text)![1];
 const flush = () => new Promise((r) => setTimeout(r, 50));
+/**
+ * อีเมลยืนยันตอนสมัครส่งแบบไม่รอ (void) — รอจนเข้า outbox แทนการรอเวลาตายตัว
+ * (เครื่อง CI ช้ากว่า: เคยรอ 50ms แล้วอีเมลยังไม่มา เทสต์ล้มทั้งที่โค้ดถูก)
+ */
+const mailArrives = async (mail: MailService, n = 1) => {
+  for (let i = 0; i < 250 && mail.outbox.length < n; i++) await new Promise((r) => setTimeout(r, 20));
+};
 
 describe('auth (e2e กับ DB จริง)', () => {
   let app: INestApplication;
@@ -73,7 +80,7 @@ describe('auth (e2e กับ DB จริง)', () => {
     it('เปิดระบบอีเมล: ส่งอีเมลหนึ่งฉบับ มีลิงก์ถึง /auth/verify-email และ DB เก็บเฉพาะ hash ของ token', async () => {
       const { auth, mail } = service(true);
       const u = await register(auth);
-      await flush();
+      await mailArrives(mail);
 
       expect(mail.outbox).toHaveLength(1);
       const msg = mail.outbox[0];
@@ -126,7 +133,7 @@ describe('auth (e2e กับ DB จริง)', () => {
     it('ยืนยันแล้ว → ล็อกอินได้ ด้วยอีเมลตัวพิมพ์ต่างกันก็ได้ (citext) และบันทึกเวลาเข้าระบบ', async () => {
       const { auth, mail } = service(true);
       const u = await register(auth);
-      await flush();
+      await mailArrives(mail);
       expect(await auth.verifyEmail(tokenFrom(mail.outbox[0].text))).toBe('ok');
 
       const res = await auth.login({ identifier: u.email.toLowerCase(), password: PASSWORD });
@@ -152,7 +159,7 @@ describe('auth (e2e กับ DB จริง)', () => {
     const fresh = async () => {
       const { auth, mail } = service(true);
       const u = await register(auth);
-      await flush();
+      await mailArrives(mail);
       return { auth, mail, u, token: tokenFrom(mail.outbox[0].text) };
     };
 
@@ -200,7 +207,7 @@ describe('auth (e2e กับ DB จริง)', () => {
     it('ยังไม่ยืนยันและพ้นช่วงพัก → ส่งอีเมลใหม่ และลิงก์เก่าถูกยกเลิก', async () => {
       const { auth, mail } = service(true);
       const u = await register(auth);
-      await flush();
+      await mailArrives(mail);
       await pastCooldown(u.id);
 
       expect(await auth.resendVerification(u.username)).toEqual({ message: generic });
@@ -213,7 +220,7 @@ describe('auth (e2e กับ DB จริง)', () => {
     it('ค้นด้วยอีเมลได้ (มี @)', async () => {
       const { auth, mail } = service(true);
       const u = await register(auth);
-      await flush();
+      await mailArrives(mail);
       await pastCooldown(u.id);
 
       await auth.resendVerification(u.email.toUpperCase());
@@ -224,7 +231,7 @@ describe('auth (e2e กับ DB จริง)', () => {
     it('อยู่ในช่วงพัก 60 วินาที → ไม่ส่ง แต่ตอบข้อความเดิม', async () => {
       const { auth, mail } = service(true);
       const u = await register(auth);
-      await flush();
+      await mailArrives(mail);
 
       expect(await auth.resendVerification(u.username)).toEqual({ message: generic });
       expect(mail.outbox).toHaveLength(1);
@@ -233,7 +240,7 @@ describe('auth (e2e กับ DB จริง)', () => {
     it('ยืนยันแล้ว หรือไม่มีบัญชี → ไม่ส่ง และตอบเหมือนกัน (กันเดาว่ามีบัญชีไหม)', async () => {
       const { auth, mail } = service(true);
       const u = await register(auth);
-      await flush();
+      await mailArrives(mail);
       await auth.verifyEmail(tokenFrom(mail.outbox[0].text));
       await pastCooldown(u.id);
 
