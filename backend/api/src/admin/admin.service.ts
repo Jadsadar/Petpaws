@@ -6,6 +6,7 @@ import { RefreshToken, User } from '../database/entities/index.js';
 import type { BanUserDto } from './dto/ban-user.dto.js';
 import { toPage } from './dto/pagination.dto.js';
 import { CacheService } from '../cache/cache.service.js';
+import { AccountStatusService } from '../common/account-status.js';
 
 /**
  * รายงานค้างทุกฉบับ พร้อม "ผู้ใช้ที่ถูกรายงานจริง" — รายงานประกาศนับเข้าเจ้าของประกาศ
@@ -111,6 +112,7 @@ export class AdminService {
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly cache: CacheService,
+    private readonly accounts: AccountStatusService,
   ) {}
 
   private rows<T>(sql: string, params: unknown[] = []) {
@@ -388,6 +390,8 @@ export class AdminService {
       return banned!.suspendedUntil;
     });
 
+    // ให้ request ถัดไปของคนนี้ (บน API ตัวนี้) ถูกปฏิเสธทันที ไม่ต้องรอค่าที่ guard จำไว้หมดอายุ
+    this.accounts.forget(userId);
     await this.invalidateSummary();
     return { success: true, suspendedUntil };
   }
@@ -397,6 +401,7 @@ export class AdminService {
       .getRepository(User)
       .update({ id: userId, deletedAt: IsNull() }, { isSuspended: false, suspendedUntil: null });
     if (res.affected === 0) throw AppException.notFound('ไม่พบผู้ใช้นี้');
+    this.accounts.forget(userId);
     await this.invalidateSummary();
     return { success: true };
   }

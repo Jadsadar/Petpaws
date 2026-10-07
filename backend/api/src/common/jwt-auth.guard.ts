@@ -2,10 +2,8 @@ import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Reflector } from '@nestjs/core';
-import { InjectDataSource } from '@nestjs/typeorm';
-import { IsNull, type DataSource } from 'typeorm';
-import { User } from '../database/entities/index.js';
 import { AppException } from './app-exception.js';
+import { AccountStatusService } from './account-status.js';
 import { IS_PUBLIC_KEY } from './public.decorator.js';
 
 /**
@@ -19,7 +17,7 @@ export class JwtAuthGuard implements CanActivate {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly reflector: Reflector,
-    @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly accounts: AccountStatusService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -53,13 +51,17 @@ export class JwtAuthGuard implements CanActivate {
       throw AppException.unauthorized('token หมดอายุหรือไม่ถูกต้อง');
     }
 
-    // ลายเซ็นถูกไม่ได้แปลว่าบัญชียังอยู่ — บัญชีที่ถูกลบ (หรือ seed สร้างใหม่ด้วย id ใหม่)
-    // ยังถือ token ที่ verify ผ่านได้จนหมดอายุ แล้วทุกการเขียนจะพังด้วย FK error
-    // ตอบ 401 แทน แอปจะลอง refresh (ซึ่งล้มเพราะ refresh token ถูกลบตามบัญชี) แล้วพากลับหน้าล็อกอิน
-    // ค้นด้วย primary key อย่างเดียว เร็วพอจะทำทุก request
-    const exists = await this.dataSource.getRepository(User).exists({ where: { id: userId, deletedAt: IsNull() } });
-    if (!exists) {
+    // ลายเซ็นถูกไม่ได้แปลว่าบัญชียังใช้ได้ — บัญชีที่ถูกลบ (หรือ seed สร้างใหม่ด้วย id ใหม่) ยังถือ token
+    // ที่ verify ผ่านได้จนหมดอายุ แล้วทุกการเขียนจะพังด้วย FK error และบัญชีที่ถูกแบนเคยใช้งานต่อได้
+    // จน access token หมดอายุ (JWT_ACCESS_TTL) — ตอบ 401 ทั้งคู่ แอปจะลอง refresh (ซึ่งล้มเพราะ
+    // refresh token ถูกลบ/เพิกถอนไปแล้ว) แล้วพากลับหน้าล็อกอิน ซึ่งบอกเหตุผลการแบนให้เอง
+    // ผลจำไว้ 30 วินาที (AccountStatusService) ไม่ต้อง query users ทุก request
+    const status = await this.accounts.status(userId);
+    if (status === 'missing') {
       throw AppException.unauthorized('บัญชีนี้ไม่มีอยู่แล้ว กรุณาเข้าสู่ระบบใหม่');
+    }
+    if (status === 'suspended') {
+      throw AppException.unauthorized('บัญชีนี้ถูกระงับการใช้งาน');
     }
 
     request.user = { id: userId };
